@@ -1,0 +1,1327 @@
+{% extends "products/base.html" %}
+{% load static %}
+
+
+{% block home_url %}
+    {% if user.is_authenticated and user.groups.all.0.name == 'مدیر' %}{% url 'products:manager_dashboard' %}
+    {% elif user.is_authenticated and user.groups.all.0.name == 'انباردار' %}{% url 'products:warehouse_panel' %}
+    {% elif user.is_authenticated and user.groups.all.0.name == 'حسابداری' %}{% url 'products:accounting_panel' %}
+    {% else %}{% url 'products:manager_dashboard' %}
+    {% endif %}
+{% endblock %}
+
+{% block home_url_logo %}
+    {% if user.is_authenticated and user.groups.all.0.name == 'مدیر' %}{% url 'products:manager_dashboard' %}
+    {% elif user.is_authenticated and user.groups.all.0.name == 'انباردار' %}{% url 'products:warehouse_panel' %}
+    {% elif user.is_authenticated and user.groups.all.0.name == 'حسابداری' %}{% url 'products:accounting_panel' %}
+    {% else %}{% url 'products:manager_dashboard' %}
+    {% endif %}
+{% endblock %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<script src="https://unpkg.com/moment/min/moment.min.js"></script>
+<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
+<div class="container mt-4 manager-dashboard">
+    <h1 class="title">فاکتور فروش</h1>
+    <!-- Add a link to the sales invoice list at the top -->
+    <div class="mb-3">
+        <a href="{% url 'products:sales_invoice_list' %}" class="btn btn-secondary">لیست فاکتورهای فروش</a>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div id="customerModal" class="customer-modal">
+            <div class="customer-modal-content">
+                <div class="customer-modal-header">
+                    <span class="customer-modal-title">انتخاب مشتری</span>
+                    <span class="close-modal" onclick="closeCustomerModal()">×</span>
+                </div>
+                <input type="text" id="customerSearchInput" class="customer-search-box" placeholder="جستجوی مشتری بر اساس نام...">
+                <table class="customers-table">
+                    <thead>
+                        <tr>
+                            <th>نام</th>
+                            <th>نام خانوادگی</th>
+                            <th>فروشگاه</th>
+                            <th>موبایل</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTableBody">
+                        <!-- Customer rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card">
+            
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group col-md-3"> 
+                        <label for="selected-customer-display">نام طرف حساب</label>
+                        <div class="customer-input-group">
+                            <input type="text" id="selected-customer-display" class="form-control" 
+                                placeholder="مشتری را انتخاب کنید" 
+                                name="selected_customer_name" 
+                                readonly 
+                                onclick="openCustomerModal()">
+                            <input type="hidden" id="selected-customer-id" name="customer_id">
+                        </div>
+                    </div>
+                    <div class="form-group col-md-3">
+                        <label for="invoice-number">شماره فاکتور</label>
+                        <input type="text" class="form-control" id="invoice-number" name="invoice_number">
+                    </div>
+                    <div class="form-group col-md-3">
+                        <label for="invoice-date">تاریخ</label>
+                        <input type="text" class="form-control" id="invoice-date" name="invoice_date_shamsi" value="{{ today }}">
+                        <input type="hidden" id="invoice-date-alt" name="invoice_date">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card mt-4">
+            
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover text-center">
+                        <thead class="table-light">
+                            <tr>
+                                <th>کد کالا</th>
+                                <th>نام کالا</th>
+                                <th>تعداد</th>
+                                <th>قیمت</th>
+                                <th>درصد تخفیف</th>
+                                <th>درصد سود</th>
+                                <th>مبلغ کل</th>
+                                <th>توضیحات</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoice-items">
+                            <tr>
+                                <td><input type="text" class="form-control product-code" name="product_code"></td>
+                                <td><input type="text" class="form-control product-name" name="product_name" readonly></td>
+                                <td><input type="number" class="form-control quantity" name="quantity"></td>
+                                <td><input type="number" class="form-control price" name="price"></td>
+                                <td><input type="number" class="form-control discount" name="discount"></td>
+                                <td><input type="number" class="form-control profit-percentage" name="profit_percentage" min="0" max="100" required placeholder="درصد سود"></td>
+                                <td><input type="text" class="form-control total" name="total" readonly></td>
+                                <td><input type="text" class="form-control description" name="description"></td>
+                                <td>
+                                    <button type="button" class="btn btn-danger remove-row">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button type="button" class="btn btn-primary" id="add-row">
+                    <i class="fa-solid fa-plus"></i> 
+                </button>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem;">
+
+                    <form id="excel-import-form" enctype="multipart/form-data" method="post">
+                        {% csrf_token %}
+                        <label for="excel-file" class="btn" style="background-color: #21a366; color: #fff; border-radius: 12%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; cursor: pointer; box-shadow: 0 2px 8px #0001;">
+                            <i class="fa-solid fa-file-excel"></i>
+                        </label>
+                        <input type="file" id="excel-file" name="excel_file" accept=".xls,.xlsx" style="display:none;">
+                    </form>
+                
+                    <div style="min-width: 100px; background: #e43c26; border-radius: 10px; box-shadow: 0 2px 8px #0001; padding: 1rem; text-align: center; font-weight: bold; font-size: 1rem; border: 1px solid #000000; font-family: inherit;">
+                        جمع کل: <span id="invoice-total">0</span>
+                    </div>
+                
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-success mt-4" id="submit-invoice-btn">ثبت فاکتور</button>
+    </form>
+</div>
+<!-- Settlement Modal -->
+<div id="settlementModal" class="modal" style="display:none; position:fixed; z-index:2000; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4); align-items:center; justify-content:center;">
+  <div class="modal-content" style="background:#fff; border-radius:18px; max-width:420px; width:95vw; margin:auto; padding:2rem 1.5rem; box-shadow:0 8px 32px #0002; position:relative;">
+    <span class="close-modal" id="closeSettlementModal" style="position:absolute; left:1.5rem; top:1.2rem; font-size:2rem; color:#888; cursor:pointer;">&times;</span>
+    <h2 style="text-align:center; font-size:1.4rem; font-weight:700; margin-bottom:1.5rem;">  تسویه فاکتور</h2>
+    <div style="display:flex; flex-direction:column; gap:1rem;">
+      <div class="settle-row"><label>نقد:</label><input type="number" min="0" class="form-control settle-input" id="settle-cash" value="0"></div>
+      <div class="settle-row"><label>کارتخوان:</label><input type="number" min="0" class="form-control settle-input" id="settle-card" value="0"></div>
+      <div class="settle-row"><label>انتقال بانکی:</label><input type="number" min="0" class="form-control settle-input" id="settle-bank" value="0"></div>
+      <div class="settle-row"><label>چک:</label><input type="number" min="0" class="form-control settle-input" id="settle-cheque" value="0"></div>
+      <div class="settle-row"><label>مانده:</label><input type="number" min="0" class="form-control settle-input" id="settle-balance" value="0"></div>
+      <div class="settle-row"><label>تخفیف مازاد:</label><input type="number" min="0" class="form-control settle-input" id="settle-extra-discount" value="0"></div>
+    </div>
+    <div class="settle-info-box" style="background:#f7f7f7; border-radius:12px; box-shadow:0 2px 8px #0001; padding:1rem 0.5rem; margin:1.5rem 0 1rem 0; text-align:center; font-weight:600;">
+      <div style="margin-bottom:0.5rem;">مبلغ کل فاکتور: <span id="settle-invoice-total" style="color:#e43c26; font-size:1.1rem;"></span></div>
+      <div style="margin-bottom:0.5rem;">جمع مبالغ وارد شده: <span id="settle-sum" style="color:#21a366; font-size:1.1rem;">0</span></div>
+      <div style="font-size:1rem; color:#e43c26;">مبلغ باقی‌مانده: <span id="settle-remaining">0</span></div>
+    </div>
+    <button id="settle-confirm-btn" class="btn btn-success" style="width:100%; font-size:1.1rem;" disabled>تایید و ثبت نهایی فاکتور</button>
+  </div>
+</div>
+
+<style>
+    /* ------------------------------ */
+    /* --- Modal Styling --- */
+    /* ------------------------------ */
+    .customer-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    .customer-modal-content {
+        background-color: #fafafa;
+        margin: 5% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+        max-width: 800px;
+        border-radius: 15px;
+        position: relative;
+        direction: rtl;
+    }
+    .customer-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ddd;
+    }
+    .customer-modal-title {
+        font-size: 18px;
+        font-weight: bold;
+        color: #333;
+    }
+    .close-modal {
+        color: #aaa;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .close-modal:hover {
+        color: #000;
+    }
+    .customer-search-box {
+        width: 80%;
+        padding: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 14px;
+        margin-right: 20px;
+        float: right;
+    }
+    .customers-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .customers-table th,
+    .customers-table td {
+        padding: 12px;
+        text-align: right;
+        border-bottom: 1px solid #ddd;
+    }
+    .customers-table th {
+        background-color: #f5f5f5;
+        font-weight: bold;
+    }
+    .customers-table tr:hover {
+        background-color: #f9f9f9;
+        cursor: pointer;
+    }
+    .select-customer-btn {
+        background-color: #4CAF50;
+        color: white;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .customer-input-group {
+        display: flex;
+        align-items: center;
+        gap: 0;
+    }
+
+    /* ------------------------------ */
+    /* --- Global & Typography --- */
+    /* ------------------------------ */
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&display=swap');
+
+    :root {
+        --primary-color: #3b82f6;
+        --primary-dark-color: #1d4ed8;
+        --secondary-color: #6b7280;
+        --success-color: #16a34a;
+        --danger-color: #dc2626;
+        --light-gray-color: #f3f4f6;
+        --border-color: #e5e7eb;
+        --text-dark-color: #1f2937;
+        --text-light-color: #f9fafb;
+        --white-color: #ffffff;
+        --shadow-color: rgba(0, 0, 0, 0.1);
+        --font-family: 'Vazirmatn', sans-serif;
+    }
+
+    body {
+        background-color: var(--light-gray-color);
+        font-family: var(--font-family);
+        direction: rtl;
+        text-align: right;
+        color: var(--text-dark-color);
+    }
+
+    /* ------------------------------ */
+    /* --- Main Layout & Title --- */
+    /* ------------------------------ */
+    .manager-dashboard {
+        width: 100%;
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .title {
+        color: var(--text-dark-color);
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 2.5rem;
+        text-align: center;
+    }
+
+    /* ------------------------------ */
+    /* --- Card Styling --- */
+    /* ------------------------------ */
+    .card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
+        background-color: #ffffffa1;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    form > .card:first-of-type {
+        background: transparent;
+        box-shadow: none;
+        border: none;
+        margin-bottom: 2rem;
+    }
+    
+    form > .card:first-of-type .card-header {
+        display: none;
+    }
+
+    .form-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        padding: 0 10px;
+    }
+    
+    .form-row .form-group {
+        margin-bottom: 1rem;
+        box-sizing: border-box;
+    }
+
+    .form-row .form-group:nth-child(1),
+    .form-row .form-group:nth-child(2),
+    .form-row .form-group:nth-child(3) {
+        flex: 0 0 calc(10% - 20px);
+        max-width: calc(10% - 20px);
+        min-width: 150px;
+    }
+
+    .form-row .form-group:nth-child(2),
+    .form-row .form-group:nth-child(3) {
+        direction: ltr;
+    }
+
+    .card-header {
+        background: var(--white-color);
+        color: var(--text-dark-color);
+        font-size: 1.2rem;
+        font-weight: 600;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    /* ------------------------------ */
+    /* --- Form Elements --- */
+    /* ------------------------------ */
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: var(--secondary-color);
+    }
+
+    .form-control {
+    padding: 0.375rem 1rem;
+    line-height: 1.5;
+    font-size: 1rem;
+    height: 38px !important; /* اجبار به ارتفاع ثابت */
+    box-sizing: border-box;
+    font-family: var(--font-family);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 100%;
+    vertical-align: middle;
+}
+
+.form-control[readonly] {
+    background-color: var(--white-color);
+    cursor: pointer;
+    height: 38px !important;
+}
+
+#invoice-date {
+    padding: 0.375rem 1rem !important;
+    height: 38px !important;
+    line-height: 1.5 !important;
+}
+
+.customer-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 38px; /* اطمینان از ارتفاع یکسان برای container */
+}
+
+.customer-input-group .form-control {
+    height: 38px !important;
+    padding: 0.375rem 1rem;
+    flex: 1;
+}
+
+.form-row .form-group {
+    margin-bottom: 1rem;
+    box-sizing: border-box;
+}
+
+.form-row .form-group .form-control {
+    height: 38px !important;
+}
+
+/* بازنویسی استایل‌های persian-datepicker */
+.datepicker-plot-area input {
+    font-family: var(--font-family) !important;
+    font-size: 1rem !important;
+    padding: 0.375rem 1rem !important;
+    height: 38px !important;
+    line-height: 1.5 !important;
+    box-sizing: border-box !important;
+}
+
+    /* ------------------------------ */
+    /* --- Table Styling --- */
+    /* ------------------------------ */
+    .table-responsive {
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+    
+    .table {
+        margin-bottom: 0;
+        border-collapse: collapse;
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    .table thead th {
+        background-color: var(--light-gray-color);
+        color: var(--secondary-color);
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 1rem;
+        border-bottom: 2px solid var(--border-color);
+        vertical-align: middle;
+    }
+
+    .table thead th:nth-child(1) { width: 8%; }
+    .table thead th:nth-child(2) { width: 20%; }
+    .table thead th:nth-child(3) { width: 3%; }
+    .table thead th:nth-child(4) { width: 8%; }
+    .table thead th:nth-child(5) { width: 5%; }
+    .table thead th:nth-child(6) { width: 5%; }
+    .table thead th:nth-child(7) { width: 10%; }
+    .table thead th:nth-child(8) { width: 20%; }
+
+    .table tbody tr:nth-of-type(odd) {
+        background-color: var(--white-color);
+    }
+    .table tbody tr:nth-of-type(even) {
+        background-color: #f9fafb;
+    }
+    
+    .table tbody tr:hover {
+        background-color: #eff6ff;
+    }
+
+    .table td {
+        padding: 0.75rem 0.75rem;
+        vertical-align: middle;
+        border-top: 1px solid var(--border-color);
+        word-break: break-word;
+    }
+
+    .table td .form-control {
+        border-radius: 6px;
+        padding: 0.375rem 0.5rem;
+    }
+    
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    /* ------------------------------ */
+    /* --- Button Styling --- */
+    /* ------------------------------ */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        line-height: 1.5;
+        text-align: center;
+        vertical-align: middle;
+        cursor: pointer;
+        user-select: none;
+        border: 1px solid transparent;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        border-radius: 8px;
+        gap: 8px;
+        transition: all 0.2s ease-in-out;
+    }
+
+    #add-row {
+        background-color: var(--primary-color);
+        color: var(--white-color);
+        margin-top: 1rem;
+    }
+    #add-row:hover {
+        background-color: var(--primary-dark-color);
+    }
+
+    .remove-row {
+        background-color: transparent;
+        color: var(--danger-color);
+        border: 1px solid var(--danger-color);
+        padding: 0.5rem 1rem;
+        width: 100%;
+    }
+    .remove-row:hover {
+        background-color: var(--danger-color);
+        color: var(--white-color);
+    }
+
+    #submit-invoice-btn {
+        width: 100%;
+        max-width: 130px;
+        background-color: var(--success-color);
+        color: var(--white-color);
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        float: left;
+    }
+    #submit-invoice-btn:hover {
+        background-color: #15803d;
+    }
+
+    /* ------------------------------ */
+    /* --- Responsive Design --- */
+    /* ------------------------------ */
+    @media (max-width: 768px) {
+        .manager-dashboard {
+            padding: 1rem;
+        }
+        .title {
+            font-size: 1.8rem;
+            margin-bottom: 2rem;
+        }
+        .card-body {
+            padding: 1rem;
+        }
+        
+        .form-row .form-group,
+        .form-row .form-group:nth-child(1),
+        .form-row .form-group:nth-child(2),
+        .form-row .form-group:nth-child(3) {
+            flex: 0 0 100%;
+            max-width: 100%;
+            margin-right: 0;
+        }
+    }
+@font-face {
+    font-family: 'Vazirmatn Local';
+    src: url('/static/fonts/Vazir.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+.datepicker-plot-area {
+    font-family: 'Vazirmatn Local', sans-serif;
+    border-radius: 16px;
+    overflow: hidden;
+}
+.datepicker-plot-area .datepicker-navigator,
+.datepicker-plot-area .datepicker-days-name span,
+.datepicker-plot-area .datepicker-day-view span,
+.datepicker-plot-area .datepicker-month-view span,
+.datepicker-plot-area .datepicker-year-view span {
+    font-family: 'Vazirmatn Local', sans-serif;
+}
+#add-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0.75rem 1.5rem;
+}
+.remove-row {
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.remove-row i {
+    font-size: 1.1rem;
+}
+.datepicker-plot-area {
+    border-radius: 16px;
+    overflow: hidden;
+}
+.datepicker-plot-area .datepicker-navigator {
+    border-radius: 16px 16px 0 0;
+}
+.datepicker-plot-area .datepicker-day-view span {
+    border-radius: 10px;
+}
+.datepicker-plot-area .datepicker-month-view span,
+.datepicker-plot-area .datepicker-year-view span {
+    border-radius: 10px;
+}
+  .settle-row { display:flex; align-items:center; gap:1rem; justify-content:space-between; }
+  .settle-row label { min-width:90px; font-weight:500; color:#444; }
+  .settle-input { max-width:160px; text-align:left; direction:ltr; }
+  .modal-content input[type=number]::-webkit-inner-spin-button,
+  .modal-content input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .modal-content input[type=number] { -moz-appearance: textfield; }
+  .modal-content .btn-success[disabled], .modal-content .btn-secondary { background:#aaa !important; border-color:#aaa !important; cursor:not-allowed; }
+  .modal-content .btn-success:not([disabled]) { background:#16a34a !important; border-color:#16a34a !important; cursor:pointer; }
+  @media (max-width:600px) { .modal-content { padding:1rem 0.5rem; } }
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script>
+    function setInvoiceFieldsState() {
+        var customerSelected = document.getElementById('selected-customer-id').value.trim() !== '';
+        var invoiceNumberFilled = document.getElementById('invoice-number').value.trim() !== '';
+        var enable = customerSelected && invoiceNumberFilled;
+        // Disable/enable all lower fields
+        $("#invoice-items input, #add-row, .remove-row").prop('disabled', !enable);
+    }
+
+    // --- Calculate total for a row ---
+    function calculateRowTotal(row) {
+        var quantity = parseFloat(row.find('.quantity').val()) || 0;
+        var price = parseFloat(row.find('.price').val()) || 0;
+        var discount = parseFloat(row.find('.discount').val()) || 0;
+        var subtotal = quantity * price;
+        var discountAmount = subtotal * (discount / 100);
+        var total = subtotal - discountAmount;
+        row.find('.total').val(total ? total.toLocaleString('en-US', {maximumFractionDigits: 2}) : '');
+    }
+
+    // --- Attach calculation events to all rows ---
+    function attachCalculationEvents(row) {
+        row.find('.quantity, .price, .discount, .profit-percentage').on('input', function() {
+            calculateRowTotal(row);
+        });
+    }
+
+    $(document).ready(function() {
+        $("#invoice-date").pDatepicker({
+            format: 'YYYY/MM/DD',
+            initialValueType: 'persian',
+            autoClose: true,
+            persianDigit: true,
+            observer: true,
+            calendar: {
+                persian: {
+                    locale: 'fa'
+                }
+            },
+            onSelect: function(unix) {
+                var m = moment(unix);
+                var shamsiDate = m.format('jYYYY/jMM/jDD');
+                var gregorianDate = m.format('YYYY-MM-DD');
+                
+                console.log('Date selected:', {
+                    unix: unix,
+                    shamsi: shamsiDate,
+                    gregorian: gregorianDate
+                });
+                
+                // Update the input value with properly formatted shamsi date
+                $(this).val(shamsiDate);
+            },
+            toolbox: {
+                calendarSwitch: {
+                    enabled: false
+                }
+            },
+            initialValue: true,
+            altField: '#invoice-date-alt',
+            altFormat: 'YYYY-MM-DD'
+        });
+
+        // Attach calculation to initial row
+        attachCalculationEvents($('#invoice-items tr:first'));
+
+        $("#add-row").click(function() {
+            const newRow = $("#invoice-items tr:first").clone();
+            newRow.find('input').val('');
+            attachCalculationEvents(newRow);
+            $("#invoice-items").append(newRow);
+        });
+
+        $(document).on('click', '.remove-row', function() {
+            if ($("#invoice-items tr").length > 1) {
+                $(this).closest('tr').remove();
+            }
+        });
+
+        setInvoiceFieldsState();
+        $('#selected-customer-id, #invoice-number').on('input change', setInvoiceFieldsState);
+        // When a customer is selected via modal
+        window.selectCustomer = function(customerId, customerName) {
+            document.getElementById('selected-customer-id').value = customerId;
+            document.getElementById('selected-customer-display').value = customerName;
+            closeCustomerModal();
+            setInvoiceFieldsState();
+        };
+        // When invoice number changes
+        $('#invoice-number').on('input', setInvoiceFieldsState);
+
+        // --- Settlement Modal Logic ---
+        var invoiceTotal = 0;
+        function showSettlementModal(total) {
+            invoiceTotal = total;
+            $("#settle-invoice-total").text(total.toLocaleString('en-US'));
+            $("#settle-sum").text('0');
+            $("#settle-cash, #settle-card, #settle-bank, #settle-cheque, #settle-balance, #settle-extra-discount").val(0);
+            $("#settle-confirm-btn").prop('disabled', true);
+            $("#settlementModal").fadeIn(200);
+        }
+        function hideSettlementModal() {
+            $("#settlementModal").fadeOut(150);
+        }
+        $("#closeSettlementModal").on('click', hideSettlementModal);
+        $(document).on('click', function(e) {
+            if ($(e.target).is('#settlementModal')) hideSettlementModal();
+        });
+        // --- Confirm button color logic ---
+        function updateSettleSum() {
+            var sum = 0;
+            $(".settle-input").each(function() {
+                sum += parseInt($(this).val()) || 0;
+            });
+            $("#settle-sum").text(sum.toLocaleString('en-US'));
+            var remaining = invoiceTotal - sum;
+            $("#settle-remaining").text(remaining.toLocaleString('en-US'));
+            if (remaining === 0 && invoiceTotal > 0) {
+                $("#settle-confirm-btn").prop('disabled', false).addClass('btn-success').removeClass('btn-secondary');
+            } else {
+                $("#settle-confirm-btn").prop('disabled', true).removeClass('btn-success').addClass('btn-secondary');
+            }
+        }
+        $(".settle-input").on('input', updateSettleSum);
+        // --- Hijack only the main submit button ---
+        $("#submit-invoice-btn").on('click', function(e) {
+            e.preventDefault();
+
+            // Validate customer selection
+            var customerId = $('#selected-customer-id').val();
+            if (!customerId) {
+                alert('لطفاً طرف حساب را انتخاب کنید');
+                return;
+            }
+
+            // Validate invoice number
+            var invoiceNumber = $('#invoice-number').val();
+            if (!invoiceNumber) {
+                alert('لطفاً شماره فاکتور را وارد کنید');
+                return;
+            }
+
+            // Validate invoice date
+            var invoiceDate = $('#invoice-date').val();
+            if (!invoiceDate) {
+                alert('لطفاً تاریخ فاکتور را وارد کنید');
+                return;
+            }
+
+            // Check for duplicate product codes
+            var codes = [];
+            var duplicate = false;
+            $('#invoice-items tr').each(function() {
+                var code = $(this).find('.product-code').val().trim();
+                if (code) {
+                    if (codes.includes(code)) {
+                        duplicate = true;
+                        return false; // break loop
+                    }
+                    codes.push(code);
+                }
+            });
+            if (duplicate) {
+                alert('کد کالا تکراری وارد شده است. لطفاً ردیف‌های تکراری را حذف کنید.');
+                return;
+            }
+
+            // Calculate total
+            var total = 0;
+            var hasValidItems = false;
+            $('#invoice-items tr').each(function() {
+                var code = $(this).find('.product-code').val().trim();
+                var qty = parseInt($(this).find('.quantity').val()) || 0;
+                var rowTotal = $(this).find('.total').val().replace(/,/g, '');
+                
+                if (code && qty > 0) {
+                    hasValidItems = true;
+                }
+                total += parseFloat(rowTotal) || 0;
+            });
+
+            if (!hasValidItems) {
+                alert('لطفاً حداقل یک کالا با تعداد بیشتر از صفر به فاکتور اضافه کنید');
+                return;
+            }
+
+            if (total > 0) {
+                showSettlementModal(total);
+            } else {
+                alert('مجموع فاکتور نمی‌تواند صفر باشد');
+            }
+        });
+        // --- Final confirm ---
+        var invoiceFormSubmitting = false;
+        $("#settle-confirm-btn").on('click', function() {
+            if (invoiceFormSubmitting) return;
+            
+            console.log('Starting form submission...');
+            var form = $("form").first();
+            
+            // Validate customer selection
+            var customerId = $('#selected-customer-id').val();
+            if (!customerId) {
+                alert('لطفاً طرف حساب را انتخاب کنید');
+                invoiceFormSubmitting = false;
+                return;
+            }
+            
+            // Validate invoice number
+            var invoiceNumber = $('#invoice-number').val();
+            if (!invoiceNumber) {
+                alert('لطفاً شماره فاکتور را وارد کنید');
+                invoiceFormSubmitting = false;
+                return;
+            }
+            
+            // Validate invoice date
+            var invoiceDate = $('#invoice-date').val();
+            if (!invoiceDate) {
+                alert('لطفاً تاریخ فاکتور را وارد کنید');
+                invoiceFormSubmitting = false;
+                return;
+            }
+            
+            // Remove old settlement fields
+            form.find('input[name=settle_cash], input[name=settle_card], input[name=settle_bank], input[name=settle_cheque], input[name=settle_balance], input[name=settle_extra_discount]').remove();
+            
+            // Add new settlement fields
+            form.append('<input type="hidden" name="settle_cash" value="'+($("#settle-cash").val()||0)+'">');
+            form.append('<input type="hidden" name="settle_card" value="'+($("#settle-card").val()||0)+'">');
+            form.append('<input type="hidden" name="settle_bank" value="'+($("#settle-bank").val()||0)+'">');
+            form.append('<input type="hidden" name="settle_cheque" value="'+($("#settle-cheque").val()||0)+'">');
+            form.append('<input type="hidden" name="settle_balance" value="'+($("#settle-balance").val()||0)+'">');
+            form.append('<input type="hidden" name="settle_extra_discount" value="'+($("#settle-extra-discount").val()||0)+'">');
+            
+            hideSettlementModal();
+            invoiceFormSubmitting = true;
+            
+            // Log form data for debugging
+            console.log('Form Data:', {
+                customer_id: customerId,
+                invoice_number: invoiceNumber,
+                invoice_date: invoiceDate,
+                product_codes: $('input[name="product_code"]').map(function() { return $(this).val(); }).get()
+            });
+            
+            // Create FormData object
+            var formData = new FormData();
+            
+            // Add basic invoice data
+            formData.append('customer_id', $('#selected-customer-id').val());
+            formData.append('invoice_number', $('#invoice-number').val());
+            
+            // Convert Shamsi date to Gregorian
+            var shamsiDate = $('#invoice-date').val();
+            try {
+                if (!shamsiDate) {
+                    throw new Error('تاریخ وارد نشده است');
+                }
+                
+                // تبدیل اعداد فارسی به انگلیسی
+                shamsiDate = shamsiDate.replace(/[۰-۹]/g, function(d) {
+                    return String.fromCharCode(d.charCodeAt(0) - 1728);
+                });
+                
+                var dateParts = shamsiDate.split('/');
+                if (dateParts.length !== 3) {
+                    throw new Error('فرمت تاریخ نادرست است');
+                }
+                
+                var jy = parseInt(dateParts[0]);
+                var jm = parseInt(dateParts[1]);
+                var jd = parseInt(dateParts[2]);
+                
+                if (isNaN(jy) || isNaN(jm) || isNaN(jd)) {
+                    throw new Error('مقادیر تاریخ معتبر نیستند');
+                }
+                
+                // تبدیل تاریخ با moment-jalaali
+                var m = moment(`${jy}/${jm}/${jd}`, 'jYYYY/jM/jD');
+                if (!m.isValid()) {
+                    throw new Error('تاریخ معتبر نیست');
+                }
+                
+                var gregorianDate = m.format('YYYY-MM-DD');
+                console.log('Date conversion:', {
+                    input: shamsiDate,
+                    parts: { year: jy, month: jm, day: jd },
+                    result: gregorianDate,
+                    moment: m.format()
+                });
+                
+                formData.append('invoice_date', gregorianDate);
+            } catch (e) {
+                console.error('Error converting date:', e);
+                alert('خطا در تبدیل تاریخ: ' + e.message);
+                return;
+            }
+            
+            // Add settlement data
+            formData.append('settle_cash', $('#settle-cash').val() || 0);
+            formData.append('settle_card', $('#settle-card').val() || 0);
+            formData.append('settle_bank', $('#settle-bank').val() || 0);
+            formData.append('settle_cheque', $('#settle-cheque').val() || 0);
+            formData.append('settle_balance', $('#settle-balance').val() || 0);
+            formData.append('settle_extra_discount', $('#settle-extra-discount').val() || 0);
+            
+            // Collect and validate product data
+            var hasValidProducts = false;
+            $('#invoice-items tr').each(function() {
+                var row = $(this);
+                var code = row.find('.product-code').val().trim();
+                var quantity = parseInt(row.find('.quantity').val()) || 0;
+                
+                if (code && quantity > 0) {
+                    hasValidProducts = true;
+                    formData.append('product_code', code);
+                    formData.append('quantity', quantity);
+                    formData.append('price', row.find('.price').val() || 0);
+                    formData.append('discount', row.find('.discount').val() || 0);
+                    formData.append('profit_percentage', row.find('.profit-percentage').val() || 0);
+                    formData.append('total', row.find('.total').val().replace(/,/g, '') || 0);
+                    formData.append('description', row.find('.description').val() || '');
+                }
+            });
+            
+            if (!hasValidProducts) {
+                alert('لطفاً حداقل یک کالا با کد و تعداد معتبر به فاکتور اضافه کنید');
+                return;
+            }
+            
+            // Log form data for debugging
+            var formDataObj = {};
+            formData.forEach((value, key) => {
+                if (formDataObj[key]) {
+                    if (!Array.isArray(formDataObj[key])) {
+                        formDataObj[key] = [formDataObj[key]];
+                    }
+                    formDataObj[key].push(value);
+                } else {
+                    formDataObj[key] = value;
+                }
+            });
+            console.log('Form data being sent:', formDataObj);
+
+            console.log('Form data being sent:', formData);
+            
+            // AJAX submit with better error handling
+            $.ajax({
+                url: '{% url "products:sales_invoice_view" %}',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: { 
+                    'X-CSRFToken': form.find('input[name=csrfmiddlewaretoken]').val()
+                },
+                success: function(response) {
+                    console.log('Success response:', response);
+                    if (response.success && response.redirect_url) {
+                        window.location.href = response.redirect_url;
+                    } else {
+                        alert(response.message || 'خطا در ثبت فاکتور');
+                        invoiceFormSubmitting = false;
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.log('Error details:', {
+                        status: status,
+                        error: error,
+                        response: xhr.responseText
+                    });
+                    
+                    var errorMessage = 'خطا در ثبت فاکتور';
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        errorMessage = response.message || errorMessage;
+                    } catch(e) {
+                        console.log('Error parsing response:', e);
+                    }
+                    
+                    alert(errorMessage);
+                    invoiceFormSubmitting = false;
+                }
+            });
+        });
+    });
+
+    function openCustomerModal() {
+        document.getElementById('customerModal').style.display = 'block';
+        loadCustomers('');
+    }
+
+    function closeCustomerModal() {
+        document.getElementById('customerModal').style.display = 'none';
+    }
+
+    function selectCustomer(customerId, customerName) {
+        // Set the customer ID and name
+        var hiddenInput = document.getElementById('selected-customer-id');
+        var displayInput = document.getElementById('selected-customer-display');
+        
+        if (hiddenInput && displayInput) {
+            hiddenInput.value = customerId;
+            displayInput.value = customerName;
+            
+            // Log for debugging
+            console.log('Selected customer:', {
+                id: customerId,
+                name: customerName,
+                hiddenFieldValue: hiddenInput.value,
+                displayFieldValue: displayInput.value
+            });
+            
+            // Create or update a hidden input for customer_id if it doesn't exist
+            var customerIdInput = document.querySelector('input[name="customer_id"]');
+            if (!customerIdInput) {
+                customerIdInput = document.createElement('input');
+                customerIdInput.type = 'hidden';
+                customerIdInput.name = 'customer_id';
+                document.querySelector('form').appendChild(customerIdInput);
+            }
+            customerIdInput.value = customerId;
+            
+            // Trigger change event
+            $(hiddenInput).trigger('change');
+            
+            closeCustomerModal();
+        } else {
+            console.error('Customer input fields not found');
+            alert('خطا در انتخاب مشتری. لطفاً صفحه را رفرش کنید.');
+        }
+    }
+
+    function loadCustomers(query) {
+        $.ajax({
+            url: '{% url "products:search_customers" %}',
+            data: { q: query || '' },
+            method: 'GET',
+            success: function(data) {
+                const tbody = document.getElementById('customersTableBody');
+                tbody.innerHTML = '';
+                if (data.customers && Array.isArray(data.customers)) {
+                    data.customers.forEach(customer => {
+                        const tr = document.createElement('tr');
+                        // Escape special characters in customer name
+                        const escapedFirstName = (customer.first_name || '').replace(/'/g, "\\'");
+                        const escapedLastName = (customer.last_name || '').replace(/'/g, "\\'");
+                        const fullName = `${escapedFirstName} ${escapedLastName}`;
+                        
+                        tr.innerHTML = `
+                            <td>${customer.first_name || ''}</td>
+                            <td>${customer.last_name || ''}</td>
+                            <td>${customer.store_name || ''}</td>
+                            <td>${customer.mobile || ''}</td>
+                            <td>
+                                <button type="button" 
+                                    class="select-customer-btn" 
+                                    onclick="selectCustomer('${customer.id}', '${fullName}')">
+                                    انتخاب
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center">هیچ مشتری‌ای یافت نشد</td></tr>';
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading customers:', {xhr, status, error});
+                const tbody = document.getElementById('customersTableBody');
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">خطا در بارگذاری لیست مشتریان</td></tr>';
+            }
+        });
+    }
+
+    document.getElementById('customerSearchInput').addEventListener('input', function() {
+        loadCustomers(this.value);
+    });
+
+    $(document).on('keydown', '.product-code', function(e) {
+        if (e.keyCode === 13) { // Enter key
+            e.preventDefault();
+            var productCode = $(this).val();
+            var row = $(this).closest('tr');
+            if (!productCode) {
+                // If code is empty (possibly after duplicate), do nothing
+                return;
+            }
+            // Check for duplicate again (for safety)
+            var isDuplicate = false;
+            $('#invoice-items .product-code').each(function() {
+                if ($(this)[0] !== e.target && $(this).val().trim() === productCode.trim()) {
+                    isDuplicate = true;
+                    return false;
+                }
+            });
+            if (isDuplicate) {
+                alert('کد کالا تکراری است. لطفاً کد غیرتکراری وارد کنید.');
+                $(this).val('');
+                row.find('.product-name, .price, .quantity, .discount, .profit-percentage, .total').val('');
+                $(this).focus();
+                return;
+            }
+            // AJAX fetch as before
+            $.ajax({
+                url: "{% url 'products:get_product' %}",
+                data: { 'code': productCode },
+                dataType: 'json',
+                success: function(data) {
+                    if (data.success) {
+                        row.find('.product-name').val(data.product.name);
+                        row.find('.price').val(data.product.price);
+                        row.find('.quantity').focus();
+                    } else {
+                        row.find('.product-name').val('');
+                        row.find('.price').val('');
+                        alert('کالا یافت نشد');
+                    }
+                },
+                error: function(xhr) {
+                    if (xhr.status === 404) {
+                        row.find('.product-name').val('');
+                        row.find('.price').val('');
+                        alert('کالا یافت نشد');
+                    } else {
+                        alert('خطا در ارتباط با سرور');
+                    }
+                }
+            });
+        }
+    });
+
+    $(document).on('change', '.product-code', function() {
+        var enteredCode = $(this).val().trim();
+        if (!enteredCode) return;
+        var isDuplicate = false;
+        var currentRow = $(this).closest('tr');
+        $('#invoice-items .product-code').each(function() {
+            if ($(this).closest('tr')[0] !== currentRow[0] && $(this).val().trim() === enteredCode) {
+                isDuplicate = true;
+                return false; // break
+            }
+        });
+        if (isDuplicate) {
+            alert('کد کالا تکراری است. لطفاً کد غیرتکراری وارد کنید.');
+            $(this).val('');
+            // Clear all fields in this row
+            currentRow.find('.product-name, .price, .quantity, .discount, .profit-percentage, .total').val('');
+            $(this).focus();
+        }
+    });
+
+    // Enter navigation for quantity, price, discount, description
+    $(document).on('keydown', '.quantity', function(e) {
+        if (e.keyCode === 13) {
+            e.preventDefault();
+            $(this).closest('tr').find('.price').focus();
+        }
+    });
+    $(document).on('keydown', '.price', function(e) {
+        if (e.keyCode === 13) {
+            e.preventDefault();
+            $(this).closest('tr').find('.discount').focus();
+        }
+    });
+    $(document).on('keydown', '.discount', function(e) {
+        if (e.keyCode === 13) {
+            e.preventDefault();
+            $(this).closest('tr').find('.profit-percentage').focus();
+        }
+    });
+    $(document).on('keydown', '.profit-percentage', function(e) {
+        if (e.keyCode === 13) {
+            e.preventDefault();
+            $(this).closest('tr').find('.description').focus();
+        }
+    });
+    $(document).on('keydown', '.description', function(e) {
+        if (e.keyCode === 13) {
+            e.preventDefault();
+            // Trigger add row and focus new row's product code
+            $('#add-row').click();
+            setTimeout(function() {
+                $('#invoice-items tr:last .product-code').focus();
+            }, 100);
+        }
+    });
+
+    // --- Update total invoice amount ---
+    function updateInvoiceTotal() {
+        var total = 0;
+        $('#invoice-items tr').each(function() {
+            var rowTotal = $(this).find('.total').val().replace(/,/g, '');
+            total += parseFloat(rowTotal) || 0;
+        });
+        $('#invoice-total').text(total.toLocaleString('en-US', {maximumFractionDigits: 2}));
+    }
+    // Recalculate invoice total whenever a row total changes
+    $(document).on('input', '.quantity, .price, .discount', function() {
+        updateInvoiceTotal();
+    });
+    // Also update after adding/removing rows
+    $('#add-row').on('click', function() {
+        setTimeout(updateInvoiceTotal, 100);
+    });
+    $(document).on('click', '.remove-row', function() {
+        setTimeout(updateInvoiceTotal, 100);
+    });
+    // Initial calculation
+    $(document).ready(function() {
+        updateInvoiceTotal();
+    });
+    // Excel import button
+    $('#excel-file').on('change', function() {
+        var fileInput = this;
+        if (!fileInput.files.length) return;
+        var formData = new FormData();
+        formData.append('excel_file', fileInput.files[0]);
+        $.ajax({
+            url: '/api/parse-invoice-excel/',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    var items = response.items;
+                    // Check for duplicate codes in Excel import
+                    var codes = [];
+                    var duplicate = false;
+                    for (var i = 0; i < items.length; i++) {
+                        if (codes.includes(items[i].product_code)) {
+                            duplicate = true;
+                            break;
+                        }
+                        codes.push(items[i].product_code);
+                    }
+                    if (duplicate) {
+                        alert('در فایل اکسل کد کالا تکراری وجود دارد. لطفاً فایل را اصلاح کنید.');
+                        return;
+                    }
+                    // Remove all rows except the first
+                    $('#invoice-items tr:gt(0)').remove();
+                    var $firstRow = $('#invoice-items tr:first');
+                    function fillRow(row, item) {
+                        $(row).find('.product-code').val(item.product_code);
+                        $(row).find('.quantity').val(item.quantity);
+                        $(row).find('.price').val(item.price);
+                        $(row).find('.profit-percentage').val(item.profit_percentage);
+                        $(row).find('.discount').val(item.discount);
+                        // Fetch product name by code
+                        $.get('/api/get-product/', {code: item.product_code}, function(data) {
+                            if (data.success) {
+                                $(row).find('.product-name').val(data.product.name);
+                                if (!item.price || item.price === 0) {
+                                    $(row).find('.price').val(data.product.price);
+                                }
+                            } else {
+                                $(row).find('.product-name').val('یافت نشد');
+                            }
+                            // بعد از مقداردهی قیمت و نام، جمع کل را محاسبه کن
+                            calculateRowTotal($(row));
+                            updateInvoiceTotal();
+                        });
+                        // رویدادهای محاسبه را به ردیف جدید وصل کن
+                        attachCalculationEvents($(row));
+                    }
+                    if (items.length > 0) {
+                        fillRow($firstRow, items[0]);
+                        for (var i = 1; i < items.length; i++) {
+                            var $newRow = $firstRow.clone();
+                            $newRow.find('input').val('');
+                            fillRow($newRow, items[i]);
+                            $('#invoice-items').append($newRow);
+                        }
+                    }
+                } else {
+                    alert(response.message || 'خطا در خواندن فایل اکسل');
+                }
+            },
+            error: function(xhr) {
+                alert('خطا در ارسال فایل اکسل: ' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : xhr.statusText));
+            }
+        });
+    });
+</script>
+{% endblock %}

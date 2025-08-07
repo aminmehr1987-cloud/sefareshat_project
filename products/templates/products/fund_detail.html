@@ -1,0 +1,534 @@
+{% extends "products/base.html" %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}جزئیات صندوق - {{ fund.name }}{% endblock %}
+
+{% block content %}
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.fund-detail-container {
+    width: 99%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.page-title i {
+    color: #3b82f6;
+}
+
+.back-btn {
+    background: linear-gradient(135deg, #6c757d, #495057);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.back-btn:hover {
+    background: linear-gradient(135deg, #545b62, #343a40);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+    color: white;
+    text-decoration: none;
+}
+
+.fund-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.fund-info-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.fund-info-card h3 {
+    color: #2c3e50;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.fund-info-card h3 i {
+    color: #3b82f6;
+}
+
+.fund-detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.fund-detail-row:last-child {
+    border-bottom: none;
+}
+
+.fund-detail-label {
+    color: #6c757d;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.fund-detail-value {
+    color: #2c3e50;
+    font-weight: 500;
+    text-align: left;
+}
+
+.fund-balance-display {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.balance-amount {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.balance-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.fund-type-badge {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.fund-type-cash {
+    background: #d4edda;
+    color: #155724;
+}
+
+.fund-type-bank {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.fund-type-petty-cash {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.operations-section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    margin-bottom: 2rem;
+}
+
+.operations-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.operations-title {
+    color: #2c3e50;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.operations-title i {
+    color: #3b82f6;
+}
+
+.operations-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+.operations-table th,
+.operations-table td {
+    padding: 0.75rem;
+    text-align: right;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.operations-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+}
+
+.operations-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+.operation-type-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.operation-type-receive {
+    background: #d4edda;
+    color: #155724;
+}
+
+.operation-type-pay {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.operation-amount {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.operation-amount.positive {
+    color: #28a745;
+}
+
+.operation-amount.negative {
+    color: #dc3545;
+}
+
+.balance-history-section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.balance-history-title {
+    color: #2c3e50;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.balance-history-title i {
+    color: #3b82f6;
+}
+
+.balance-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.balance-history-item:last-child {
+    border-bottom: none;
+}
+
+.balance-history-date {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.balance-history-amount {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.balance-history-amount.positive {
+    color: #28a745;
+}
+
+.balance-history-amount.negative {
+    color: #dc3545;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #dee2e6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .fund-detail-container {
+        padding: 1rem;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .fund-info-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .operations-table {
+        font-size: 0.9rem;
+    }
+    
+    .operations-table th,
+    .operations-table td {
+        padding: 0.5rem;
+    }
+}
+</style>
+
+<div class="fund-detail-container">
+    <!-- نمایش پیام‌های سیستم -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="bi bi-wallet2"></i>
+            جزئیات صندوق
+        </h1>
+        <div class="d-flex gap-2">
+            
+            <a href="{% url 'products:fund_list' %}" class="back-btn">
+                <i class="bi bi-arrow-right"></i>
+                بازگشت به لیست
+            </a>
+        </div>
+    </div>
+    
+    <!-- نمایش موجودی فعلی -->
+    <div class="fund-balance-display">
+        <div class="balance-amount">{{ current_balance|floatformat:0 }} ریال</div>
+        <div class="balance-label">موجودی فعلی صندوق {{ fund.name }}</div>
+    </div>
+    
+
+    
+    <!-- آمار کلی و اطلاعات صندوق -->
+    <div class="fund-info-grid">
+        <div class="fund-info-card">
+            <h3><i class="bi bi-graph-up"></i> آمار کلی</h3>
+            
+            <div class="fund-detail-row">
+                <span class="fund-detail-label">مجموع ورودی:</span>
+                <span class="fund-detail-value positive">{{ total_in|floatformat:0 }} ریال</span>
+            </div>
+            
+            <div class="fund-detail-row">
+                <span class="fund-detail-label">مجموع خروجی:</span>
+                <span class="fund-detail-value negative">{{ total_out|floatformat:0 }} ریال</span>
+            </div>
+            
+            <div class="fund-detail-row">
+                <span class="fund-detail-label">موجودی فعلی:</span>
+                <span class="fund-detail-value">{{ current_balance|floatformat:0 }} ریال</span>
+            </div>
+            
+            <div class="fund-detail-row">
+                <span class="fund-detail-label">موجودی اولیه:</span>
+                <span class="fund-detail-value">{{ fund.initial_balance|floatformat:0 }} ریال</span>
+            </div>
+        </div>
+        
+        <div class="fund-info-card">
+            <h3><i class="bi bi-info-circle"></i> اطلاعات صندوق</h3>
+            
+            <div class="fund-detail-row">
+                <span class="fund-detail-label">نام صندوق:</span>
+                <span class="fund-detail-value">{{ fund.name }}</span>
+            </div>
+            
+            <div class="fund-detail-row">
+                <span class="fund-detail-label">نوع صندوق:</span>
+                <span class="fund-detail-value">
+                    <span class="fund-type-badge fund-type-{{ fund.fund_type|lower }}">
+                        {% if fund.fund_type == 'CASH' %}
+                            نقدی
+                        {% elif fund.fund_type == 'BANK' %}
+                            بانکی
+                        {% elif fund.fund_type == 'PETTY_CASH' %}
+                            تنخواه
+                        {% endif %}
+                    </span>
+                </span>
+            </div>
+            
+            {% if fund.bank_name %}
+                <div class="fund-detail-row">
+                    <span class="fund-detail-label">نام بانک:</span>
+                    <span class="fund-detail-value">{{ fund.bank_name }}</span>
+                </div>
+            {% endif %}
+            
+            {% if fund.account_number %}
+                <div class="fund-detail-row">
+                    <span class="fund-detail-label">شماره حساب:</span>
+                    <span class="fund-detail-value">{{ fund.account_number }}</span>
+                </div>
+            {% endif %}
+            
+            {% if fund.sheba_number %}
+                <div class="fund-detail-row">
+                    <span class="fund-detail-label">شماره شبا:</span>
+                    <span class="fund-detail-value">{{ fund.sheba_number }}</span>
+                </div>
+            {% endif %}
+            
+            {% if fund.description %}
+                <div class="fund-detail-row">
+                    <span class="fund-detail-label">توضیحات:</span>
+                    <span class="fund-detail-value">{{ fund.description }}</span>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- عملیات مرتبط -->
+    <div class="operations-section">
+        <div class="operations-header">
+            <h3 class="operations-title">
+                <i class="bi bi-list-ul"></i>
+                گردش عملیات
+            </h3>
+        </div>
+        
+        {% if operations %}
+            <table class="operations-table">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th>نوع عملیات</th>
+                        <th>مبلغ</th>
+                        <th>وضعیت</th>
+                        <th>توضیحات</th>
+                        <th>مانده پس از عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for op in operations %}
+                        <tr>
+                            <td>{{ op.date|jalali_date }}</td>
+                            <td>
+                                <span class="operation-type-badge {% if op.operation_type == 'ADD' or 'RECEIVE' in op.operation_type %}operation-type-receive{% else %}operation-type-pay{% endif %}">
+                                    {% if op.type == 'petty_cash' %}
+                                        {% if op.operation_display %}
+                                            {{ op.operation_display }}
+                                        {% else %}
+                                            {% if op.operation_type == 'ADD' %}
+                                                {% if op.is_from_cash_fund %}
+                                                    انتقال به حساب تنخواه
+                                                {% else %}
+                                                    افزودن به تنخواه
+                                                {% endif %}
+                                            {% elif op.operation_type == 'WITHDRAW' %}
+                                                برداشت از تنخواه
+                                            {% endif %}
+                                        {% endif %}
+                                    {% else %}
+                                        {{ op.operation.get_operation_type_display }}
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td class="operation-amount {% if op.operation_type == 'ADD' or 'RECEIVE' in op.operation_type %}positive{% else %}negative{% endif %}">
+                                {{ op.amount|floatformat:0 }} ریال
+                            </td>
+                            <td>
+                                <span class="badge {% if op.status == 'CONFIRMED' %}bg-success{% elif op.status == 'PENDING' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                    {% if op.status == 'CONFIRMED' %}
+                                        تایید شده
+                                    {% elif op.status == 'PENDING' %}
+                                        در انتظار
+                                    {% else %}
+                                        نامشخص
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>{{ op.description|default:"-" }}</td>
+                            <td class="operation-amount {% if op.running_balance >= 0 %}positive{% else %}negative{% endif %}">
+                                {{ op.running_balance|floatformat:0 }} ریال
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state">
+                <i class="bi bi-list-ul"></i>
+                <p>هیچ عملیاتی برای این صندوق یافت نشد</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %} 

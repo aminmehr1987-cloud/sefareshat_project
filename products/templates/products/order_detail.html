@@ -1,0 +1,223 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block extra_css %}
+<style>
+/* Hide customer and cart elements in header for this page */
+.customer-input-group,
+#customerModal,
+#cart-icon-container {
+    display: none !important;
+}
+@font-face {
+    font-family: 'BHoma';
+    src: url('{% static "fonts/BHoma.ttf" %}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+body, html, input, button, select, textarea {
+    font-family: 'BHoma', Tahoma, Arial, sans-serif !important;
+}
+.order-detail-glass {
+    background: rgba(255,255,255,0.25);
+    border-radius: 18px;
+    margin: 2rem auto;
+    max-width: 1100px;
+    padding: 2.5rem 2rem 2rem 2rem;
+    box-shadow: 0 10px 30px rgba(76, 102, 219, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1.5px solid rgba(2,2,2,0.12);
+}
+.order-detail-title {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #374151;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+.order-detail-section {
+    background: rgba(255,255,255,0.45);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(76, 102, 219, 0.07);
+    padding: 1.5rem 1.2rem;
+    margin-bottom: 1.5rem;
+}
+.order-detail-label {
+    color: #374151;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+.order-detail-value {
+    color: #222;
+    font-size: 1.1rem;
+}
+.order-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.5rem;
+    background: rgba(255,255,255,0.7);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(76, 102, 219, 0.07);
+}
+.order-detail-table th, .order-detail-table td {
+    padding: 1rem 0.5rem;
+    text-align: right;
+}
+.order-detail-table th {
+    background: #f8fafc;
+    color: #374151;
+    font-weight: 600;
+    font-size: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+.order-detail-table td {
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 1rem;
+}
+.order-detail-status {
+    display: inline-block;
+    padding: 0.4rem 1.2rem;
+    border-radius: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: linear-gradient(45deg, #667eea, #4f46e5);
+    color: #fff;
+    margin-right: 0.5rem;
+}
+.order-detail-btn {
+    background: linear-gradient(45deg, #667eea, #4f46e5);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem 2.2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(76, 102, 219, 0.13);
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    display: inline-block;
+}
+.order-detail-btn:hover {
+    background: linear-gradient(45deg, #4f46e5, #667eea);
+    box-shadow: 0 8px 24px rgba(76, 102, 219, 0.18);
+}
+
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="order-detail-glass">
+    <div class="order-detail-title">
+        جزئیات سفارش <span style="color:#6366f1;">{{ order.order_number|default:order.id }}</span>
+    </div>
+    <div class="order-detail-section" style="display:flex; flex-wrap:wrap; gap:2rem; justify-content:space-between;">
+        <div style="flex:1 1 300px; min-width:260px;">
+            <div class="order-detail-label">تاریخ ثبت:</div>
+            <div class="order-detail-value">{{ order.created_at|jformat:"%H:%M - %Y/%m/%d" }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">وضعیت سفارش:</div>
+            <div class="order-detail-status">{{ order.get_status_display }}</div>
+        </div>
+        <div style="flex:1 1 300px; min-width:260px;">
+            <div class="order-detail-label">نام مشتری:</div>
+            <div class="order-detail-value">{{ order.customer.first_name }} {{ order.customer.last_name }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">شماره موبایل:</div>
+            <div class="order-detail-value">{{ order.customer.mobile|default:'-' }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">آدرس:</div>
+            <div class="order-detail-value">{{ order.customer.address|default:'-' }}</div>
+        </div>
+        <div style="flex:1 1 300px; min-width:260px;">
+            <div class="order-detail-label">مبلغ کل این مرحله:</div>
+            <div class="order-detail-value" style="font-weight:bold; color:#059669; font-size:1.3rem;">
+                {{ stage_total|intcomma }} ریال
+            </div>
+        </div>
+        </div>    
+    <div class="order-detail-section">
+        <h3 style="font-size:1.2rem; color:#374151; margin-bottom:1rem;">آیتم‌های سفارش</h3>
+        <div style="overflow-x:auto;">
+        <table class="order-detail-table">
+            <thead>
+                <tr>
+                    <th>نام محصول</th>
+                    <th>کد محصول</th>
+                    <th>تعداد درخواستی</th>
+                    <th>تعداد تخصیص یافته</th>
+                    <th>قیمت واحد</th>
+                    <th>جمع کل</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in order.items.all %}
+                <tr>
+                    <td>{{ item.product.name }}</td>
+                    <td>{{ item.product.code }}</td>
+                    <td>{{ item.requested_quantity }}</td>
+                    <td>{{ item.allocated_quantity }}</td>
+                    <td>{{ item.price|intcomma }}</td>
+                    <td>
+                        {% if order.status in 'pending,warehouse,parent' %}
+                            {% widthratio item.requested_quantity 1 item.price as item_total %}
+                        {% else %}
+                            {% widthratio item.allocated_quantity|default:"0" 1 item.price as item_total %}
+                        {% endif %}
+                        {{ item_total|intcomma }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" style="text-align:center; color:#888;">هیچ آیتمی برای این سفارش ثبت نشده است.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% if order.shipments.all %}
+    <div class="order-detail-section">
+        <h3 style="font-size:1.2rem; color:#374151; margin-bottom:1rem;">ارسال‌ها</h3>
+        <div style="overflow-x:auto;">
+        <table class="order-detail-table">
+            <thead>
+                <tr>
+                    <th>شماره ارسال</th>
+                    <th>تاریخ ارسال</th>
+                    <th>نام پیک</th>
+                    <th>وضعیت</th>
+                    <th>آیتم‌ها</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for shipment in order.shipments.all %}
+                <tr>
+                    <td>{{ shipment.shipment_number|default:'-' }}</td>
+                    <td>{{ shipment.shipment_date|jalali_date }}</td>
+                    <td>{{ shipment.courier_name|default:'تعیین نشده' }}</td>
+                    <td>{{ shipment.get_status_display|default:'-' }}</td>
+                    <td>
+                        <ul style="padding-right:1.2rem;">
+                        {% for shipment_item in shipment.shipmentitem_set.all %}
+                            <li>{{ shipment_item.product.name }} ({{ shipment_item.quantity }})</li>
+                        {% endfor %}
+                        </ul>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5" style="text-align:center; color:#888;">هیچ ارسالی ثبت نشده است.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% endif %}
+    <div style="text-align:center; margin-top:2rem;">
+        <a href="{% url 'products:order' %}" class="order-detail-btn">
+            بازگشت به لیست سفارشات
+        </a>
+    </div>
+</div>
+{% endblock %}

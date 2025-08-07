@@ -1,0 +1,381 @@
+INFO 2025-06-06 05:18:51,586 autoreload 781679 123243546169472 Watching for file changes with StatReloader
+INFO 2025-06-06 05:20:11,579 autoreload 782067 136965130096768 Watching for file changes with StatReloader
+INFO 2025-06-06 05:21:28,398 views 782067 136964763457216 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:21:28,404 views 782067 136964763457216 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:21:28,404 views 782067 136964763457216    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:21:28,404 views 782067 136964763457216    - شماره سند: 4
+INFO 2025-06-06 05:21:28,405 views 782067 136964763457216    - تعداد بسته: 1
+INFO 2025-06-06 05:21:28,405 views 782067 136964763457216    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:21:28,405 views 782067 136964763457216       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:21:28,405 views 782067 136964763457216       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:21:28,405 views 782067 136964763457216       * تعداد: 1
+INFO 2025-06-06 05:21:28,405 views 782067 136964763457216       * وضعیت در انبار: ready
+INFO 2025-06-06 05:29:56,803 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:29:56,806 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:30:30,621 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:30:30,627 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:30:30,628 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:30:30,628 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:30:30,628 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:30:30,628 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:30:30,628 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:30:30,628 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:30:30,629 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:30:30,629 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:32:07,016 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:32:07,020 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:32:07,020 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:32:07,021 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:34:02,319 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:34:02,324 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:34:02,325 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:35:52,826 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:35:52,829 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:35:52,830 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:37:44,350 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:37:44,354 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:38:29,087 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:38:29,090 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:43:11,617 views 782067 136964763457216 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:43:11,621 views 782067 136964763457216 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:43:11,621 views 782067 136964763457216    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:43:11,621 views 782067 136964763457216    - شماره سند: 4
+INFO 2025-06-06 05:43:11,621 views 782067 136964763457216    - تعداد بسته: 1
+INFO 2025-06-06 05:43:11,622 views 782067 136964763457216    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:43:11,622 views 782067 136964763457216       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:43:11,622 views 782067 136964763457216       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:43:11,622 views 782067 136964763457216       * تعداد: 1
+INFO 2025-06-06 05:43:11,622 views 782067 136964763457216       * وضعیت در انبار: ready
+INFO 2025-06-06 05:44:02,708 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:44:02,722 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:44:02,722 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:44:02,722 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:44:02,722 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:44:02,723 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:44:02,723 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:44:02,723 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:44:02,723 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:44:02,723 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:44:24,571 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+INFO 2025-06-06 05:44:24,578 views 782067 136964754015936 📦 سفارش BO-SHOP-14040316001-1:
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936    - وضعیت: waiting_for_customer_shipment
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936    - شماره سند: 4
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936    - تعداد بسته: 1
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936    - تعداد آیتم‌ها: 1
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936       * کالا: سرسيلندر ال90 کونکس
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936       * انبار: انبار فروشگاه
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936       * تعداد: 1
+INFO 2025-06-06 05:44:24,579 views 782067 136964754015936       * وضعیت در انبار: ready
+INFO 2025-06-06 05:44:51,434 views 782067 136964754015936 🔍 شروع بررسی سفارش‌های در انتظار ارسال به مشتری
+ERROR 2025-06-06 05:45:48,779 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+ERROR 2025-06-06 05:45:54,704 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+ERROR 2025-06-06 05:46:00,336 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+ERROR 2025-06-06 05:46:06,114 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+ERROR 2025-06-06 05:46:13,378 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+ERROR 2025-06-06 05:46:21,906 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+ERROR 2025-06-06 05:46:39,546 log 782067 136964754015936 Internal Server Error: /api/allocate-items/
+INFO 2025-06-06 05:48:16,374 autoreload 782067 136965130096768 /home/isaco/sefareshat_project/products/views.py changed, reloading.
+INFO 2025-06-06 05:48:16,816 autoreload 787800 137570157985920 Watching for file changes with StatReloader
+INFO 2025-06-06 05:53:02,063 autoreload 787800 137570157985920 /home/isaco/sefareshat_project/products/views.py changed, reloading.
+INFO 2025-06-06 05:53:02,519 autoreload 788775 126646007775360 Watching for file changes with StatReloader
+ERROR 2025-06-06 05:53:49,467 log 788775 126645640885952 Internal Server Error: /api/submit-allocation/
+WARNING 2025-06-06 05:55:11,462 log 788775 126645632493248 Forbidden (CSRF token from POST incorrect.): /logout/
+INFO 2025-06-06 05:56:44,904 autoreload 788775 126646007775360 /home/isaco/sefareshat_project/products/views.py changed, reloading.
+INFO 2025-06-06 05:56:45,401 autoreload 789841 129568519532672 Watching for file changes with StatReloader
+ERROR 2025-06-06 05:57:51,890 log 789841 129568152393408 Internal Server Error: /manager/orders/
+Traceback (most recent call last):
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/views/decorators/cache.py", line 62, in _wrapper_view_func
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/products/views.py", line 954, in manager_order_list
+    return render(request, 'products/manager_order_list.html', context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/shortcuts.py", line 24, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 61, in render_to_string
+    template = get_template(template_name, using=using)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 15, in get_template
+    return engine.get_template(template_name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/backends/django.py", line 33, in get_template
+    return Template(self.engine.get_template(template_name), self)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 175, in get_template
+    template, origin = self.find_template(template_name)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 157, in find_template
+    template = loader.get_template(name, skip=skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/base.py", line 28, in get_template
+    return Template(
+           ^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 200, in compile_nodelist
+    return parser.parse()
+           ^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 513, in parse
+    raise self.error(token, e)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 511, in parse
+    compiled_result = compile_func(self, token)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/defaulttags.py", line 853, in do_for
+    nodelist_loop = parser.parse(
+                    ^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 518, in parse
+    self.unclosed_block_tag(parse_until)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 581, in unclosed_block_tag
+    raise self.error(token, msg)
+django.template.exceptions.TemplateSyntaxError: Unclosed tag on line 818: 'for'. Looking for one of: empty, endfor.
+ERROR 2025-06-06 05:57:54,391 log 789841 129568144000704 Internal Server Error: /manager/orders/
+Traceback (most recent call last):
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/views/decorators/cache.py", line 62, in _wrapper_view_func
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/products/views.py", line 954, in manager_order_list
+    return render(request, 'products/manager_order_list.html', context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/shortcuts.py", line 24, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 61, in render_to_string
+    template = get_template(template_name, using=using)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 15, in get_template
+    return engine.get_template(template_name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/backends/django.py", line 33, in get_template
+    return Template(self.engine.get_template(template_name), self)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 175, in get_template
+    template, origin = self.find_template(template_name)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 157, in find_template
+    template = loader.get_template(name, skip=skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/base.py", line 28, in get_template
+    return Template(
+           ^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 200, in compile_nodelist
+    return parser.parse()
+           ^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 513, in parse
+    raise self.error(token, e)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 511, in parse
+    compiled_result = compile_func(self, token)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/defaulttags.py", line 853, in do_for
+    nodelist_loop = parser.parse(
+                    ^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 518, in parse
+    self.unclosed_block_tag(parse_until)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 581, in unclosed_block_tag
+    raise self.error(token, msg)
+django.template.exceptions.TemplateSyntaxError: Unclosed tag on line 818: 'for'. Looking for one of: empty, endfor.
+ERROR 2025-06-06 06:03:57,780 log 789841 129568144000704 Internal Server Error: /manager/orders/
+Traceback (most recent call last):
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/views/decorators/cache.py", line 62, in _wrapper_view_func
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/products/views.py", line 954, in manager_order_list
+    return render(request, 'products/manager_order_list.html', context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/shortcuts.py", line 24, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 61, in render_to_string
+    template = get_template(template_name, using=using)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 15, in get_template
+    return engine.get_template(template_name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/backends/django.py", line 33, in get_template
+    return Template(self.engine.get_template(template_name), self)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 175, in get_template
+    template, origin = self.find_template(template_name)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 157, in find_template
+    template = loader.get_template(name, skip=skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/base.py", line 28, in get_template
+    return Template(
+           ^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 200, in compile_nodelist
+    return parser.parse()
+           ^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 513, in parse
+    raise self.error(token, e)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 511, in parse
+    compiled_result = compile_func(self, token)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/defaulttags.py", line 853, in do_for
+    nodelist_loop = parser.parse(
+                    ^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 518, in parse
+    self.unclosed_block_tag(parse_until)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 581, in unclosed_block_tag
+    raise self.error(token, msg)
+django.template.exceptions.TemplateSyntaxError: Unclosed tag on line 818: 'for'. Looking for one of: empty, endfor.
+ERROR 2025-06-06 06:04:00,975 log 789841 129568144000704 Internal Server Error: /manager/orders/
+Traceback (most recent call last):
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/contrib/auth/decorators.py", line 23, in _wrapper_view
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/views/decorators/cache.py", line 62, in _wrapper_view_func
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/products/views.py", line 954, in manager_order_list
+    return render(request, 'products/manager_order_list.html', context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/shortcuts.py", line 24, in render
+    content = loader.render_to_string(template_name, context, request, using=using)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 61, in render_to_string
+    template = get_template(template_name, using=using)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loader.py", line 15, in get_template
+    return engine.get_template(template_name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/backends/django.py", line 33, in get_template
+    return Template(self.engine.get_template(template_name), self)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 175, in get_template
+    template, origin = self.find_template(template_name)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/engine.py", line 157, in find_template
+    template = loader.get_template(name, skip=skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/cached.py", line 57, in get_template
+    template = super().get_template(template_name, skip)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/loaders/base.py", line 28, in get_template
+    return Template(
+           ^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 154, in __init__
+    self.nodelist = self.compile_nodelist()
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 200, in compile_nodelist
+    return parser.parse()
+           ^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 513, in parse
+    raise self.error(token, e)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 511, in parse
+    compiled_result = compile_func(self, token)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/defaulttags.py", line 853, in do_for
+    nodelist_loop = parser.parse(
+                    ^^^^^^^^^^^^^
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 518, in parse
+    self.unclosed_block_tag(parse_until)
+  File "/home/isaco/sefareshat_project/env/lib/python3.11/site-packages/django/template/base.py", line 581, in unclosed_block_tag
+    raise self.error(token, msg)
+django.template.exceptions.TemplateSyntaxError: Unclosed tag on line 818: 'for'. Looking for one of: empty, endfor.
+INFO 2025-06-06 06:05:43,758 autoreload 789841 129568519532672 /home/isaco/sefareshat_project/sefareshat_project/settings.py changed, reloading.

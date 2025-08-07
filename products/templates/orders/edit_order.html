@@ -1,0 +1,427 @@
+{% extends 'products/base.html' %}
+{% block title %}ویرایش سفارش{% endblock %}
+{% block content %}
+
+<style>
+  .visitor-container {
+    max-width: 1300px;
+    margin: 30px auto;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    font-family: 'Vazir', sans-serif;
+  }
+
+  h3, h4 {
+    color: #333;
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .filter-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 12px;
+  }
+
+  .filter-section select, .filter-section input {
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    font-size: 14px;
+    width: 180px;
+  }
+
+  .product-select-container {
+    margin: 15px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .product-select-container select,
+  .product-select-container input {
+    padding: 6px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid #000000;
+  }
+
+  #addProductBtn {
+    padding: 7px 14px;
+    background-color: #2d89ef;
+    color: white;
+    border: 1px solid #000000;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  #addProductBtn:hover {
+    background-color: #1b5dbf;
+  }
+
+  .order-table {
+  width: 100%;
+  border-collapse: separate;     /* تغییر کلیدی برای فعال‌سازی گردی گوشه‌ها */
+  border-spacing: 0;             /* حذف فاصله بین سلول‌ها */
+  margin-top: 20px;
+  font-size: 14px;
+  border-radius: 12px;           /* گوشه‌ها گرد */
+  overflow: hidden;              /* جلوگیری از نمایش گوشه‌های بیرون‌زده */
+}
+
+/* گرد کردن گوشه‌های بالا */
+.order-table thead th:first-child {
+  border-top-right-radius: 12px;
+}
+.order-table thead th:last-child {
+  border-top-left-radius: 12px;
+}
+
+/* گرد کردن گوشه‌های پایین */
+.order-table tbody tr:last-child td:first-child {
+  border-bottom-right-radius: 12px;
+}
+.order-table tbody tr:last-child td:last-child {
+  border-bottom-left-radius: 12px;
+}
+
+
+
+  .order-table th, .order-table td {
+    border: 1px solid #000000;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .order-table th {
+    background-color: #d3d3d3;
+  }
+
+  .order-table input[type="number"],
+  .order-table select {
+    width: 70%;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+
+  .order-table button {
+    background-color: #dc3545;
+    color: white;
+    padding: 4px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+
+  .order-table button:hover {
+    background-color: #b02a37;
+  }
+
+  .form-actions {
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  .form-actions button[type="submit"] {
+    padding: 10px 25px;
+    background-color: #10b981;
+    border: 1px solid #000000;
+    border-radius: 8px;
+    color: white;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+
+  .form-actions button[type="submit"]:hover {
+    background-color: #059669;
+  }
+
+  .deleted-row {
+    opacity: 0.4;
+    text-decoration: line-through;
+  }
+
+  #grandTotal {
+    margin-top: 15px;
+    text-align: left;
+    font-weight: bold;
+    font-size: 16px;
+  }
+</style>
+
+<div class="visitor-container">
+  <h3>ویرایش سفارش شماره {{ order.order_number }}</h3>
+  <form method="post">
+    {% csrf_token %}
+
+    <!-- فیلتر برند، گروه خودرو، جستجو -->
+    <div class="filter-section">
+      <select id="brandFilter">
+        <option value="">همه برندها</option>
+        {% for brand in brands %}
+          <option value="{{ brand.brand }}">{{ brand.brand }}</option>
+        {% endfor %}
+      </select>
+      <select id="carGroupFilter">
+        <option value="">همه گروه‌های خودرو</option>
+        {% for group in car_groups %}
+          <option value="{{ group.car_group }}">{{ group.car_group }}</option>
+        {% endfor %}
+      </select>
+      <input type="text" id="searchInput" placeholder="جستجو بر اساس نام یا کد کالا">
+    </div>
+
+    <!-- انتخاب کالا (وسط‌چین با عنوان‌ها) -->
+<div class="product-select-container" style="justify-content: right;">
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: end; text-align: center;">
+    <div style="display: flex; flex-direction: column; align-items: center;">
+      <label for="productSelect">کالا</label>
+      <select id="productSelect">
+        <option value="">یک کالا انتخاب کنید</option>
+      </select>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center;">
+      <label for="new_quantity">تعداد</label>
+      <input type="number" id="new_quantity" name="new_quantity" value="1" min="1" placeholder="تعداد">
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center;">
+      <label for="new_price">قیمت</label>
+      <input type="number" id="new_price" name="new_price" value="0" min="0" placeholder="قیمت">
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center;">
+      <label for="payment-term-select">شرایط تسویه</label>
+      <select name="new_payment_term" id="payment-term-select">
+        <option value="">-- شرایط تسویه --</option>
+      </select>
+    </div>
+
+    <div>
+      <button type="button" id="addProductBtn" style="margin-top: 22px;">افزودن کالا</button>
+    </div>
+  </div>
+</div>
+
+    <!-- جدول کالاهای سفارش -->
+    <h4>کالاهای سفارش</h4>
+    <table class="order-table">
+      <thead>
+        <tr>
+          <th>کد کالا</th>
+          <th>نام کالا</th>
+          <th>تعداد</th>
+          <th>شرایط تسویه</th>
+          <th>قیمت</th>
+          <th>جمع</th>
+          <th>حذف</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order.items.all %}
+        <tr>
+          <td>{{ item.product.code }}</td>
+          <td>{{ item.product.name }}</td>
+          <td><input type="number" name="quantity_{{ item.id }}" value="{{ item.requested_quantity }}" min="1" class="quantity-input"></td>
+          <td>
+            <select name="payment_term_{{ item.id }}">
+              {% for code in item.product.get_available_payment_terms %}
+                <option value="{{ code }}" {% if item.payment_term == code %}selected{% endif %}>
+                  {% if code == 'cash' %}نقدی{% elif code == '1m' %}1 ماهه{% elif code == '2m' %}2 ماهه{% elif code == '3m' %}3 ماهه{% elif code == '4m' %}4 ماهه{% endif %}
+                </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input type="number" name="price_{{ item.id }}" value="{{ item.price }}" min="0" class="price-input"></td>
+          <td class="total-cell">{{ item.requested_quantity|add:item.price|floatformat:0 }}</td>
+          <td>
+            <button type="button" onclick="markForDelete(this, '{{ item.id }}')">حذف</button>
+            <input type="hidden" name="delete_{{ item.id }}" value="false" class="delete-input">
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div id="grandTotal">مجموع کل: 0</div>
+
+    <div class="form-actions">
+      <button type="submit">ذخیره تغییرات</button>
+    </div>
+  </form>
+</div>
+
+<!-- اسکریپت -->
+<script>
+  function updateRowTotal(row) {
+    const quantity = parseInt(row.querySelector('.quantity-input').value) || 0;
+    const price = parseInt(row.querySelector('.price-input').value) || 0;
+    const totalCell = row.querySelector('.total-cell');
+    totalCell.textContent = (quantity * price).toLocaleString();
+    updateGrandTotal();
+  }
+
+  function updateGrandTotal() {
+    const rows = document.querySelectorAll('.order-table tbody tr');
+    let grandTotal = 0;
+    rows.forEach(row => {
+      if (!row.classList.contains('deleted-row')) {
+        const quantity = parseInt(row.querySelector('.quantity-input').value) || 0;
+        const price = parseInt(row.querySelector('.price-input').value) || 0;
+        grandTotal += quantity * price;
+      }
+    });
+    document.getElementById('grandTotal').textContent = `مجموع کل: ${grandTotal.toLocaleString()}`;
+  }
+
+  function markForDelete(button, itemId) {
+    const row = button.closest('tr');
+    const deleteInput = row.querySelector('.delete-input');
+    if (row.classList.contains('deleted-row')) {
+      row.classList.remove('deleted-row');
+      deleteInput.value = 'false';
+    } else {
+      row.classList.add('deleted-row');
+      deleteInput.value = 'true';
+    }
+    updateGrandTotal();
+  }
+
+  async function fetchFilteredProducts() {
+    const brand = document.getElementById('brandFilter').value;
+    const carGroup = document.getElementById('carGroupFilter').value;
+    const search = document.getElementById('searchInput').value;
+    const res = await fetch(`/api/products/?brand=${brand}&car_group=${carGroup}&q=${search}`);
+    const data = await res.json();
+
+    const select = document.getElementById('productSelect');
+    select.innerHTML = '<option value="">یک کالا انتخاب کنید</option>';
+
+    data.products.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.name} (${p.code})`;
+      opt.dataset.price = p.price;
+      opt.dataset.maxterm = p.max_payment_term;
+      select.appendChild(opt);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    fetchFilteredProducts();
+    updateGrandTotal();
+    document.querySelectorAll('.quantity-input, .price-input').forEach(input => {
+      input.addEventListener('input', () => updateRowTotal(input.closest('tr')));
+    });
+  });
+
+  document.getElementById('brandFilter').addEventListener('change', fetchFilteredProducts);
+  document.getElementById('carGroupFilter').addEventListener('change', fetchFilteredProducts);
+  document.getElementById('searchInput').addEventListener('input', fetchFilteredProducts);
+
+  document.getElementById('productSelect').addEventListener('change', function () {
+    const selected = this.options[this.selectedIndex];
+    const price = selected.dataset.price || 0;
+    const maxTerm = selected.dataset.maxterm;
+    document.querySelector('[name="new_price"]').value = price;
+
+    const allTerms = [
+      { value: 'cash', label: 'نقدی' },
+      { value: '1m', label: '1 ماهه' },
+      { value: '2m', label: '2 ماهه' },
+      { value: '3m', label: '3 ماهه' },
+      { value: '4m', label: '4 ماهه' }
+    ];
+    const termOrder = { 'cash': 0, '1m': 1, '2m': 2, '3m': 3, '4m': 4 };
+    const maxIndex = termOrder[maxTerm] ?? 0;
+
+    const paymentSelect = document.getElementById('payment-term-select');
+    paymentSelect.innerHTML = '<option value="">-- انتخاب --</option>';
+    for (let i = 0; i <= maxIndex; i++) {
+      const opt = document.createElement('option');
+      opt.value = allTerms[i].value;
+      opt.textContent = allTerms[i].label;
+      paymentSelect.appendChild(opt);
+    }
+  });
+
+  document.getElementById('addProductBtn').addEventListener('click', () => {
+    const productSelect = document.getElementById('productSelect');
+    const selected = productSelect.options[productSelect.selectedIndex];
+    const productId = selected.value;
+    const code = selected.textContent.match(/\(([^)]+)\)/)?.[1] || '---';
+    const name = selected.textContent.split('(')[0].trim();
+    const quantity = document.querySelector('[name="new_quantity"]').value;
+    const price = document.querySelector('[name="new_price"]').value;
+    const paymentSelect = document.getElementById('payment-term-select');
+    const paymentTerm = paymentSelect.value;
+    const maxTerm = selected.dataset.maxterm;
+
+    if (!productId || !quantity || !price || !paymentTerm) {
+      alert("لطفاً همه فیلدها را کامل کنید.");
+      return;
+    }
+
+    const allTerms = [
+      { value: 'cash', label: 'نقدی' },
+      { value: '1m', label: '1 ماهه' },
+      { value: '2m', label: '2 ماهه' },
+      { value: '3m', label: '3 ماهه' },
+      { value: '4m', label: '4 ماهه' }
+    ];
+    const termOrder = { 'cash': 0, '1m': 1, '2m': 2, '3m': 3, '4m': 4 };
+    const maxIndex = termOrder[maxTerm] ?? 0;
+
+    let termOptionsHtml = '';
+    for (let i = 0; i <= maxIndex; i++) {
+      const t = allTerms[i];
+      termOptionsHtml += `<option value="${t.value}" ${t.value === paymentTerm ? 'selected' : ''}>${t.label}</option>`;
+    }
+
+    const total = parseInt(quantity) * parseInt(price);
+    const tbody = document.querySelector('.order-table tbody');
+
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${code}<input type="hidden" name="new_product_id" value="${productId}"></td>
+      <td>${name}</td>
+      <td><input type="number" name="new_quantity" value="${quantity}" min="1" class="quantity-input"></td>
+      <td>
+        <select name="new_payment_term">
+          ${termOptionsHtml}
+        </select>
+      </td>
+      <td><input type="number" name="new_price" value="${price}" min="0" class="price-input"></td>
+      <td class="total-cell">${total.toLocaleString()}</td>
+      <td><button type="button" onclick="this.closest('tr').remove(); updateGrandTotal()">حذف</button></td>
+    `;
+    tbody.appendChild(row);
+
+    row.querySelectorAll('.quantity-input, .price-input').forEach(input => {
+      input.addEventListener('input', () => updateRowTotal(input.closest('tr')));
+    });
+
+    updateGrandTotal();
+
+    productSelect.selectedIndex = 0;
+    document.querySelector('[name="new_quantity"]').value = 1;
+    document.querySelector('[name="new_price"]').value = 0;
+    paymentSelect.innerHTML = '<option value="">-- شرایط تسویه --</option>';
+  });
+</script>
+
+{% endblock %}

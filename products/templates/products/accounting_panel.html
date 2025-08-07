@@ -1,0 +1,490 @@
+{% extends "products/base.html" %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block content %}
+<div class="manager-dashboard">
+
+     
+    <!-- منوهای مدیریتی -->
+    <div class="menu-container">
+        <a href="#" class="menu-tile orders-tile" title="ثبت فاکتور" data-toggle="modal" data-target="#invoiceModal">
+            <div class="tile-content">
+                <i class="bi bi-file-earmark-text-fill"></i>
+                <span>ثبت فاکتور</span>
+            </div>
+        </a>
+        <a href="#" class="menu-tile upload-tile" title="عملیات مالی" data-toggle="modal" data-target="#financialOperationsModal">
+            <div class="tile-content">
+                <i class="bi bi-cash-coin"></i>
+                <span>عملیات مالی</span>
+            </div>
+        </a>
+        <a href="{% url 'products:financial_dashboard' %}" class="menu-tile dashboard-tile" title="داشبرد حسابداری">
+            <div class="tile-content">
+                <i class="bi bi-speedometer2"></i>
+                <span>داشبرد حسابداری</span>
+            </div>
+        </a>
+        <a href="#" class="menu-tile reports-tile" title="گزارشات" data-toggle="modal" data-target="#reportsModal">
+            <div class="tile-content">
+                <i class="bi bi-graph-up-arrow"></i>
+                <span>گزارشات</span>
+            </div>
+        </a>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+body {
+    font-family: 'BHoma', sans-serif;
+    background-color: transparent; /* اجازه می‌دهیم بک‌گراند base.html نمایش داده شود */
+    direction: rtl;
+    margin: 0;
+}
+
+.manager-dashboard {
+    width: 99%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.header {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.title {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.menu-container {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    padding: 1rem;
+    margin-bottom: 3rem;
+}
+
+.menu-tile {
+    position: relative;
+    height: 140px;
+    border-radius: 15px;
+    overflow: hidden;
+    text-decoration: none;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.menu-tile:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+}
+
+.tile-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: white;
+    text-align: center;
+}
+
+.menu-tile i {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.menu-tile:hover i {
+    transform: scale(1.2);
+}
+
+.menu-tile span {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+/* Gradient backgrounds for tiles */
+.orders-tile {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.upload-tile {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.reports-tile {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.dashboard-tile {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    body {
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
+    .manager-dashboard {
+        padding: 1rem;
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: hidden;
+    }
+    .menu-container {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 1rem;
+        gap: 1rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .menu-tile {
+        height: 120px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .menu-tile i {
+        font-size: 2rem;
+    }
+    
+    .menu-tile span {
+        font-size: 1rem;
+        word-wrap: break-word;
+    }
+    
+    .title {
+        font-size: 1.5rem;
+        word-wrap: break-word;
+    }
+    
+    .table {
+        font-size: 13px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .table th, .table td {
+        padding: 8px 6px;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+    
+    .pending-orders-section {
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 600px) {
+    body {
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
+    .manager-dashboard {
+        padding: 0.5rem;
+        max-width: 100%;
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: hidden;
+    }
+    
+    .menu-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.8rem;
+        padding: 0.5rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .menu-tile {
+        height: 100px;
+        border-radius: 10px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .tile-content {
+        padding: 0.8rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .menu-tile i {
+        font-size: 1.8rem;
+    }
+    
+    .menu-tile span {
+        font-size: 0.9rem;
+        word-wrap: break-word;
+    }
+    
+    .title {
+        font-size: 1.3rem;
+        word-wrap: break-word;
+    }
+    
+    .table {
+        font-size: 12px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .table th, .table td {
+        padding: 6px 4px;
+        box-sizing: border-box;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
+    .manager-dashboard {
+        padding: 0.3rem;
+        max-width: 100%;
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: hidden;
+    }
+    
+    .menu-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        padding: 0.3rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .menu-tile {
+        height: 80px;
+        border-radius: 8px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .tile-content {
+        padding: 0.8rem;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .menu-tile i {
+        font-size: 1.2rem;
+    }
+    
+    .menu-tile span {
+        font-size: 0.7rem;
+        word-wrap: break-word;
+    }
+    
+    .title {
+        font-size: 1.1rem;
+        word-wrap: break-word;
+    }
+    
+    .table {
+        font-size: 11px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .table th, .table td {
+        padding: 4px 2px;
+        box-sizing: border-box;
+    }
+    
+    .pending-orders-section {
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: auto;
+    }
+}
+
+/* حذف یا اصلاح باکس سفید در صورت وجود */
+
+
+/* Table Styles */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-sizing: border-box;
+}
+
+.table th, .table td {
+    padding: 12px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+    box-sizing: border-box;
+}
+
+.table th {
+    background-color: #4e9af1;
+    color: white;
+    font-weight: 600;
+}
+
+.pending-orders-section {
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+
+.table {
+    min-width: 500px;
+}
+
+@media (max-width: 600px) {
+    .table {
+        min-width: 350px;
+        font-size: 11px;
+    }
+    .table th, .table td {
+        padding: 4px 2px;
+        min-width: 70px;
+    }
+}
+
+
+html, body {
+    overflow-x: hidden !important;
+}
+</style>
+
+<!-- لینک آیکن‌های Bootstrap -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<!-- Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1" role="dialog" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+    </div>
+  </div>
+</div>
+
+<!-- Modal گزارشات -->
+<div class="modal fade" id="reportsModal" tabindex="-1" role="dialog" aria-labelledby="reportsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+<!-- Modal عملیات مالی -->
+<div class="modal fade" id="financialOperationsModal" tabindex="-1" role="dialog" aria-labelledby="financialOperationsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+      </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+$(document).ready(function(){
+    $('#invoiceModal').on('show.bs.modal', function (e) {
+        var modal = $(this);
+        $.ajax({
+            url: "{% url 'products:invoice_registration' %}",
+            context: document.body
+        }).done(function(response) {
+            modal.find('.modal-content').html(response);
+        });
+    });
+    $('#reportsModal').on('show.bs.modal', function (e) {
+        var modal = $(this);
+        $.ajax({
+            url: "{% url 'products:accounting_reports_menu' %}",
+            context: document.body
+        }).done(function(response) {
+            modal.find('.modal-content').html(response);
+        });
+    });
+    $('#financialOperationsModal').on('show.bs.modal', function (e) {
+        var modal = $(this);
+        $.ajax({
+            url: "{% url 'products:financial_operations_menu' %}",
+            context: document.body
+        }).done(function(response) {
+            modal.find('.modal-content').html(response);
+        });
+    });
+});
+
+$('#invoiceModal').on('show.bs.modal', function (e) {
+        var modal = $(this);
+        $.ajax({
+            url: "{% url 'products:invoice_registration' %}",
+            context: document.body
+        }).done(function(response) {
+            modal.find('.modal-content').html(response);
+        });
+    });
+
+    $('#reportsModal').on('show.bs.modal', function (e) {
+        var modal = $(this);
+        // استفاده از .off() برای جلوگیری از ثبت چندباره event handler
+        modal.off('click', '.report-category-tile');
+
+        $.ajax({
+            url: "{% url 'products:accounting_reports_menu' %}",
+            context: document.body
+        }).done(function(response) {
+            modal.find('.modal-content').html(response);
+
+            // کد جدید برای مدیریت تب‌های گزارش
+            modal.on('click', '.report-category-tile', function() {
+                var targetId = $(this).data('target');
+                var $targetContainer = $(targetId);
+
+                // بستن بقیه کانتینرها
+                $('.sub-reports-container').not($targetContainer).slideUp();
+                
+                // باز/بسته کردن کانتینر کلیک شده
+                $targetContainer.slideToggle();
+            });
+        });
+    });
+
+
+</script>
+
+{% endblock %}

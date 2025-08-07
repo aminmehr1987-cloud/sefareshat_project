@@ -1,0 +1,363 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8" />
+    <title>ورود به سیستم</title>
+    <meta name="viewport" content="initial-scale = 1.0,maximum-scale = 1.0">
+
+    <style>
+        /* تعریف فونت Hamase برای استفاده در بخش خاص */
+        @font-face {
+            font-family: 'Hamase';
+            src: url("{% static 'fonts/Hamase.ttf' %}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        /* تعریف فونت Iran Sans برای استفاده عمومی در صفحه */
+        @font-face {
+            font-family: 'IranSans';
+            src: url("{% static 'fonts/irsans.ttf' %}") format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            font-family: 'IranSans', Tahoma, sans-serif; /* بقیه صفحه از IranSans استفاده می‌کند */
+            direction: rtl;
+            padding: 0;
+            margin: 0;
+            background: linear-gradient(rgba(255,255,255,0.8), rgba(255,255,255,0.8)),
+                        url("{% static 'images/logo.jpg' %}") no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+        }
+
+        .apg_epg_login_section {
+            display: flex;
+            width: 90%;
+            max-width: 1200px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            overflow: hidden;
+            margin-bottom: 70px; /* فضای خالی برای فوتر */
+        }
+
+        .apg_epg_login_form {
+            flex: 1;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .apg_epg_login_image {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.1);
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- استایل‌های متن خاص با فونت Hamase و هاور --- */
+        .apg_epg_login_image h2 {
+            font-family: 'Hamase', Tahoma, sans-serif; /* فقط این h2 از فونت Hamase استفاده می‌کند */
+            color: #333;
+            font-size: 20px;
+            text-align: center;
+            margin-top: 15px;
+            line-height: 1.6;
+        }
+
+        .apg_epg_login_image h2 .line-hover {
+            display: block;
+            transition: color 0.3s ease;
+            cursor: pointer;
+        }
+
+        .apg_epg_login_image h2 .line-hover:hover {
+            color: #1c2494; /* رنگ سبز برای هاور */
+        }
+        /* --- پایان استایل‌ها --- */
+
+        .apg_epg_login_image a {
+            display: block;
+            width: 100%;
+            height: 150px;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .apg_epg_login_image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .apg_epg_login_form_section {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .apg_epg_logo {
+            display: block;
+            margin-bottom: 20px;
+        }
+
+        .apg_epg_logo img {
+            max-width: 150px;
+            height: auto;
+        }
+
+        .apg_epg_login_titel h2 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .apg_epg_login_titel p {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .bs-textfield {
+            margin-bottom: 15px;
+        }
+
+        .bs-textfield input {
+            width: calc(100% - 24px);
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.7);
+        }
+
+        .apg_epg_login_button button {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            border: none;
+            color: white;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .apg_epg_login_button button:hover {
+            background-color: #0056b3;
+        }
+
+        .error {
+            color: red;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            text-align: right;
+        }
+
+        .apg_epg_privacy_terms {
+            list-style: none;
+            padding: 0;
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .apg_epg_privacy_terms li a {
+            color: #030303;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .apg_epg_privacy_terms li a:hover {
+            text-decoration: underline;
+        }
+        
+        /* استایل‌های نوار پایین صفحه (فوتر) */
+        .footer-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: fit-content; /* عرض بر اساس محتوا */
+            max-width: 90%; /* نوار از دو طرف جمع می‌شود */
+            background-color: #E0E0E0; /* رنگ نقره‌ای مانند (روشن‌تر) */
+            color: #333;
+            padding: 10px 25px;
+            border-radius: 10px 10px 0 0; /* گوشه‌های بالا گرد باشد */
+            text-align: center;
+            font-size: 14px;
+            z-index: 1000;
+            white-space: nowrap; /* از شکستن خط جلوگیری می‌کند */
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.1); /* سایه کوچک در بالا */
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 900px) {
+            .apg_epg_login_section {
+                flex-direction: column;
+                width: 95%;
+                margin-bottom: 60px; /* فضای خالی برای فوتر */
+            }
+            .apg_epg_login_image {
+                padding: 15px;
+                gap: 10px;
+            }
+            .apg_epg_login_image h2 {
+                font-size: 18px;
+            }
+            .apg_epg_login_form {
+                padding: 20px;
+            }
+            .apg_epg_logo img {
+                max-width: 120px;
+            }
+            .apg_epg_login_titel h2 {
+                font-size: 24px;
+            }
+            .footer-bar {
+                padding: 8px 20px;
+                font-size: 13px;
+                max-width: 95%;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .apg_epg_login_section {
+                width: 98%;
+                margin: 20px auto 60px auto; /* فضای خالی برای فوتر */
+            }
+            .apg_epg_login_form {
+                padding: 15px;
+            }
+            .apg_epg_login_image {
+                padding: 10px;
+                gap: 8px;
+            }
+            .apg_epg_login_image h2 {
+                font-size: 16px;
+            }
+            .apg_epg_logo img {
+                max-width: 100px;
+            }
+            .apg_epg_login_titel h2 {
+                font-size: 20px;
+            }
+            .apg_epg_login_titel p {
+                font-size: 14px;
+            }
+            .bs-textfield input {
+                padding: 10px;
+                font-size: 13px;
+            }
+            .apg_epg_login_button button {
+                padding: 10px;
+                font-size: 14px;
+            }
+            .apg_epg_privacy_terms {
+                gap: 10px;
+                font-size: 12px;
+            }
+            .footer-bar {
+                padding: 6px 15px;
+                font-size: 12px;
+                max-width: 98%;
+            }
+        }
+    </style>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+
+</head>
+<body>
+
+    <div class="apg_epg_login_section">
+        <div class="apg_epg_login_form">
+            <div class="apg_epg_login_form_section" id="loginForm">
+                <a href="#" class="apg_epg_logo">
+                    <img id="loginLogoImg" src="{% static 'images/apg_logo.png' %}" alt="Logo">
+                </a>
+
+                <div class="apg_epg_login_titel">
+                    <h2>ورود به سیستم</h2>
+                    <p class="account"> خوش آمدید </p>
+                </div>
+
+                <form id="form-signin" role="form" name="form-signin" method="POST" action="{% url 'products:login' %}">
+                    {% csrf_token %}
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="error">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    <div class="bs-textfield">
+                        <label>نام کاربری:</label>
+                        <input type="text" name="username" class="inputForm" required="" placeholder="نام کاربری" maxlength="510">
+                    </div>
+                    <div class="bs-textfield">
+                        <label>رمز عبور:</label>
+                        <input type="password" name="password" class="inputForm" required="" placeholder="رمز عبور">
+                    </div>
+
+                    <div class="apg_epg_login_button external_user_section">
+                        <button class="btn btn-primary" type="submit">ورود</button>
+                    </div>
+
+                    <ul class="apg_epg_privacy_terms">
+                        
+                        <li><a href="https://www.google.com/maps/place/Akbarzada+shop/data=!4m7!3m6!1s0x401897c4fb3cec85:0x67092df3a077bb56!8m2!3d38.2285446!4d48.3141026!16s%2Fg%2F11bytn64hk!19sChIJhew8-8SXGEARVrt3oPMtCWc?authuser=0&hl=en&rclk=1" id="addressLink" target="_blank"><i class="fas fa-map-marker-alt"></i>  اردبیل خیابان بعثت - هاشم آباد - فروشگاه اکبرزاده</a></li>
+                        <li><a href="#" id="contactUsLink"> تلفن : 33614834- 33620543 - 33619450 (045) </a></li> 
+                    </ul>
+                </form>
+            </div>
+        </div>
+
+        <div class="apg_epg_login_image">
+            <a href="#">
+              <img src="{% static 'images/img_08.jpg' %}" alt="Image 1">
+            </a>
+            <a href="#">
+              <img src="{% static 'images/img_09.jpg' %}" alt="Image 2">
+            </a>
+            <a href="#">
+              <img src="{% static 'images/img_10.jpg' %}" alt="Image 3">
+            </a>
+            <h2>
+              <span class="line-hover">برترین تامین کننده قطعات اصلی</span>
+              <br>
+              <span class="line-hover">از دهه 60 با شماییم</span>
+            </h2>
+        </div>
+    </div>
+
+    <div class="footer-bar">
+        طراحی و برنامه نویسی توسط امین لطفی مهر - 09358229376
+    </div>
+
+</body>
+</html>

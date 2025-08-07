@@ -1,0 +1,99 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card success">
+        <h3>ورودی نقدی</h3>
+        <div class="amount">{{ total_inflow|format_number }} ریال</div>
+        <small>مجموع ورودی‌های نقدی</small>
+    </div>
+    
+    <div class="summary-card danger">
+        <h3>خروجی نقدی</h3>
+        <div class="amount">{{ total_outflow|format_number }} ریال</div>
+        <small>مجموع خروجی‌های نقدی</small>
+    </div>
+    
+    <div class="summary-card info">
+        <h3>مانده نقدی</h3>
+        <div class="amount">{{ net_cash_flow|format_number }} ریال</div>
+        <small>مانده خالص نقدی</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>گزارش گردش صندوق</h3>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h4>ورودی‌های نقدی</h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-success">
+                        <tr>
+                            <th>نوع</th>
+                            <th>مبلغ</th>
+                            <th>تاریخ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in cash_inflows %}
+                        <tr>
+                            <td>
+                                <strong>{{ item.operation_type_display }}</strong>
+                            </td>
+                            <td>
+                                <span class="text-success fw-bold">{{ item.amount|format_number }} ریال</span>
+                            </td>
+                            <td>{{ item.date|jalali_date }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2">هیچ ورودی نقدی یافت نشد</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <h4>خروجی‌های نقدی</h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-danger">
+                        <tr>
+                            <th>نوع</th>
+                            <th>مبلغ</th>
+                            <th>تاریخ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in cash_outflows %}
+                        <tr>
+                            <td>
+                                <strong>{{ item.operation_type_display }}</strong>
+                            </td>
+                            <td>
+                                <span class="text-danger fw-bold">{{ item.amount|format_number }} ریال</span>
+                            </td>
+                            <td>{{ item.date|jalali_date }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2">هیچ خروجی نقدی یافت نشد</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,491 @@
+{% extends 'products/base.html' %}
+{% load custom_filters %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block customer_elements %}{% endblock customer_elements %}{% block cart_elements %}{% endblock cart_elements %}
+
+{% block content %}
+<style>
+  .bank-account-detail-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    background: rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 24px 24px 18px 24px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(23, 162, 184, 0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    font-family: 'b homa', Tahoma, sans-serif;
+    box-sizing: border-box;
+    transition: all 0.25s;
+  }
+  
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+  }
+  
+  h3 {
+    color: #000;
+    text-align: center;
+    margin: 0;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .back-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #6c757d;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+  
+  .back-btn:hover {
+    background: #5a6268;
+    color: #fff;
+    text-decoration: none;
+  }
+  
+  .edit-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #ffc107;
+    color: #212529;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s;
+    margin-left: 10px;
+  }
+  
+  .edit-btn:hover {
+    background: #e0a800;
+    color: #212529;
+    text-decoration: none;
+  }
+  
+  .account-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+  }
+  
+  .info-item {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .info-label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 5px;
+  }
+  
+  .info-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #000;
+  }
+  
+  .balance-section {
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  
+  .balance-amount {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #1976d2;
+    margin-bottom: 10px;
+  }
+  
+  .checkbooks-section {
+    margin-top: 30px;
+  }
+  
+  .section-title {
+    font-size: 20px;
+    font-weight: bold;
+    color: #000;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(23, 162, 184, 0.3);
+  }
+  
+  .checkbook-card {
+    background: rgba(255,255,255,0.9);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 1px solid rgba(23, 162, 184, 0.2);
+  }
+  
+  .checkbook-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(23, 162, 184, 0.2);
+  }
+  
+  .checkbook-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #17a2b8;
+  }
+  
+  .checkbook-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  
+  .status-active {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .status-inactive {
+    background: #f8d7da;
+    color: #721c24;
+  }
+  
+  .checks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+  }
+  
+  .check-item {
+    background: rgba(255,255,255,0.8);
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid rgba(23, 162, 184, 0.2);
+    text-align: center;
+  }
+  
+  .check-number {
+    font-weight: bold;
+    color: #17a2b8;
+    margin-bottom: 5px;
+  }
+  
+  .check-status {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 12px;
+  }
+  
+  .status-used {
+    background: #f8d7da;
+    color: #721c24;
+  }
+  
+  .status-available {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .add-checkbook-btn {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  
+  .add-checkbook-btn:hover {
+    background: linear-gradient(135deg, #138496, #117a8b);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(23, 162, 184, 0.4);
+    color: white;
+    text-decoration: none;
+  }
+  
+  .empty-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+
+  /* جدول دسته چک‌ها */
+  .checkbooks-table {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .checkbooks-header {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 2fr;
+    gap: 10px;
+    padding: 15px;
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .checkbook-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 1fr 2fr;
+    gap: 10px;
+    padding: 15px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    align-items: center;
+    transition: background-color 0.3s;
+  }
+
+  .checkbook-row:hover {
+    background: rgba(23, 162, 184, 0.1);
+  }
+
+  .checkbook-row:last-child {
+    border-bottom: none;
+  }
+
+  .checkbook-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .checkbook-serial {
+    font-weight: bold;
+    color: #17a2b8;
+  }
+
+  .checkbook-number {
+    font-weight: bold;
+    color: #495057;
+  }
+
+  .checkbook-count {
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+
+  .total-count {
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    color: #1976d2;
+  }
+
+  .used-count {
+    background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+    color: #f57c00;
+  }
+
+  .remaining-count {
+    background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+    color: #388e3c;
+  }
+
+  .checkbook-actions {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+  }
+
+  .checkbook-actions .btn {
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+
+  .checkbook-actions .btn-info {
+    background: #17a2b8;
+    border-color: #17a2b8;
+  }
+
+  .checkbook-actions .btn-warning {
+    background: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+  }
+
+  .checkbook-actions .btn-success {
+    background: #28a745;
+    border-color: #28a745;
+  }
+
+  .checkbook-actions .btn:hover {
+    opacity: 0.8;
+  }
+</style>
+
+<div class="bank-account-detail-container">
+  <div class="page-header">
+    <h3>{{ title }}</h3>
+    <div>
+      <a href="{% url 'products:bank_account_list' %}" class="back-btn">
+        بازگشت به لیست
+      </a>
+      <a href="{% url 'products:bank_account_edit' bank_account.id %}" class="edit-btn">
+        ویرایش
+      </a>
+      <a href="{% url 'products:bank_statement' bank_account.id %}" class="edit-btn" style="background: #28a745; color: white;">
+        صورتحساب
+      </a>
+    </div>
+  </div>
+  
+  <div class="account-info">
+    <div class="info-item">
+      <span class="info-label">بانک:</span>
+      <span class="info-value">{{ bank_account.bank.name }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">عنوان حساب:</span>
+      <span class="info-value">{{ bank_account.title }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">شماره حساب:</span>
+      <span class="info-value">{{ bank_account.account_number }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">نوع حساب:</span>
+      <span class="info-value">{{ bank_account.get_account_type_display }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">شماره شبا:</span>
+      <span class="info-value">{{ bank_account.sheba }}</span>
+    </div>
+    {% if bank_account.card_number %}
+    <div class="info-item">
+      <span class="info-label">شماره کارت:</span>
+      <span class="info-value">{{ bank_account.card_number }}</span>
+    </div>
+    {% endif %}
+    <div class="info-item">
+      <span class="info-label">وضعیت:</span>
+      <span class="info-value">
+        <span class="checkbook-status {% if bank_account.is_active %}status-active{% else %}status-inactive{% endif %}">
+          {% if bank_account.is_active %}فعال{% else %}غیرفعال{% endif %}
+        </span>
+      </span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">ایجاد شده توسط:</span>
+      <span class="info-value">{{ bank_account.created_by.get_full_name|default:bank_account.created_by.username }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">تاریخ ایجاد:</span>
+      <span class="info-value">{{ bank_account.created_at|jalali_date }}</span>
+    </div>
+  </div>
+  
+  <div class="balance-section">
+    <div class="balance-amount">
+      {{ bank_account.current_balance|persian_number_format }} ریال
+    </div>
+    <div style="font-size: 14px; color: #666;">
+      موجودی فعلی حساب
+    </div>
+  </div>
+  
+  <div class="checkbooks-section">
+    <div class="section-title">دسته‌های چک</div>
+    
+    {% if bank_account.checkbooks.all %}
+      <div class="checkbooks-table">
+        <div class="checkbooks-header">
+          <div class="checkbook-col">سریال دسته چک</div>
+          <div class="checkbook-col">شماره شروع</div>
+          <div class="checkbook-col">شماره پایان</div>
+          <div class="checkbook-col">تعداد کل</div>
+          <div class="checkbook-col">تعداد خرجی</div>
+          <div class="checkbook-col">تعداد مانده</div>
+          <div class="checkbook-col">وضعیت</div>
+          <div class="checkbook-col">عملیات</div>
+        </div>
+        
+        {% for checkbook in bank_account.checkbooks.all %}
+          <div class="checkbook-row">
+            <div class="checkbook-col">
+              <span class="checkbook-serial">{{ checkbook.serial }}</span>
+            </div>
+            <div class="checkbook-col">
+              <span class="checkbook-number">{{ checkbook.start_number }}</span>
+            </div>
+            <div class="checkbook-col">
+              <span class="checkbook-number">{{ checkbook.end_number }}</span>
+            </div>
+            <div class="checkbook-col">
+              <span class="checkbook-count total-count">{{ checkbook.total_checks }}</span>
+            </div>
+            <div class="checkbook-col">
+              <span class="checkbook-count used-count">{{ checkbook.used_checks }}</span>
+            </div>
+            <div class="checkbook-col">
+              <span class="checkbook-count remaining-count">{{ checkbook.remaining_checks }}</span>
+            </div>
+            <div class="checkbook-col">
+              <span class="checkbook-status {% if checkbook.is_active %}status-active{% else %}status-inactive{% endif %}">
+                {% if checkbook.is_active %}فعال{% else %}غیرفعال{% endif %}
+              </span>
+            </div>
+            <div class="checkbook-col">
+              <div class="checkbook-actions">
+                <a href="{% url 'products:checkbook_detail' checkbook.id %}" class="btn btn-sm btn-info" title="جزئیات">
+                  <i class="bi bi-eye"></i>
+                </a>
+                <a href="{% url 'products:checkbook_edit' checkbook.id %}" class="btn btn-sm btn-warning" title="ویرایش">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <a href="{% url 'products:issued_checks_report' checkbook.id %}" class="btn btn-sm btn-success" title="گزارش چک‌های خرجی">
+                  <i class="bi bi-file-earmark-text"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-message">
+        <p>هیچ دسته چکی برای این حساب تعریف نشده است.</p>
+      </div>
+    {% endif %}
+    
+    <a href="{% url 'products:bank_account_edit' bank_account.id %}" class="add-checkbook-btn">
+      <i class="bi bi-plus-circle"></i>
+      افزودن دسته چک جدید
+    </a>
+  </div>
+</div>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %} 

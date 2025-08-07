@@ -1,0 +1,107 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card success">
+        <h3>چک‌های صادر شده</h3>
+        <div class="amount">{{ issued_checks|length }}</div>
+        <small>تعداد چک‌های صادر شده</small>
+    </div>
+    
+    <div class="summary-card info">
+        <h3>چک‌های دریافتی</h3>
+        <div class="amount">{{ received_checks|length }}</div>
+        <small>تعداد چک‌های دریافتی</small>
+    </div>
+    
+    <div class="summary-card warning">
+        <h3>چک‌های وصول شده</h3>
+        <div class="amount">{{ cleared_checks|length }}</div>
+        <small>تعداد چک‌های وصول شده</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>چک‌های دریافتی و پرداختی</h3>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h4>چک‌های صادر شده</h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-danger">
+                        <tr>
+                            <th>شماره چک</th>
+                            <th>مبلغ</th>
+                            <th>تاریخ سررسید</th>
+                            <th>وضعیت</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in issued_checks %}
+                        <tr>
+                            <td>
+                                <strong>{{ item.number }}</strong>
+                            </td>
+                            <td>
+                                <span class="text-danger fw-bold">{{ item.amount|format_number }} ریال</span>
+                            </td>
+                            <td>{{ item.date|jalali_date }}</td>
+                            <td>
+                                <span class="badge bg-{{ item.status_color }}">{{ item.status_display }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2">هیچ چک صادر شده‌ای یافت نشد</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <h4>چک‌های دریافتی</h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-success">
+                        <tr>
+                            <th>شماره چک</th>
+                            <th>مبلغ</th>
+                            <th>تاریخ سررسید</th>
+                            <th>وضعیت</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in received_checks %}
+                        <tr>
+                            <td>
+                                <strong>{{ item.number }}</strong>
+                            </td>
+                            <td>
+                                <span class="text-success fw-bold">{{ item.amount|format_number }} ریال</span>
+                            </td>
+                            <td>{{ item.date|jalali_date }}</td>
+                            <td>
+                                <span class="badge bg-{{ item.status_color }}">{{ item.status_display }}</span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2">هیچ چک دریافتی یافت نشد</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

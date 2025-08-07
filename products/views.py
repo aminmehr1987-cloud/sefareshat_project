@@ -1,0 +1,6419 @@
+from sefareshat_project.utils import normalize_text
+from django.http import JsonResponse, HttpResponseRedirect, HttpResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.db.models import Count, Q, F, Sum
+import pandas as pd
+from django.utils import timezone
+import jdatetime
+import json
+from .forms import UploadExcelForm, OrderForm
+from .models import Product, Warehouse, Order, OrderItem, DocumentNumber, Customer, OrderStatusHistory, Shipment, ShipmentItem, PriceChange, PurchaseInvoice, PurchaseInvoiceItem, AccountingReport, AccountingReportDetail, SalesInvoice
+
+from django.conf import settings
+import logging
+import subprocess
+import os
+from django.http import Http404
+from django.db import IntegrityError, transaction
+from django.contrib.auth.models import User, Group
+from .forms import CustomerForm
+from products.models import Notification
+from django.core.paginator import Paginator
+from datetime import timedelta
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.urls import reverse_lazy
+from django.views.generic import ListView, DetailView, CreateView
+from .models import FinancialYear, Currency, Receipt
+from .forms import FinancialYearForm, CurrencyForm, ReceiptForm
+from .models import Fund, FinancialOperation, CustomerBalance, PettyCashOperation
+from .forms import FundForm, FinancialOperationForm, PettyCashOperationForm, ReceiveFromCustomerForm, PayToCustomerForm, BankOperationForm, BankTransferForm, CashOperationForm, CapitalInvestmentForm
+from functools import wraps
+from .forms import BankAccountForm
+from .models import Account, BankAccount
+
+
+
+logger = logging.getLogger(__name__)
+
+
+@login_required
+def order_confirmation(request):
+    """
+    نمایش صفحه تایید نهایی سفارش
+    """
+    try:
+        # دریافت سفارش با وضعیت cart برای کاربر جاری
+        customer = None
+        if hasattr(request.user, 'customer_profile'):
+            customer = request.user.customer_profile
+        elif request.user.groups.filter(name='ویزیتور').exists():
+            # دریافت customer_id از hidden input در صفحه
+            customer_id = request.GET.get('customer_id')
+            if not customer_id:
+                # اگر در GET نبود، از session چک کنیم
+                customer_id = request.session.get('selected_customer_id')
+            
+            if customer_id:
+                try:
+                    customer = Customer.objects.get(id=customer_id)
+                except Customer.DoesNotExist:
+                    messages.error(request, 'مشتری مورد نظر یافت نشد')
+                    return redirect('products:product_list')
+        
+        if not customer:
+            messages.error(request, 'مشتری یافت نشد')
+            return redirect('products:product_list')
+
+        cart_order = Order.objects.filter(
+            customer=customer,
+            status='cart'
+        ).prefetch_related('items__product').first()
+
+        if not cart_order or not cart_order.items.exists():
+            messages.error(request, 'سبد خرید خالی است')
+            return redirect('products:product_list')
+
+        # محاسبه مجموع قیمت برای هر آیتم و کل سفارش
+        order_items = []
+        total_amount = 0
+        for item in cart_order.items.all():
+            item_total = item.price * item.requested_quantity
+            total_amount += item_total
+            order_items.append({
+                'product': item.product,
+                'quantity': item.requested_quantity,
+                'price': item.price,
+                'total': item_total,
+                'order_item_id': item.id,
+                'payment_term': item.payment_term
+            })
+
+        context = {
+            'customer': customer,
+            'order': cart_order,
+            'order_items': order_items,
+            'total_amount': total_amount
+        }
+        
+        return render(request, 'products/order_confirmation.html', context)
+
+    except Exception as e:
+        messages.error(request, f'خطا در نمایش صفحه تایید سفارش: {str(e)}')
+        return redirect('products:product_list')
+
+
+@login_required
+@require_POST
+def confirm_order(request):
+    """
+    تایید نهایی سفارش و تغییر وضعیت آن
+    """
+    try:
+        order_id = request.POST.get('order_id')
+        if not order_id:
+            messages.error(request, 'شناسه سفارش نامعتبر است')
+            return redirect('products:product_list')
+
+        order = Order.objects.filter(
+            id=order_id,
+            status='cart'
+        ).first()
+
+        if not order:
+            messages.error(request, 'سفارش یافت نشد یا قبلاً تایید شده است')
+            return redirect('products:product_list')
+
+        # تغییر وضعیت سفارش به 'pending'
+        order.status = 'pending'
+        order.order_date = timezone.now()
+        order.save()
+
+        messages.success(request, 'سفارش شما با موفقیت ثبت شد')
+        return redirect('products:order_detail_view', order_id=order.id)
+
+    except Exception as e:
+        messages.error(request, f'خطا در تایید سفارش: {str(e)}')
+        return redirect('products:product_list')
+
+
+
+
+@login_required
+@require_POST
+def update_shipment_status(request, shipment_id):
+    """
+    به‌روزرسانی وضعیت یک ارسال
+    """
+    shipment = get_object_or_404(Shipment, id=shipment_id)
+    
+    try:
+        if shipment.status == 'in_transit':
+            shipment.status = 'delivered'
+            shipment.save()
+            
+            # به‌روزرسانی وضعیت سفارش مرتبط
+            order = shipment.order
+            if all(s.status == 'delivered' for s in order.shipments.all()):
+                order.status = 'delivered'
+                order.save()
+            
+            messages.success(request, 'وضعیت ارسال با موفقیت به‌روزرسانی شد.')
+        else:
+            messages.error(request, 'تغییر وضعیت فقط برای ارسال‌های در حال ارسال ممکن است.')
+            
+        return redirect('products:order_detail_view', order_id=shipment.order.id)
+        
+    except Exception as e:
+        messages.error(request, f'خطا در به‌روزرسانی وضعیت: {str(e)}')
+        return redirect('products:order_detail_view', order_id=shipment.order.id)
+
+def get_shipped_orders():
+    """
+    دریافت لیست سفارش‌های ارسال شده
+    """
+    return Order.objects.filter(
+        Q(status='delivered') &
+        (Q(parent_order__isnull=True) | Q(id__in=Shipment.objects.filter(
+            parent_order__isnull=False,
+            status='delivered'
+        ).values('order_id')))
+    ).distinct()
+
+@login_required
+@transaction.atomic  # اضافه کردن دکوراتور
+def create_shipment_for_order(request, order_id):
+    """
+    ایجاد یک ارسال جدید برای سفارش و زیرسفارش‌های آن
+    """
+    order = get_object_or_404(Order, id=order_id)
+    parent_order = order.parent_order if order.parent_order else order
+
+    if request.method == 'POST':
+        courier_name = request.POST.get('courier_name', '')
+        description = request.POST.get('description', '')
+        selected_sub_orders = request.POST.getlist('selected_sub_orders', [])
+
+        if not courier_name:
+            messages.error(request, 'نام پیک الزامی است.')
+            return redirect('products:order_detail_view', order_id=order.id)
+
+        try:
+            # بررسی وجود ارسال قبلی برای سفارش اصلی
+            if Shipment.objects.filter(order=parent_order).exists():
+                messages.error(request, 'برای این سفارش قبلاً یک ارسال ثبت شده است.')
+                return redirect('products:order_detail_view', order_id=order.id)
+
+            # 1. ایجاد یک Shipment واحد برای سفارش اصلی
+            new_shipment = Shipment.objects.create(
+                order=parent_order,
+                parent_order=parent_order,
+                courier_name=courier_name,
+                description=description,
+                status='in_transit',
+                is_backorder=order.order_number.startswith('BO-')
+            )
+
+            # 2. جمع‌آوری آیتم‌های آماده ارسال از سفارش‌های انتخاب شده
+            sub_orders_to_process = []
+            if selected_sub_orders:
+                sub_orders_to_process = Order.objects.filter(
+                    id__in=selected_sub_orders,
+                    parent_order=parent_order
+                )
+            else:
+                sub_orders_to_process = [order]
+            
+            items_added = False
+            for sub_order in sub_orders_to_process:
+                # بررسی وجود ارسال قبلی برای زیرسفارش
+                if Shipment.objects.filter(order=sub_order).exists():
+                    continue  # رد کردن این زیرسفارش و رفتن به زیرسفارش بعدی
+
+                order_items_to_ship = sub_order.items.filter(warehouse_status='ready')
+                
+                if order_items_to_ship.exists():
+                    new_shipment.sub_orders.add(sub_order)
+                    
+                    for item in order_items_to_ship:
+                        ShipmentItem.objects.create(
+                            shipment=new_shipment,
+                            order_item=item,
+                            quantity_shipped=item.allocated_quantity
+                        )
+                        item.warehouse_status = 'shipped'
+                        item.save()
+                        items_added = True
+
+            if not items_added:
+                messages.error(request, 'هیچ کالای آماده ارسالی وجود ندارد.')
+                new_shipment.delete()
+                return redirect('products:order_detail_view', order_id=order.id)
+
+            # 3. به‌روزرسانی وضعیت سفارش‌ها
+            for sub_order in sub_orders_to_process:
+                if all(item.warehouse_status == 'shipped' for item in sub_order.items.all()):
+                    sub_order.status = 'delivered'
+                    sub_order.save()
+
+            # بررسی وضعیت همه زیرسفارش‌های سفارش اصلی
+            all_sub_orders = Order.objects.filter(parent_order=parent_order)
+            if all(sub.status == 'delivered' for sub in all_sub_orders):
+                parent_order.status = 'delivered'
+                parent_order.save()
+
+            messages.success(
+                request, 
+                f'ارسال جدید با شماره پیگیری {new_shipment.shipment_number} با موفقیت ثبت شد.'
+            )
+            return redirect('products:order_detail_view', order_id=order.id)
+
+        except IntegrityError:
+            messages.error(request, 'خطا در ثبت ارسال: این سفارش قبلاً ارسال شده است.')
+            return redirect('products:order_detail_view', order_id=order.id)
+        except Exception as e:
+            messages.error(request, f'خطا در ثبت ارسال: {str(e)}')
+            return redirect('products:order_detail_view', order_id=order.id)
+
+    available_sub_orders = Order.objects.filter(
+        Q(id=order.id) | Q(parent_order=parent_order),
+        items__warehouse_status='ready'
+    ).distinct()
+
+    return render(request, 'products/create_shipment.html', {
+        'order': order,
+        'available_sub_orders': available_sub_orders
+    })
+
+@csrf_exempt
+@login_required
+@require_POST
+@transaction.atomic
+def submit_allocation(request):
+    try:
+        data = json.loads(request.body)
+        backorder_id = data.get('order_id')
+        items_data = data.get('items', [])
+        document_number = data.get('document_number')  # دریافت شماره سند
+        package_count = data.get('package_count')      # دریافت تعداد بسته
+
+        if not backorder_id or not items_data or not document_number or not package_count:
+            return JsonResponse({
+                'success': False,
+                'message': 'اطلاعات ناقص است'
+            }, status=400)
+
+        backorder = get_object_or_404(Order, id=backorder_id)
+        allocated_items = []
+
+        with transaction.atomic():
+            for item_info in items_data:
+                item_id = item_info.get('item_id')
+                allocated_qty = int(item_info.get('quantity', 0))
+                price = int(item_info.get('price', 0))
+
+                backorder_item = get_object_or_404(OrderItem, id=item_id, order=backorder)
+
+                if allocated_qty > backorder_item.requested_quantity:
+                    return JsonResponse({'success': False, 'message': f'مقدار تخصیص برای کالای "{backorder_item.product.name}" بیشتر از تعداد مورد نیاز است.'}, status=400)
+
+                backorder_item.requested_quantity = F('requested_quantity') - allocated_qty
+                allocated_items.append({
+                    'product': backorder_item.product,
+                    'quantity': allocated_qty,
+                    'price': price,
+                    'payment_term': backorder_item.payment_term,
+                    'warehouse': backorder_item.warehouse,
+                })
+
+                backorder_item.save()
+                backorder_item.refresh_from_db()
+
+                if backorder_item.requested_quantity == 0:
+                    backorder_item.delete()
+
+                if not backorder.items.exists():
+                    backorder.delete()
+                    
+            if not allocated_items:
+                return JsonResponse({'success': False, 'message': 'هیچ تخصیصی انجام نشد.'}, status=400)
+
+            parent_order = backorder.parent_order if backorder.parent_order else backorder
+
+            # گروه‌بندی آیتم‌ها بر اساس انبار
+            items_by_warehouse = {}
+            for entry in allocated_items:
+                warehouse_name = entry['warehouse'].name if entry['warehouse'] else None
+                if warehouse_name not in items_by_warehouse:
+                    items_by_warehouse[warehouse_name] = []
+                items_by_warehouse[warehouse_name].append(entry)
+
+            created_orders = []
+            for warehouse_name, items in items_by_warehouse.items():
+                if warehouse_name == "انبار فروشگاه":
+                    warehouse_code = "SHOP"
+                elif warehouse_name == "انبار پخش":
+                    warehouse_code = "PAKHSH"
+                else:
+                    warehouse_code = "OTHER"
+
+                parent_order = backorder.parent_order if backorder.parent_order else backorder
+                parent_order_number = parent_order.order_number   
+
+                prefix = f"BO-{warehouse_code}-{parent_order_number}"
+                allocation_count = Order.objects.filter(
+                    parent_order=parent_order,
+                    order_number__startswith=f"{prefix}-",
+                    order_number__endswith='-TAMIN'
+                ).count() + 1
+
+                new_order_number = f"{prefix}-{str(allocation_count).zfill(4)}-TAMIN"
+
+                new_order = Order(
+                    customer=backorder.customer,
+                    visitor_name=backorder.visitor_name,
+                    payment_term=backorder.payment_term,
+                    status='waiting_for_customer_shipment',
+                    parent_order=parent_order,
+                    order_number=new_order_number,
+                    document_number=document_number,
+                    package_count=package_count
+                )
+                new_order.save()
+                created_orders.append(new_order)
+
+                for entry in items:
+                    OrderItem.objects.create(
+                        order=new_order,
+                        product=entry['product'],
+                        requested_quantity=entry['quantity'],
+                        allocated_quantity=entry['quantity'],
+                        price=entry['price'],
+                        payment_term=entry['payment_term'],
+                        warehouse=entry['warehouse'],
+                        warehouse_status='ready'
+                    )
+                created_orders.append(new_order)
+
+        return JsonResponse({'success': True, 'message': 'تخصیص‌ها با موفقیت ثبت شدند.'})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': f'خطا در پردازش تخصیص: {str(e)}'}, status=500)
+
+
+
+@login_required
+def order_list_view(request):
+    is_manager = request.user.groups.filter(name='مدیر').exists()
+    if is_manager:
+        orders = Order.objects.all().order_by('-created_at')
+    else:
+        orders = Order.objects.filter(visitor_name=request.user.username).order_by('-created_at')
+
+    # افزودن مقدار total_price به هر سفارش (دینامیک و موقت)
+    for order in orders:
+        if order.status in ['pending', 'warehouse', 'parent']:
+            order.total_price = sum(item.price * (item.requested_quantity or 0) for item in order.items.all())
+        else:
+            order.total_price = sum(item.price * (item.allocated_quantity or 0) for item in order.items.all())
+
+    context = {
+        'orders': orders,
+        'is_manager': is_manager,
+    }
+    return render(request, 'products/order_list.html', context)
+
+
+@login_required
+def order_detail_view(request, order_id):
+    """
+    نمایش جزئیات سفارش.
+    فقط کاربر ایجاد کننده سفارش و مدیران سیستم می‌توانند به این صفحه دسترسی داشته باشند.
+    """
+    order = get_object_or_404(Order, id=order_id)
+    
+    # بررسی دسترسی کاربر
+    is_manager = request.user.groups.filter(name='مدیر').exists()
+    is_order_creator = (order.visitor_name == request.user.username)
+    
+    if not (is_manager or is_order_creator):
+        messages.error(request, 'شما اجازه دسترسی به این سفارش را ندارید.')
+        return redirect('products:product_list')
+    
+    # دریافت ارسال‌ها همراه با اقلام ارسالی
+    shipments = order.shipments.all().prefetch_related(
+        'items',  # برای ShipmentItem ها
+        'items__order_item',  # برای دسترسی به OrderItem های مرتبط
+        'items__order_item__product'  # برای دسترسی به محصولات
+    )
+
+    # --- این بخش جدید است ---
+    if order.status in ['pending', 'warehouse', 'parent']:
+        stage_total = sum(item.price * (item.requested_quantity or 0) for item in order.items.all())
+    else:
+        stage_total = sum(item.price * (item.allocated_quantity or 0) for item in order.items.all())
+    # ------------------------
+
+    context = {
+        'order': order,
+        'order_items': order.items.all(),
+        'shipments': shipments,
+        'stage_total': stage_total,  # این خط را اضافه کن!
+    }
+    return render(request, 'products/order_detail.html', context)
+
+@login_required
+@user_passes_test(lambda u: u.groups.filter(name='ویزیتور').exists())
+def add_customer(request):
+    if request.method == 'POST':
+        form = CustomerForm(request.POST)
+        if form.is_valid():
+            customer = form.save(commit=False)
+            customer.created_by = request.user
+            customer.save()
+            messages.success(request, 'مشتری با موفقیت اضافه شد.')
+            return redirect('dashboard')  # یا هرجایی که لازمه برگرده
+    else:
+        form = CustomerForm()
+
+    return render(request, 'products/add_customer.html', {'form': form})
+
+@login_required
+def create_customer(request):
+    if not request.user.groups.filter(name='ویزیتور').exists():
+        return render(request, 'error.html', {'message': 'دسترسی غیرمجاز'})
+
+    if request.method == 'POST':
+        form = CustomerForm(request.POST)
+        if form.is_valid():
+            try:
+                customer = form.save(commit=False)
+                customer.created_by = request.user
+                customer.save()
+                messages.success(request, 'مشتری جدید با موفقیت ایجاد شد.')
+                return redirect('products:product_list')
+            except Exception as e:
+                messages.error(request, f'خطا در ثبت مشتری: {str(e)}')
+                print(f"Error saving customer: {str(e)}")  # For debugging
+        else:
+            print(f"Form errors: {form.errors}")  # For debugging
+    else:
+        form = CustomerForm()
+
+    return render(request, 'products/create_customer.html', {'form': form})
+
+@csrf_exempt
+@login_required
+@require_POST
+@transaction.atomic
+def send_order_to_warehouse(request, order_id):
+    try:
+        # دریافت سفارش اصلی
+        original_order = get_object_or_404(Order, id=order_id)
+        created_orders = []  # Initialize the list here
+
+        if original_order.status != 'pending':
+            return JsonResponse({
+                'success': False,
+                'message': 'فقط سفارشات در انتظار تایید قابل ارسال به انبار هستند.'
+            }, status=400)
+
+        # گروه‌بندی آیتم‌ها بر اساس انبار
+        items_by_warehouse = {}
+        for item in original_order.items.all():
+            warehouse_name = item.warehouse.name
+            if warehouse_name not in items_by_warehouse:
+                items_by_warehouse[warehouse_name] = []
+            items_by_warehouse[warehouse_name].append(item)
+
+        # ابتدا وضعیت سفارش اصلی را به parent تغییر می‌دهیم
+        original_order.status = 'parent'
+        original_order.save()
+
+        # ایجاد سفارشات جدید برای هر انبار
+        for warehouse_name, items in items_by_warehouse.items():
+            # ایجاد یک سفارش جدید برای هر انبار
+            new_order = Order()
+            new_order.visitor_name = original_order.visitor_name
+            new_order.customer = original_order.customer
+            new_order.payment_term = original_order.payment_term
+            new_order.status = 'warehouse'
+            new_order.parent_order = original_order
+            new_order.warehouse_name = warehouse_name  # تنظیم نام انبار برای تولید شماره سفارش
+            new_order.save()
+
+            # ایجاد آیتم‌های سفارش جدید
+            for item in items:
+                OrderItem.objects.create(
+                    order=new_order,
+                    product=item.product,
+                    requested_quantity=item.requested_quantity,  # 👈 مقدار درخواست شده از سفارش مادر
+                    allocated_quantity=item.requested_quantity,  # 👈 در این مرحله همه درخواست‌ها تخصیص‌یافته فرض می‌شوند
+                    price=item.price,
+                    payment_term=item.payment_term,
+                    warehouse=item.warehouse,
+                    warehouse_status='pending'
+                )
+            created_orders.append(new_order)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'سفارش با موفقیت به انبارها ارسال شد و سفارشات جدید ایجاد گردید.'
+        })
+
+    except Order.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'سفارش یافت نشد.'
+        }, status=404)
+    except Exception as e:
+        logging.error(f"Error in send_order_to_warehouse: {e}")
+        return JsonResponse({
+            'success': False,
+            'message': f"خطا در ارسال سفارش به انبار: {e}"
+        }, status=500)
+    
+@login_required
+def group_by_order_items(queryset):
+    grouped_orders = {}
+    for item in queryset:
+        order_id = item.order.id
+        if order_id not in grouped_orders:
+            grouped_orders[order_id] = {
+                'order': item.order,
+                'items': [],
+                'total_price': 0, 
+            }
+        grouped_orders[order_id]['items'].append(item)
+        # مطمئن شوید که price و requested_quantity در OrderItem موجود است
+        grouped_orders[order_id]['total_price'] += item.price * item.requested_quantity 
+    # برای نمایش در HTML، لیست مقادیر را برمی‌گردانیم
+    # می‌توانید اینجا sort کنید، مثلاً بر اساس تاریخ ایجاد سفارش
+    return sorted(list(grouped_orders.values()), key=lambda x: x['order'].created_at, reverse=True)
+
+
+def group_required(group_name):
+    """
+    Custom decorator to check if a user belongs to a specific group.
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def _wrapped_view(request, *args, **kwargs):
+            if request.user.groups.filter(name=group_name).exists():
+                return view_func(request, *args, **kwargs)
+            else:
+                messages.error(request, "You do not have permission to access this page.")
+                return redirect('products:login')
+        return _wrapped_view
+    return decorator
+
+@login_required
+@group_required('حسابداری')
+def accounting_panel(request):
+    """
+    Displays the accounting panel, accessible only to users in the 'accounting' group.
+    """
+    return render(request, 'products/accounting_panel.html')
+
+@login_required
+@group_required('حسابداری')
+def invoice_registration_view(request):
+    """
+    Renders the invoice registration pop-up.
+    """
+    return render(request, 'products/invoice_registration.html')
+
+
+@login_required
+@group_required('حسابداری')
+def purchase_invoice_view(request):
+    """
+    Renders the purchase invoice page and handles invoice registration.
+    """
+    import jdatetime
+    from django.contrib import messages
+    today = jdatetime.date.today().strftime("%Y/%m/%d")
+    customers = Customer.objects.all()
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Get invoice fields
+                customer_id = request.POST.get('customer_id')
+                invoice_number = request.POST.get('invoice_number')
+                invoice_date = request.POST.get('invoice_date')
+                description = request.POST.get('description', '')
+                customer = Customer.objects.get(id=customer_id)
+                # Calculate total amount
+                product_codes = request.POST.getlist('product_code')
+                quantities = request.POST.getlist('quantity')
+                prices = request.POST.getlist('price')
+                discounts = request.POST.getlist('discount')
+                profit_percentages = request.POST.getlist('profit_percentage')
+                descriptions = request.POST.getlist('description')
+                totals = request.POST.getlist('total')
+                total_amount = 0
+                for t in totals:
+                    try:
+                        total_amount += int(str(t).replace(',', ''))
+                    except Exception:
+                        pass
+                # Create invoice
+                invoice = PurchaseInvoice.objects.create(
+                    invoice_number=invoice_number,
+                    invoice_date=invoice_date,
+                    customer=customer,
+                    created_by=request.user,
+                    total_amount=total_amount,
+                    description=description,
+                    status='registered',
+                )
+                # Create invoice items
+                for i, code in enumerate(product_codes):
+                    try:
+                        product = Product.objects.get(code=code)
+                        qty = int(quantities[i]) if i < len(quantities) and quantities[i] else 0
+                        price = int(prices[i]) if i < len(prices) and prices[i] else product.purchase_price
+                        discount = float(discounts[i]) if i < len(discounts) and discounts[i] else 0
+                        profit_percentage = float(profit_percentages[i]) if i < len(profit_percentages) and profit_percentages[i] else 0
+                        item_total = int(str(totals[i]).replace(',', '')) if i < len(totals) and totals[i] else 0
+                        item_description = descriptions[i] if i < len(descriptions) else ''
+                        PurchaseInvoiceItem.objects.create(
+                            invoice=invoice,
+                            product=product,
+                            quantity=qty,
+                            price=price,
+                            discount=discount,
+                            profit_percentage=profit_percentage,
+                            total=item_total,
+                            description=item_description,
+                        )
+                        # Update product inventory and price
+                        product.quantity += qty
+                        product.purchase_price = price - (price * discount / 100)
+                        product.profit_percentage = profit_percentage
+                        product.price = product.purchase_price + (product.purchase_price * profit_percentage / 100)
+                        product.save()
+                    except Product.DoesNotExist:
+                        continue
+                # Handle settlement fields if present
+                invoice.settle_cash = request.POST.get('settle_cash', 0) or 0
+                invoice.settle_card = request.POST.get('settle_card', 0) or 0
+                invoice.settle_bank = request.POST.get('settle_bank', 0) or 0
+                invoice.settle_cheque = request.POST.get('settle_cheque', 0) or 0
+                invoice.settle_balance = request.POST.get('settle_balance', 0) or 0
+                invoice.settle_extra_discount = request.POST.get('settle_extra_discount', 0) or 0
+                invoice.save()
+                messages.success(request, 'فاکتور خرید با موفقیت ثبت شد و موجودی و قیمت کالاها به‌روزرسانی شد.')
+                return redirect('products:purchase_invoice_detail', invoice_id=invoice.id)
+        except Exception as e:
+            messages.error(request, f'خطا در ثبت فاکتور: {e}')
+            return redirect(request.path)
+
+    return render(request, 'products/purchase_invoice.html', {'today': today, 'customers': customers})
+
+
+@login_required
+def warehouse_panel(request):
+    try:
+        warehouse = Warehouse.objects.get(user=request.user)
+        
+        # محدود کردن به یک هفته اخیر
+        one_week_ago = timezone.now() - timezone.timedelta(days=7)
+        
+        # دریافت همه زیرسفارش‌های مرتبط با این انبار
+        # از prefetch_related استفاده می‌شود تا آیتم‌ها در یک کوئری اولیه واکشی شوند
+        all_orders = Order.objects.filter(
+            parent_order__isnull=False,  # فقط زیرسفارش‌ها
+            items__warehouse=warehouse,  # فقط آیتم‌های مربوط به این انبار
+            created_at__gte=one_week_ago  # فقط سفارش‌های یک هفته اخیر
+        ).distinct().prefetch_related(
+            'items',
+            'items__product',
+            'items__warehouse'
+        )
+
+        # دریافت فقط زیرسفارش‌های جدید (pending)
+        new_orders = Order.objects.filter(
+            parent_order__isnull=False,
+            items__warehouse=warehouse,
+            items__warehouse_status='pending',
+            created_at__gte=one_week_ago
+        ).exclude(status='backorder').distinct().prefetch_related(
+            'items',
+            'items__product',
+            'items__warehouse'
+        )
+        
+        # دریافت زیرسفارش‌های در انتظار موجودی (backorder/pending_supply)
+        waiting_for_stock_orders = Order.objects.filter(
+            Q(parent_order__isnull=False) &
+            Q(items__warehouse=warehouse) &
+            (Q(items__warehouse_status='backorder') | Q(items__warehouse_status='pending_supply')) &
+            Q(created_at__gte=one_week_ago)
+        ).distinct().prefetch_related(
+            'items',
+            'items__product',
+            'items__warehouse'
+        )
+
+        # 🚨 دریافت زیرسفارش‌های در انتظار تایید انباردار 🚨
+        waiting_for_confirmation_orders = Order.objects.filter(
+            Q(parent_order__isnull=False) &
+            Q(items__warehouse=warehouse) &
+            Q(items__warehouse_status='waiting_for_warehouse_confirmation') &
+            Q(created_at__gte=one_week_ago)
+        ).distinct().prefetch_related(
+            'items',
+            'items__product',
+            'items__warehouse'
+        )
+        print(f"waiting_for_confirmation_orders query result count: {waiting_for_confirmation_orders.count()}")
+        for order in waiting_for_confirmation_orders:
+            print(f"Order {order.id} - Items: {order.items.count()}")
+
+        # دریافت زیرسفارش‌های آماده ارسال
+        ready_orders = Order.objects.filter(
+            Q(parent_order__isnull=False) &
+            Q(items__warehouse=warehouse) &
+            Q(items__warehouse_status='ready') &
+            Q(status='ready') &
+            Q(created_at__gte=one_week_ago)
+        ).distinct().prefetch_related(
+            'items',
+            'items__product',
+            'items__warehouse'
+        )
+
+        # 🚨 فیلتر کردن آیتم‌ها برای نمایش فقط آیتم‌های مربوط به انبار جاری 🚨
+        # این حلقه‌ها دوباره اضافه شدند.
+        for order in all_orders:
+            order.filtered_items = order.items.filter(warehouse=warehouse)
+            # محاسبه total_price برای هر سفارش در اینجا اگر لازم است
+            order.total_price = sum((item.price * (item.allocated_quantity or item.requested_quantity)) for item in order.filtered_items if item.price and (item.allocated_quantity or item.requested_quantity))
+
+        for order in new_orders:
+            order.filtered_items = order.items.filter(
+                Q(warehouse=warehouse) &
+                Q(warehouse_status='pending')
+            )
+            order.total_price = sum((item.price * (item.allocated_quantity or item.requested_quantity)) for item in order.filtered_items if item.price and (item.allocated_quantity or item.requested_quantity))
+        
+        for order in ready_orders:
+            order.filtered_items = order.items.filter(
+                Q(warehouse=warehouse) &
+                Q(warehouse_status='ready')
+            )
+            order.total_price = sum((item.price * (item.allocated_quantity or item.requested_quantity)) for item in order.filtered_items if item.price and (item.allocated_quantity or item.requested_quantity))
+
+        for order in waiting_for_stock_orders:
+            order.filtered_items = order.items.filter(
+                Q(warehouse=warehouse) &
+                (Q(warehouse_status='backorder') | Q(warehouse_status='pending_supply'))
+            )
+            order.total_price = sum((item.price * (item.allocated_quantity or item.requested_quantity)) for item in order.filtered_items if item.price and (item.allocated_quantity or item.requested_quantity))
+
+        # 🚨 فیلتر کردن آیتم‌ها برای تب "در انتظار تایید انباردار" 🚨
+        for order in waiting_for_confirmation_orders:
+            order.filtered_items = order.items.filter(
+                Q(warehouse=warehouse) &
+                Q(warehouse_status='waiting_for_warehouse_confirmation')
+            )
+            order.total_price = sum((item.price * (item.allocated_quantity or item.requested_quantity)) for item in order.filtered_items if item.price and (item.allocated_quantity or item.requested_quantity))
+
+
+        context = {
+            'warehouse': warehouse,
+            'all_orders': all_orders, # اگر همچنان به این نیاز دارید
+            'new_orders': new_orders,
+            'ready_orders': ready_orders,
+            'waiting_for_stock_orders': waiting_for_stock_orders,
+            'backorder_orders': waiting_for_stock_orders, # همچنان برای سازگاری نامی حفظ شد
+            'waiting_for_confirmation_orders': waiting_for_confirmation_orders, # 👈 اضافه شدن به کانتکست
+        }
+        
+        return render(request, 'products/warehouse_panel.html', context)
+        
+    except Warehouse.DoesNotExist:
+        messages.error(request, 'شما دسترسی به پنل انبار را ندارید. لطفا با مدیر سیستم تماس بگیرید.')
+        return redirect('products:login')
+    except Exception as e: # برای گرفتن هر خطای غیرمنتظره دیگر
+        import traceback
+        traceback.print_exc() # این خط را برای دیباگ نگه دارید
+        messages.error(request, f'خطای غیرمنتظره در پنل انبار: {e}')
+        return redirect('products:login')
+
+
+def edit_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+
+    # بررسی اینکه فقط مدیر (is_staff) اجازه دسترسی دارد
+    if not request.user.is_authenticated or not request.user.is_staff:
+        messages.error(request, "شما دسترسی به این صفحه ندارید.")
+        return redirect('products:product_list')  # یا هر آدرس مناسب دیگر
+
+    if order.status != 'pending':
+        messages.error(request, "تنها سفارشات در انتظار تأیید قابل ویرایش هستند.")
+        return redirect('products:manager_order_list')
+
+    if request.method == 'POST':
+        # بروزرسانی آیتم‌های فعلی
+        for item in order.items.all():
+            if request.POST.get(f'delete_{item.id}') == 'true':
+                item.delete()
+                continue
+
+            qty = request.POST.get(f'quantity_{item.id}')
+            price = request.POST.get(f'price_{item.id}')
+            term = request.POST.get(f'payment_term_{item.id}')
+
+            if qty and qty.isdigit():
+                item.requested_quantity = int(qty)
+
+            if price and price.isdigit():
+                item.price = int(price)
+
+            if term:
+                item.payment_term = term
+
+            item.save()
+
+        # افزودن کالای جدید در صورت وجود
+        product_id = request.POST.get('new_product_id')
+        quantity = request.POST.get('new_quantity')
+        new_price = request.POST.get('new_price')
+        new_term = request.POST.get('new_payment_term')
+
+        if product_id and quantity and quantity.isdigit():
+            product = get_object_or_404(Product, id=product_id)
+            quantity = int(quantity)
+            price = int(new_price) if new_price and new_price.isdigit() else product.price
+            payment_term = new_term or 'cash'
+
+            existing = order.items.filter(product=product).first()
+            if existing:
+                existing.quantity += quantity
+                existing.save()
+            else:
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    requested_quantity=item['quantity'],
+                    price=price,
+                    payment_term=payment_term
+                )
+
+        messages.success(request, "تغییرات سفارش با موفقیت ذخیره شد.")
+        return redirect('products:manager_order_list')
+
+    # حالت GET: نمایش فرم
+    products = Product.objects.all()
+    brands = Product.objects.values('brand').distinct()
+    car_groups = Product.objects.values('car_group').distinct()
+
+    return render(request, 'orders/edit_order.html', {
+        'order': order,
+        'products': products,
+        'brands': brands,
+        'car_groups': car_groups,
+    })
+@login_required
+def dashboard_view(request):
+    if not request.user.groups.filter(name__in=['مشتری', 'ویزیتور']).exists():
+        return redirect('login')
+    return render(request, 'products/product_list.html')
+
+def is_manager(user):
+    return user.groups.filter(name='مدیر').exists()
+
+@login_required
+@user_passes_test(is_manager)
+def upload_excel(request):
+    if request.method == 'POST':
+        form = UploadExcelForm(request.POST, request.FILES)
+        if form.is_valid():
+            excel_file = request.FILES['excel_file']
+            upload_mode = form.cleaned_data.get('upload_mode', 'update')
+            try:
+                import pandas as pd
+                from .models import Notification, Product, Warehouse, OrderItem
+                from django.contrib.auth.models import User
+
+                df = pd.read_excel(excel_file, engine='openpyxl', dtype={'کد کالا': str})
+
+                # فقط ستون 'کد کالا' اجباری است
+                if 'کد کالا' not in df.columns:
+                    messages.error(request, "ستون 'کد کالا' در فایل یافت نشد و این ستون اجباری است.")
+                    return render(request, 'products/upload_excel.html', {'form': form})
+
+                # حذف ردیف‌هایی که مقدار کد کالا یا قیمت ندارند
+                df = df.dropna(subset=['کد کالا', 'قیمت'])
+
+                Warehouse.objects.get_or_create(name='انبار پخش')
+                Warehouse.objects.get_or_create(name='انبار فروشگاه')
+
+                # --- استخراج لیست کالاهای بک‌اوردر قبل از آپدیت ---
+                backorder_products = list(Product.objects.filter(quantity=0).values_list('code', flat=True))
+
+                # --- آپدیت یا ایجاد محصولات از روی فایل اکسل ---
+                for idx, row in df.iterrows():
+                    product_code = str(row['کد کالا']).strip()
+                    price_val = row['قیمت'] if 'قیمت' in row else None
+                    # چک price خالی یا نامعتبر
+                    if pd.isna(price_val) or str(price_val).strip() == "":
+                        print(f"[UPLOAD_EXCEL] ردیف {idx+2} - کد کالا: {product_code} - قیمت وجود ندارد یا خالی است.")
+                        messages.error(
+                            request,
+                            f"قیمت برای محصول با کد '{product_code}' (یا نام '{row.get('نام محصول', '')}') در ردیف {idx+2} خالی است."
+                        )
+                        return render(request, 'products/upload_excel.html', {'form': form})
+                    try:
+                        price_float = float(str(price_val).replace(',', '').strip())
+                    except Exception:
+                        print(f"[UPLOAD_EXCEL] ردیف {idx+2} - کد کالا: {product_code} - قیمت نامعتبر: {price_val}")
+                        messages.error(
+                            request,
+                            f"قیمت نامعتبر برای محصول با کد '{product_code}' (یا نام '{row.get('نام محصول', '')}') در ردیف {idx+2}."
+                        )
+                        return render(request, 'products/upload_excel.html', {'form': form})
+
+                    # مقداردهی و ذخیره محصول
+                    product, created = Product.objects.get_or_create(code=product_code, defaults={'price': price_float})
+                    if not created:
+                        product.price = price_float
+                    # سایر فیلدها...
+                    product.save()
+
+                    if 'نام محصول' in row and pd.notna(row['نام محصول']):
+                        product.name = str(row['نام محصول']).strip()
+                    if 'گروه خودرو' in row and pd.notna(row['گروه خودرو']):
+                        product.car_group = str(row['گروه خودرو']).strip()
+                    product.price = price_float  # مقداردهی price (همیشه)
+                    if 'موجودی' in row and pd.notna(row['موجودی']):
+                        if upload_mode == 'update':
+                            product.quantity = int(row['موجودی'])
+                        elif upload_mode == 'purchase':
+                            product.quantity = (product.quantity or 0) + int(row['موجودی'])
+                    if 'نام انبار' in row and pd.notna(row['نام انبار']):
+                        warehouse_name = str(row['نام انبار']).strip()
+                        if warehouse_name in ['انبار پخش', 'انبار فروشگاه']:
+                            warehouse = Warehouse.objects.get(name=warehouse_name)
+                            product.warehouse = warehouse
+                    if 'برند' in row and pd.notna(row['برند']):
+                        product.brand = str(row['برند']).strip()
+                    if 'مدت تسویه' in row and pd.notna(row['مدت تسویه']):
+                        max_payment_term = str(row['مدت تسویه']).strip()
+                        if max_payment_term in ['cash', '1m', '2m', '3m', '4m']:
+                            product.max_payment_term = max_payment_term
+
+                    product.save()
+
+                # --- بعد از آپدیت، بررسی تامین کالاهای بک‌اوردر و ساخت اعلان ---
+                supplied_products = Product.objects.filter(
+                    code__in=backorder_products,
+                    quantity__gt=0
+                )
+                if supplied_products.exists():
+                    managers = User.objects.filter(groups__name='مدیر')
+                    for product in supplied_products:
+                        backorder_items = OrderItem.objects.filter(
+                            product=product,
+                            warehouse_status='backorder'
+                        ).select_related('order', 'order__customer')
+
+                        for backorder_item in backorder_items:
+                            order_number = getattr(backorder_item.order, 'order_number', '')
+                            customer = getattr(backorder_item.order, 'customer', None)
+                            customer_name = f"{getattr(customer, 'first_name', '')} {getattr(customer, 'last_name', '')}".strip() if customer else ""
+                            for manager in managers:
+                                Notification.objects.create(
+                                    title="تامین کالاهای بک‌اوردر",
+                                    message="",
+                                    target_user=manager,
+                                    product_title=product.name,
+                                    order_number=order_number,
+                                    customer_name=customer_name,
+                                )
+
+                messages.success(request, "فایل اکسل با موفقیت ثبت شد.")
+                return render(request, 'products/upload_excel.html', {'form': form})
+            except Exception as e:
+                messages.error(request, f"خطا در پردازش فایل: {str(e)}")
+                return render(request, 'products/upload_excel.html', {'form': form})
+    else:
+        form = UploadExcelForm()
+    return render(request, 'products/upload_excel.html', {'form': form})
+
+@csrf_exempt
+@login_required
+def create_order(request):
+    if request.method == 'POST':
+        try:
+            user = request.user
+            data = json.loads(request.body)
+            customer_id = data.get('customer_id')
+            items = data.get('items', [])
+
+            if not customer_id:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'شناسه مشتری الزامی است'
+                }, status=400)
+
+            if not items:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'حداقل یک کالا باید انتخاب شود'
+                }, status=400)
+
+            customer = get_object_or_404(Customer, id=customer_id)
+            
+            # ⛔ بررسی امنیتی: اگر کاربر مشتری است، فقط خودش را مجاز بداند
+            if user.groups.filter(name='مشتری').exists():
+                if not hasattr(user, 'customer_profile') or customer != user.customer_profile:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'شما مجاز به ثبت سفارش برای این مشتری نیستید'
+                    }, status=403)
+
+            with transaction.atomic():
+                order = Order.objects.create(
+                    visitor_name=user.username,
+                    customer=customer,
+                    payment_term='cash',
+                    status='pending'
+                )
+
+                for item in items:
+                    product = get_object_or_404(Product, id=item['product_id'])
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        requested_quantity=item['quantity'],
+                        allocated_quantity=0,
+                        price=product.price,
+                        payment_term=item['payment_term'],
+                        warehouse=product.warehouse
+                    )
+
+            return JsonResponse({
+                'success': True,
+                'message': 'سفارش با موفقیت ثبت شد',
+                'order_id': order.id
+            })
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'message': 'داده‌های ارسالی نامعتبر است'
+            }, status=400)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'خطا در ثبت سفارش: {str(e)}'
+            }, status=500)
+
+@login_required
+def create_customer(request):
+    if not request.user.groups.filter(name='ویزیتور').exists():
+        return render(request, 'error.html', {'message': 'دسترسی غیرمجاز'})
+
+    if request.method == 'POST':
+        form = CustomerForm(request.POST)
+        if form.is_valid():
+            try:
+                customer = form.save(commit=False)
+                customer.created_by = request.user
+                customer.save()
+                messages.success(request, 'مشتری جدید با موفقیت ایجاد شد.')
+                return redirect('products:product_list')
+            except Exception as e:
+                messages.error(request, f'خطا در ثبت مشتری: {str(e)}')
+                print(f"Error saving customer: {str(e)}")  # For debugging
+        else:
+            print(f"Form errors: {form.errors}")  # For debugging
+    else:
+        form = CustomerForm()
+
+    return render(request, 'products/create_customer.html', {'form': form})
+
+@login_required
+def order_history(request):
+    orders = Order.objects.filter(visitor_name=request.user.username).order_by('-created_at')[:10]
+    orders_data = [
+        {
+            'id': order.id,
+            'order_number': order.order_number,
+            'customer_name': order.customer_name,
+            'created_at': jdatetime.datetime.fromgregorian(datetime=order.created_at.replace(tzinfo=None)).strftime('%Y/%m/%d %H:%M'),
+            'total_amount': sum((item.requested_quantity or 0) * (item.price or 0) for item in order.items.all()),
+            'items': [
+                {
+                    'product_name': item.product.name,
+                    'quantity': item.requested_quantity or 0,
+                    'price': item.price or 0,
+                    'payment_term': item.get_payment_term_display()
+                } for item in order.items.all()
+            ]
+        } for order in orders
+    ]
+    import traceback
+    traceback.print_exc()
+    return JsonResponse({'orders': orders_data})
+
+@login_required
+def get_user_orders(request):
+    try:
+        orders = Order.objects.filter(
+            visitor_name=request.user.username,
+            parent_order__isnull=True,
+            status__in=['pending', 'warehouse', 'ready', 'delivered', 'parent', 'completed', 'backorder', 'waiting_for_customer_shipment', 'sent_to_warehouse', 'waiting_for_warehouse_confirmation']
+        ).exclude(status='cart').order_by('-created_at')[:10]
+        orders_data = [
+            {
+                'id': order.id,
+                'customer_name': order.customer_name,
+                'created_at': jdatetime.datetime.fromgregorian(datetime=order.created_at).strftime('%H:%M - %Y/%m/%d '),
+                'payment_term': order.get_payment_term_display(),
+                'items': [
+                    {
+                        'product_name': item.product.name,
+                        'product_code': item.product.code,
+                        'quantity': item.requested_quantity,  # ✅ همیشه این را بفرست
+                        'requested_quantity': item.requested_quantity,  # ✅ این هم اضافه کن
+                        'price': float(item.price),  # Convert to float to ensure proper calculation
+                        'total': float(item.price) * item.requested_quantity,  # Calculate total here
+                        'payment_term': item.get_payment_term_display()
+                    } for item in order.items.all()
+                ]
+            } for order in orders
+        ]
+        return JsonResponse({'orders': orders_data})
+    except Exception as e:
+        return JsonResponse({'message': 'خطا در دریافت سفارش‌ها', 'error': str(e)}, status=500)
+    
+@login_required
+def order_pdf(request, order_id):
+    logger.info(f"Request received for PDF of order {order_id}")
+    try:
+        logger.info(f"Fetching order {order_id}")
+        order = Order.objects.get(id=order_id, visitor_name=request.user.username)
+        items = order.items.all()
+        logger.info(f"Order {order_id} found with {items.count()} items")
+
+        # فیلدهای سفارش
+        customer = order.customer or "-"
+        order_number = order.order_number or "-"
+        order_date = order.created_at.strftime('%Y/%m/%d %H:%M') if order.created_at else "-"
+        payment_term = order.get_payment_term_display() if hasattr(order, "get_payment_term_display") else "-"
+        visitor_name = order.visitor_name or "-"
+
+        # اطلاعات مشتری از ارتباط ForeignKey
+        if order.customer:
+            customer_address = order.customer.address or "-"
+            customer_mobile = order.customer.mobile or "-"
+        else:
+            customer_address = "-"
+            customer_mobile = "-"
+
+        # ویزیتور: نام و نام خانوادگی به جای username
+        from django.contrib.auth.models import User
+        try:
+            user = User.objects.get(username=order.visitor_name)
+            visitor_name = f"{user.first_name} {user.last_name}".strip() or user.username
+        except User.DoesNotExist:
+            visitor_name = order.visitor_name or "-"
+
+        # تبدیل تاریخ به جلالی
+        import jdatetime
+        if order.created_at:
+            order_date = jdatetime.datetime.fromgregorian(datetime=order.created_at.replace(tzinfo=None)).strftime('%H:%M - %Y/%m/%d')
+        else:
+            order_date = "-"
+
+        tick_cash = '\\ding{51}' if payment_term == 'نقد' else ''
+        tick_cheque = '\\ding{51}' if payment_term == 'چک' else ''
+        tick_tasvie = '\\ding{51}' if payment_term == 'تسویه' else ''
+        tick_card = '\\ding{51}' if payment_term == 'کارتخوان' else ''
+
+        latex_content = f"""
+\\documentclass[a4paper,12pt]{{article}}
+\\usepackage{{geometry}}
+\\geometry{{a4paper, margin=1in}}
+\\usepackage{{longtable}}
+\\usepackage{{colortbl}}
+\\usepackage{{xcolor}}
+\\usepackage{{setspace}}
+\\usepackage{{graphicx}}
+\\usepackage{{amssymb}}
+\\setstretch{{1.2}}
+\\usepackage{{xepersian}}
+\\settextfont{{Vazirmatn}}
+\\definecolor{{headerblue}}{{RGB}}{{44, 62, 80}}
+
+\\begin{{document}}
+
+% هدر و لوگو
+\\begin{{center}}
+    % اگر لوگو دارید، مسیر فایل را جایگزین کنید
+    % \\includegraphics[width=3cm]{{logo.png}} \\\\
+    {{\\Huge \\textbf{{   پش فاکتور فروشگاه اکبرزاده }}}} \\\\
+\\end{{center}}
+
+\\vspace{{0.5cm}}
+
+% اطلاعات مشتری و سفارش
+\\noindent
+\\begin{{tabular}}{{|p{{7cm}}|p{{7cm}}|}}
+\\hline
+\\textbf{{مشتری:}} {customer} & \\textbf{{تاریخ:}} {order_date} \\\\
+\\hline
+\\textbf{{موبایل:}} {customer_mobile} & \\textbf{{شماره:}} {order_number} \\\\
+\\hline
+\\multicolumn{{2}}{{|p{{14cm}}|}}{{\\textbf{{آدرس:}} {customer_address}}} \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{0.5cm}}
+
+% جدول کالاها
+\\begin{{longtable}}{{|c|c|p{{4cm}}|c|c|c|c|}}
+\\hline
+\\rowcolor{{headerblue}} \\color{{white}}
+\\textbf{{ردیف}} &  \\textbf{{کد کالا}} & \\textbf{{شرح}} & \\textbf{{مقدار}} & \\textbf{{واحد}} & \\textbf{{فی}} & \\textbf{{قیمت کل}} \\\\
+\\hline
+\\endhead
+"""
+
+        total = 0
+        for idx, item in enumerate(items, 1):
+            product_code = getattr(item.product, "code", "-") if hasattr(item, "product") else getattr(item, "code", "-")
+            product_name = getattr(item.product, "name", "-") if hasattr(item, "product") else getattr(item, "name", "-")
+            quantity = getattr(item, "requested_quantity", None) or getattr(item, "quantity", 1)
+            price = getattr(item, "price", 0)
+            item_total = price * quantity
+            total += item_total
+            latex_content += f"{idx} & {product_code} & {product_name} & {quantity} & عدد & {price:,} & {item_total:,} \\\\\n\\hline\n"
+
+        latex_content += f"""\\end{{longtable}}
+
+% جمع کل و بخش پرداخت
+\\vspace{{0.3cm}}
+\\noindent
+\\begin{{tabular}}{{|p{{7cm}}|p{{7cm}}|}}
+\\hline
+\\textbf{{جمع کل کالاها و خدمات:}} & {total:,} ریال \\\\
+\\hline
+\\textbf{{تخفیف:}} & 0 ریال \\\\
+\\hline
+\\textbf{{مالیات/عوارض:}} & 0 ریال \\\\
+\\hline
+\\textbf{{مبلغ قابل پرداخت:}} & {total:,} ریال \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{0.3cm}}
+
+% نحوه تسویه
+\\noindent
+\\textbf{{نحوه تسویه:}}
+\\begin{{tabular}}{{|c|c|c|c|}}
+\\hline
+نقد & چک & تسویه & کارتخوان \\\\
+\\hline
+{tick_cash} & {tick_cheque} & {tick_tasvie} & {tick_card} \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{0.5cm}}
+
+% توضیحات و مهر و امضا
+\\noindent
+\\textbf{{توضیحات:}} ...............................................................................................
+
+\\vspace{{1.5cm}}
+
+\\noindent
+مهر و امضا خریدار \\hspace{{8cm}} مهر و امضا فروشنده
+
+\\vfill
+
+% متن پایین صفحه
+\\noindent
+
+
+\\end{{document}}
+"""
+        logger.info(f"LaTeX content generated for order {order_number}")
+
+        temp_dir = os.path.join(settings.BASE_DIR, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        tex_file = os.path.join(temp_dir, f'order_{order_number}.tex')
+        with open(tex_file, 'w', encoding='utf-8') as f:
+            f.write(latex_content)
+        logger.info(f"TeX file written to {tex_file}")
+
+        logger.info("Attempting to run xelatex")
+        try:
+            result = subprocess.run(['xelatex', '--version'], capture_output=True, text=True, check=True, timeout=10)
+            logger.info(f"xelatex version: {result.stdout.splitlines()[0]}")
+        except FileNotFoundError:
+            logger.error("xelatex not found on server")
+            return HttpResponse('xelatex روی سرور نصب نیست. لطفاً xelatex را نصب کنید.', status=500)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"xelatex version check failed: {e.stderr}")
+            return HttpResponse(f'خطا در بررسی xelatex: {e.stderr}', status=500)
+        except subprocess.TimeoutExpired:
+            logger.error("xelatex version check timed out")
+            return HttpResponse('اجرای xelatex بیش از حد طول کشید.', status=500)
+
+        try:
+            result = subprocess.run(['xelatex', '-output-directory', temp_dir, tex_file], check=True, capture_output=True, text=True, timeout=180)
+            logger.info(f"xelatex output: {result.stdout}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"xelatex failed: {e.stderr}")
+            return HttpResponse(f'خطا در کامپایل LaTeX: {e.stderr}', status=500)
+        except subprocess.TimeoutExpired:
+            logger.error("xelatex compilation timed out")
+            return HttpResponse('کامپایل LaTeX بیش از حد طول کشید.', status=500)
+
+        pdf_file = os.path.join(temp_dir, f'order_{order_number}.pdf')
+        if not os.path.exists(pdf_file):
+            logger.error(f"PDF not found at {pdf_file}")
+            return HttpResponse('فایل PDF تولید نشد.', status=500)
+        with open(pdf_file, 'rb') as f:
+            pdf_content = f.read()
+
+        for ext in ['.tex', '.pdf', '.log', '.aux']:
+            try:
+                os.remove(os.path.join(temp_dir, f'order_{order_number}{ext}'))
+            except OSError:
+                pass
+
+        logger.info(f"PDF generated successfully for order {order_number}")
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="order_{order_number}.pdf"'
+        response.write(pdf_content)
+        return response
+    except Exception as e:
+        logger.error(f"PDF generation failed: {str(e)}")
+        return HttpResponse(f'خطا در ایجاد PDF: {str(e)}', status=500)
+
+@login_required
+def get_products(request):
+    query = request.GET.get('q', '')
+    brand = request.GET.get('brand', '')
+    car_group = request.GET.get('car_group', '')
+    products = Product.objects.all()
+    if query:
+        products = products.filter(Q(name__icontains=query) | Q(code__icontains=query))
+    if brand:
+        products = products.filter(brand=brand)
+    if car_group:
+        products = products.filter(car_group=car_group)
+    products_data = [
+        {
+            'id': p.id,
+            'code': p.code,
+            'name': p.name,
+            'price': float(p.price),
+            'quantity': p.quantity,
+            'car_group': p.car_group,
+            'max_payment_term': p.max_payment_term
+        } for p in products
+    ]
+    return JsonResponse({'products': products_data})
+
+@login_required
+def get_orders(request):
+    try:
+        orders = Order.objects.all().prefetch_related('items')
+        orders_data = [
+            {
+                'id': order.id,
+                'visitor_name': order.visitor_name,
+                'items': [
+                    {
+                        'product_name': item.product.name,
+                        'quantity': item.quantity or 0,
+                        'payment_term': item.get_payment_term_display()
+                    } for item in order.items.all()
+                ],
+                'created_at': jdatetime.datetime.fromgregorian(datetime=order.created_at).strftime('%Y-%m-%d %H:%M:%S'),
+            } for order in orders
+        ]
+        return JsonResponse({'orders': orders_data})
+    except Exception as e:
+        return JsonResponse({'message': 'خطا در دریافت سفارش‌ها', 'error': str(e)}, status=500)
+
+@login_required
+@require_POST
+def update_order_status(request):
+    try:
+        data = json.loads(request.body)
+        order_id = data.get('order_id')
+        current_status = data.get('current_status')
+        courier_name = data.get('courier_name')  # دریافت نام پیک
+
+        if not order_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'شناسه سفارش ارسال نشده'
+            }, status=400)
+
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'سفارش مورد نظر یافت نشد'
+            }, status=404)
+
+        # اگر وضعیت pending است و میخواهیم به warehouse تغییر دهیم
+        if current_status == 'pending':
+            try:
+                response = send_order_to_warehouse(request, order_id)
+                return response
+            except Exception as e:
+                print(f"Error in send_order_to_warehouse: {str(e)}")
+                return JsonResponse({
+                    'success': False,
+                    'message': f'خطا در ارسال به انبار: {str(e)}'
+                }, status=500)
+
+        # برای سایر تغییر وضعیت‌ها
+        status_flow = {
+            'warehouse': 'ready',
+            'ready': 'waiting_for_customer_shipment',
+            'waiting_for_customer_shipment': 'delivered',
+        }
+
+        next_status = status_flow.get(current_status)
+        if not next_status:
+            return JsonResponse({
+                'success': False,
+                'message': 'وضعیت بعدی تعریف نشده'
+            }, status=400)
+
+        try:
+            order.status = next_status
+            if current_status == 'waiting_for_customer_shipment' and next_status == 'delivered':
+                if not courier_name:
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'نام پیک وارد نشده است'
+                    }, status=400)
+                order.courier_name = courier_name
+            order.save()
+            print(f"Order {order_id} status updated to {next_status}")
+
+            # فقط در صورتی که زیرسفارش است، شماره سند دارد و قبلاً Shipment نداشته، یک شیء Shipment بساز
+            if (
+                order.status == 'delivered'
+                and order.courier_name
+                and order.document_number
+                and order.parent_order is not None
+                and not Shipment.objects.filter(order=order).exists()
+            ):
+                Shipment.objects.create(
+                    order=order,
+                    courier_name=order.courier_name,
+                    status='delivered'
+                )
+
+            # اگر سفارش مادر به delivered می‌رود، فقط یک Shipment جمعی برای سفارش مادر و زیرسفارش‌های دارای شماره سند بساز
+            if next_status == 'delivered' and order.parent_order is None:
+                with transaction.atomic():
+                    sub_orders = [sub for sub in order.get_sub_orders() if sub.document_number]
+                    if sub_orders:
+                        shipment = Shipment.objects.create(
+                            order=order,
+                            courier_name=courier_name,
+                            status='delivered',
+                            description=f"ارسال سفارش {order.order_number}"
+                        )
+                        for sub in sub_orders:
+                            sub.status = 'delivered'
+                            sub.courier_name = courier_name
+                            sub.save()
+                            shipment.sub_orders.add(sub)
+                        order.status = 'delivered'
+                        order.courier_name = None
+                        order.save()
+                    else:
+                        print("No sub-orders with document number found")
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'هیچ زیرسفارشی با شماره سند یافت نشد'
+                        }, status=400)
+
+            # اگر سفارش زیرسفارش باشد، وضعیت سفارش مادر را بررسی کنیم 
+            if order.parent_order:
+                parent = order.parent_order  
+                sub_orders = parent.get_sub_orders()
+                all_finalized = all(sub.status in ['ready', 'backorder'] for sub in sub_orders)
+                any_ready = any(sub.status == 'ready' for sub in sub_orders)
+                if all_finalized and any_ready:
+                    parent.status = 'waiting_for_customer_shipment'
+                    parent.save()
+                    print(f"Parent order {parent.id} status updated to 'waiting_for_customer_shipment'")
+                    sub_orders.filter(status='ready').update(status='waiting_for_customer_shipment')
+
+
+        except Exception as e:
+            print(f"Error updating order status: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': f'خطا در به‌روزرسانی وضعیت: {str(e)}'
+            }, status=500)
+
+        return JsonResponse({
+            'success': True,
+            'message': 'وضعیت سفارش با موفقیت تغییر یافت',
+            'next_status': next_status,
+            'next_status_display': order.get_status_display()
+        })
+
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'داده‌های ارسالی نامعتبر است'
+        }, status=400)
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'خطای سرور: {str(e)}'
+        }, status=500)
+
+@login_required
+def admin_panel(request):
+    return render(request, 'products/manager_dashboard.html')
+import openpyxl
+
+@login_required
+def product_list(request):
+    if 'excel_output' in request.GET:
+        return export_products_to_excel(request)
+    brands = Product.objects.values_list('brand', flat=True).distinct()
+    car_groups = Product.objects.values_list('car_group', flat=True).distinct()
+    active_tab = request.GET.get('tab', 'all')
+    
+    # --- تعریف متغیر one_week_ago در اینجا ---
+    one_week_ago = timezone.now() - timedelta(days=7)
+
+    # --- بخش محصولات کلی ---
+    products_query = Product.objects.all().order_by('id')
+    q_all = request.GET.get('q')
+    brand_all = request.GET.get('brand')
+    car_group_all = request.GET.get('car_group')
+
+    if brand_all and brand_all != "all":
+        products_query = products_query.filter(brand=brand_all)
+    if car_group_all and car_group_all != "all":
+        products_query = products_query.filter(car_group=car_group_all)
+    if q_all:
+        products_query = products_query.filter(Q(normalized_name__icontains=normalize_text(q_all)) | Q(code__icontains=normalize_text(q_all)))
+
+    paginator_all = Paginator(products_query, 50)
+    page_all_number = request.GET.get('page_all')
+    page_obj = paginator_all.get_page(page_all_number)
+
+    # --- بخش تغییرات قیمت ---
+    price_changes_query = PriceChange.objects.filter(change_date__gte=one_week_ago).select_related('product').order_by('-change_date')
+    
+    q_price = request.GET.get('q_price')
+    brand_price = request.GET.get('brand_price')
+    car_group_price = request.GET.get('car_group_price')
+
+    if brand_price and brand_price != "all":
+        price_changes_query = price_changes_query.filter(product__brand=brand_price)
+    if car_group_price and car_group_price != "all":
+        price_changes_query = price_changes_query.filter(product__car_group=car_group_price)
+    if q_price:
+        price_changes_query = price_changes_query.filter(Q(product__normalized_name__icontains=normalize_text(q_price)) | Q(product__code__icontains=normalize_text(q_price)))
+
+    paginator_price = Paginator(price_changes_query, 50)
+    page_price_number = request.GET.get('page_price')
+    price_changes_page_obj = paginator_price.get_page(page_price_number)
+    
+    # --- بخش کالاهای جدید ---
+    new_products_query = Product.objects.filter(created_at__gte=one_week_ago).order_by('-created_at')
+    q_new = request.GET.get('q_new')
+    brand_new = request.GET.get('brand_new')
+    car_group_new = request.GET.get('car_group_new')
+
+    if brand_new and brand_new != "all":
+        new_products_query = new_products_query.filter(brand=brand_new)
+    if car_group_new and car_group_new != "all":
+        new_products_query = new_products_query.filter(car_group=car_group_new)
+    if q_new:
+        new_products_query = new_products_query.filter(Q(normalized_name__icontains=normalize_text(q_new)) | Q(code__icontains=normalize_text(q_new)))
+
+    paginator_new = Paginator(new_products_query, 50)
+    page_new_number = request.GET.get('page_new')
+    new_products_page_obj = paginator_new.get_page(page_new_number)
+
+    context = {
+        'page_obj': page_obj,
+        'price_changes_page_obj': price_changes_page_obj,
+        'new_products_page_obj': new_products_page_obj,
+        'brands': brands,
+        'car_groups': car_groups,
+        'active_tab': active_tab,
+        'q_all': q_all,
+        'selected_brand_all': brand_all,
+        'selected_car_group_all': car_group_all,
+        'q_price': q_price,
+        'selected_brand_price': brand_price,
+        'selected_car_group_price': car_group_price,
+        'q_new': q_new,
+        'selected_brand_new': brand_new,
+        'selected_car_group_new': car_group_new,
+    }
+    return render(request, 'products/product_list.html', context)
+
+
+def export_products_to_excel(request):
+    output_type = request.GET.get('excel_output')
+    
+    if output_type == 'all':
+        products_query = Product.objects.all().order_by('id')
+        q_all = request.GET.get('q')
+        brand_all = request.GET.get('brand')
+        car_group_all = request.GET.get('car_group')
+
+        if brand_all and brand_all != "all":
+            products_query = products_query.filter(brand=brand_all)
+        if car_group_all and car_group_all != "all":
+            products_query = products_query.filter(car_group=car_group_all)
+        if q_all:
+            products_query = products_query.filter(Q(normalized_name__icontains=normalize_text(q_all)) | Q(code__icontains=normalize_text(q_all)))
+        
+        data = list(products_query.values('code', 'name', 'car_group', 'brand', 'price', 'max_payment_term'))
+        df = pd.DataFrame(data)
+        df.rename(columns={'code': 'کد کالا', 'name': 'نام کالا', 'car_group': 'گروه خودرو', 'brand': 'برند', 'price': 'قیمت', 'max_payment_term': 'حداکثر تسویه'}, inplace=True)
+        df['حداکثر تسویه'] = df['حداکثر تسویه'].replace({
+            '1m': '1 ماه',
+            '2m': '2 ماه',
+            '3m': '3 ماه',
+            '4m': '4 ماه',
+            'cash': 'نقدی'
+        })
+
+    elif output_type == 'price':
+        one_week_ago = timezone.now() - timedelta(days=7)
+        price_changes_query = PriceChange.objects.filter(change_date__gte=one_week_ago).select_related('product').order_by('-change_date')
+        
+        q_price = request.GET.get('q_price')
+        brand_price = request.GET.get('brand_price')
+        car_group_price = request.GET.get('car_group_price')
+
+        if brand_price and brand_price != "all":
+            price_changes_query = price_changes_query.filter(product__brand=brand_price)
+        if car_group_price and car_group_price != "all":
+            price_changes_query = price_changes_query.filter(product__car_group=car_group_price)
+        if q_price:
+            price_changes_query = price_changes_query.filter(Q(product__normalized_name__icontains=normalize_text(q_price)) | Q(product__code__icontains=normalize_text(q_price)))
+        
+        data = []
+        for change in price_changes_query:
+            data.append({
+                'کد': change.product.code,
+                'نام کالا': change.product.name,
+                'ق. قدیم': change.old_price,
+                'ق. جدید': change.new_price,
+                'درصد': change.percentage_change,
+                'تاریخ': jdatetime.datetime.fromgregorian(datetime=change.change_date).strftime('%y/%m/%d'),
+                'تسویه': change.product.get_max_payment_term_display()
+            })
+        df = pd.DataFrame(data)
+        df['تسویه'] = df['تسویه'].replace({
+            '1m': '1 ماه',
+            '2m': '2 ماه',
+            '3m': '3 ماه',
+            '4m': '4 ماه',
+            'cash': 'نقدی'
+        })
+
+    elif output_type == 'new':
+        one_week_ago = timezone.now() - timedelta(days=7)
+        new_products_query = Product.objects.filter(created_at__gte=one_week_ago).order_by('-created_at')
+        data = list(new_products_query.values('code', 'name', 'car_group', 'brand', 'price', 'max_payment_term'))
+        df = pd.DataFrame(data)
+        df.rename(columns={'code': 'کد کالا', 'name': 'نام کالا', 'car_group': 'گروه خودرو', 'brand': 'برند', 'price': 'قیمت', 'max_payment_term': 'حداکثر تسویه'}, inplace=True)
+        df['حداکثر تسویه'] = df['حداکثر تسویه'].replace({
+            '1m': '1 ماه',
+            '2m': '2 ماه',
+            '3m': '3 ماه',
+            '4m': '4 ماه',
+            'cash': 'نقدی'
+        })
+    
+    else:
+        return HttpResponse("Invalid output type")
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="products_{output_type}.xlsx"'
+    df.to_excel(response, index=False, engine='openpyxl')
+    
+    return response
+
+
+def upload_success(request):
+    return HttpResponse("آپلود با موفقیت انجام شد.")
+
+def user_login(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            if user.groups.filter(name='مدیر').exists():
+                return redirect('products:manager_dashboard')
+            elif user.groups.filter(name='ویزیتور').exists():
+                return redirect('products:product_list')
+            elif user.groups.filter(name='مشتری').exists():
+                return redirect('products:product_list')
+            elif user.groups.filter(name='انباردار').exists():
+                return redirect('products:warehouse_panel')
+            elif user.groups.filter(name='حسابداری').exists():
+                return redirect('products:accounting_panel')
+            else:
+                messages.error(request, 'نقش کاربری شما تعریف نشده است.')
+                logout(request)
+                return redirect('products:login')
+        else:
+            messages.error(request, 'نام کاربری یا رمز عبور اشتباه است.')
+    return render(request, 'products/login.html')
+
+@require_POST
+def logout_view(request):
+    logout(request)
+    return redirect('products:login')
+
+def user_logout(request):
+    logout(request)
+    return redirect('products:login')
+
+@login_required
+@user_passes_test(is_manager)
+@never_cache
+def manager_dashboard(request):
+    return render(request, 'products/manager_dashboard.html')
+
+@login_required
+@user_passes_test(is_manager)
+@never_cache
+def manager_order_list(request):
+    one_week_ago = timezone.now() - timezone.timedelta(days=7)
+
+    all_requests = Order.objects.filter(
+        parent_order__isnull=True,
+        created_at__gte=one_week_ago
+    ).order_by('-created_at')
+
+    pending_requests = all_requests.filter(status='pending')
+    parent_requests = all_requests.filter(status='parent')
+    warehouse_requests = parent_requests
+    
+    # اصلاح query برای نمایش سفارش‌های اصلی و بک‌اوردرهای آماده ارسال به مشتری
+    ready_requests = Order.objects.filter(
+        Q(status='waiting_for_customer_shipment', parent_order__isnull=True) |  # سفارش‌های اصلی
+        Q(status='waiting_for_customer_shipment', parent_order__status='delivered')  # بک‌اوردرهای آماده
+    ).select_related(
+        'parent_order'
+    ).prefetch_related(
+        'items',
+        'items__product',
+        'items__warehouse',
+        'sub_orders',
+        'sub_orders__items',
+        'sub_orders__items__product',
+        'sub_orders__items__warehouse'
+    ).distinct().order_by('-created_at')
+
+    # سفارش‌های تحویل داده شده
+    delivered_requests = all_requests.filter(status='delivered')
+    
+    backordered_requests = Order.objects.filter(
+        Q(status='backorder') | Q(items__warehouse_status='backorder')
+    ).select_related(
+        'parent_order'
+    ).prefetch_related(
+        'items',
+        'items__product',
+        'items__warehouse'
+    ).distinct().order_by('-created_at')
+
+    supplied_requests = Order.objects.filter(
+        Q(items__warehouse_status='waiting_for_warehouse_confirmation') |
+        Q(status='sent_to_warehouse')
+    ).select_related(
+        'parent_order'
+    ).prefetch_related(
+        'items',
+        'items__product',
+        'items__warehouse'
+    ).distinct().order_by('-created_at')
+
+    backorder_ready_requests = Order.objects.filter(
+        Q(order_number__startswith='BO-SHOP') | Q(order_number__startswith='BO-PAKHSH'),
+        Q(parent_order__isnull=False),     # فقط زیرسفارش
+        Q(status='ready'),
+        Q(order_number__contains='RE'),
+    ).exclude(
+        status='delivered'
+    ).select_related(
+        'parent_order'
+    ).prefetch_related(
+        'items', 'items__product', 'items__warehouse'
+    ).distinct().order_by('-created_at')
+
+    # سفارش‌های ارسال شده (برای شمارنده "ارسال شده ها")
+    shipped_requests = Order.objects.filter(status='delivered')
+
+    shipped_shipments = Shipment.objects.filter(
+        Q(order__parent_order__isnull=True) | Q(order__parent_order__isnull=False),  # هم سفارش اصلی و هم زیرسفارش 
+        status='delivered',  # فقط ارسال‌های تحویل شده
+        courier_name__isnull=False  # نام پیک داشته باشد
+    ).exclude(courier_name='').order_by('-shipment_date')
+
+    for sh in shipped_shipments:
+        print('shipment:', sh.id, sh.order_id, sh.order.document_number, sh.order.parent_order_id)
+    for o in Order.objects.all():
+        print('order:', o.id, o.document_number, o.parent_order_id, o.status) 
+
+    context = {
+        'all_requests': all_requests,
+        'pending_requests': pending_requests,
+        'warehouse_requests': parent_requests,
+        'ready_requests': ready_requests,
+        'delivered_requests': delivered_requests,
+        'shipped_requests': shipped_requests,  # اگر استفاده می‌کنی
+        'shipped_shipments': shipped_shipments,
+        'backordered_requests': backordered_requests,
+        'supplied_requests': supplied_requests,
+        'backorder_ready_requests': backorder_ready_requests,
+        'parent_requests': parent_requests,
+    }
+    return render(request, 'products/manager_order_list.html', context)
+
+@login_required
+def read_notification(request, notification_id):
+    notification = get_object_or_404(Notification, id=notification_id, target_user=request.user)
+    if request.method == 'POST':
+        notification.read = True
+        notification.save()
+    return redirect('products:manager_order_list')
+
+@login_required
+def visitor_panel(request):
+    user = request.user
+
+    if not user.groups.filter(name__in=['ویزیتور', 'مشتری']).exists():
+        return render(request, 'error.html', {'message': 'شما اجازه دسترسی به این بخش را ندارید.'})
+
+    brands = Product.objects.values('brand').distinct()
+    car_groups = Product.objects.values('car_group').distinct()
+
+    if user.groups.filter(name='ویزیتور').exists():
+        customers = Customer.objects.all().order_by('first_name', 'last_name')
+    else:
+        try:
+            customers = [user.customer_profile]
+        except Customer.DoesNotExist:
+            customers = []
+
+    return render(request, 'products/product_list.html', {
+        'brands': brands,
+        'car_groups': car_groups,
+        'customers': customers,
+        'user_is_visitor': user.groups.filter(name='ویزیتور').exists(),
+        'user_is_customer': user.groups.filter(name='مشتری').exists(),
+    })
+
+@login_required
+def customer_panel(request):
+    return render(request, 'products/customer_panel.html')
+
+def redirect_to_login(request):
+    return redirect('products:login')
+
+@login_required
+def debug_view(request):
+    return JsonResponse({'message': 'Debug view is working', 'user': request.user.username})
+
+def update_parent_order_status(parent_order):
+    """
+    بررسی و به‌روزرسانی وضعیت سفارش مادر بر اساس وضعیت زیرسفارش‌ها
+    """
+    if not parent_order:
+        return
+
+    # دریافت همه زیرسفارش‌ها
+    sub_orders = parent_order.sub_orders.all()
+    if not sub_orders:
+        return
+
+    # بررسی وضعیت همه زیرسفارش‌ها
+    all_ready = True  # فرض می‌کنیم همه ready هستند
+    has_backorder = False
+    
+    for sub_order in sub_orders:
+        if sub_order.status == 'backorder':
+            has_backorder = True
+        elif sub_order.status != 'ready':
+            all_ready = False
+            break
+    
+    # اگر همه زیرسفارش‌ها ready هستند یا ترکیبی از ready و backorder هستند
+    if all_ready:
+        parent_order.status = 'waiting_for_customer_shipment'
+        parent_order.save()
+
+@csrf_exempt
+@login_required
+@require_POST
+def update_warehouse_items(request):
+    try:
+        data = json.loads(request.body)
+        order_id = data.get('order_id')
+        items_data = data.get('items', [])
+
+        if not order_id or not items_data:
+            return JsonResponse({
+                'success': False,
+                'message': 'اطلاعات ناقص است'
+            })
+
+        order = get_object_or_404(Order, id=order_id)
+        warehouse = Warehouse.objects.get(user=request.user)
+
+        with transaction.atomic():
+            for item_data in items_data:
+                item_id = item_data.get('item_id')
+                status = item_data.get('status')
+                note = item_data.get('note')
+
+                item = get_object_or_404(OrderItem, id=item_id, order=order, warehouse=warehouse)
+                item.warehouse_status = status
+                item.warehouse_note = note
+                item.save()
+
+            # بررسی وضعیت همه آیتم‌های سفارش
+            all_items = order.items.all()
+            all_ready = all(item.warehouse_status == 'ready' for item in all_items)
+            any_out_of_stock = any(item.warehouse_status == 'out_of_stock' for item in all_items)
+
+            # به‌روزرسانی وضعیت سفارش
+            if any_out_of_stock:
+                order.status = 'backorder'
+            elif all_ready:
+                order.status = 'ready'
+                # اگر این سفارش یک زیرسفارش است، وضعیت سفارش مادر را به‌روز می‌کنیم
+                if order.parent_order:
+                    update_parent_order_status(order.parent_order)
+            
+            order.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'وضعیت آیتم‌ها با موفقیت به‌روز شد'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'فرمت JSON نامعتبر است'
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در به‌روزرسانی وضعیت: {str(e)}'
+        }, status=500)
+
+@user_passes_test(is_manager)
+def create_test_users(request):
+    try:
+        # ایجاد گروه انباردار اگر وجود نداشته باشد
+        warehouse_group, _ = Group.objects.get_or_create(name='انباردار')
+        
+        # ایجاد کاربر برای انبار پخش
+        warehouse1_user, created1 = User.objects.get_or_create(
+            username='anbar_pakhsh',
+            defaults={'is_staff': False}
+        )
+        if created1:
+            warehouse1_user.set_password('1234')
+            warehouse1_user.save()
+            warehouse1_user.groups.add(warehouse_group)
+            
+            # اتصال کاربر به انبار
+            warehouse1 = Warehouse.objects.get(name='انبار پخش')
+            warehouse1.user = warehouse1_user
+            warehouse1.save()
+
+        # ایجاد کاربر برای انبار فروشگاه
+        warehouse2_user, created2 = User.objects.get_or_create(
+            username='anbar_forushgah',
+            defaults={'is_staff': False}
+        )
+        if created2:
+            warehouse2_user.set_password('1234')
+            warehouse2_user.save()
+            warehouse2_user.groups.add(warehouse_group)
+            
+            # اتصال کاربر به انبار
+            warehouse2 = Warehouse.objects.get(name='انبار فروشگاه')
+            warehouse2.user = warehouse2_user
+            warehouse2.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'کاربران تست با موفقیت ایجاد شدند.',
+            'users': {
+                'anbar_pakhsh': 'ایجاد شد' if created1 else 'از قبل وجود داشت',
+                'anbar_forushgah': 'ایجاد شد' if created2 else 'از قبل وجود داشت'
+            }
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در ایجاد کاربران تست: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@require_POST
+@login_required
+def allocate_items(request):
+    try:
+        data = json.loads(request.body)
+        order_id = data.get('order_id')
+        document_number = data.get('document_number')
+        package_count = data.get('package_count')
+        allocations = data.get('allocations', {})
+
+        if not all([order_id, document_number, package_count, allocations]):
+            return JsonResponse({'success': False, 'message': 'اطلاعات ناقص است'}, status=400)
+
+        order = get_object_or_404(Order, id=order_id)
+        warehouse = Warehouse.objects.get(user=request.user)
+
+        with transaction.atomic():
+            order.document_number = document_number
+            order.package_count = int(package_count)
+
+            backorder_items_to_create = []
+            has_allocated_items = False
+
+            for item_id_str, allocation_data in allocations.items():
+                item_id = int(item_id_str)
+                item = get_object_or_404(OrderItem, id=item_id, order=order, warehouse=warehouse)
+
+                try:
+                    allocated_qty = int(allocation_data.get('quantity', 0))
+                except (ValueError, TypeError):
+                    return JsonResponse({'success': False, 'message': f'مقدار تخصیص برای آیتم {item_id} نامعتبر است'}, status=400)
+
+                note = allocation_data.get('note', '')
+
+                if allocated_qty > item.requested_quantity:
+                    return JsonResponse({'success': False, 'message': f'مقدار تخصیص برای {item.product.name} از مقدار درخواستی بیشتر است.'}, status=400)
+
+                if allocated_qty < 0:
+                    return JsonResponse({'success': False, 'message': 'مقدار تخصیص نمی‌تواند منفی باشد.'}, status=400)
+                
+                if allocated_qty > 0:
+                    product = item.product
+                    if product.quantity < allocated_qty:
+                        return JsonResponse({
+                            'success': False,
+                            'message': f'موجودی کافی برای "{product.name}" در انبار وجود ندارد (موجودی: {product.quantity})'
+                        }, status=400)
+                    product.quantity -= allocated_qty
+                    product.save()
+
+              
+                item.allocated_quantity = allocated_qty
+                item.warehouse_note = note
+                item.warehouse_status = 'ready'
+                item.save()
+
+                if allocated_qty > 0:
+                    has_allocated_items = True
+
+                unallocated_qty = item.requested_quantity - allocated_qty
+                if unallocated_qty > 0:
+                    backorder_items_to_create.append({
+                        'original_item': item,
+                        'quantity': unallocated_qty,
+                    })
+
+
+            if not has_allocated_items and not backorder_items_to_create:
+                return JsonResponse({'success': False, 'message': 'هیچ کالایی تخصیص داده نشده است. لطفاً مقادیر را وارد کنید.'}, status=400)
+
+            if backorder_items_to_create:
+                parent_order = order.parent_order or order
+
+                backorder = Order(
+                    visitor_name=order.visitor_name,
+                    customer=order.customer,
+                    payment_term=order.payment_term,
+                    status='backorder',
+                    parent_order=parent_order
+                )
+                backorder.warehouse_name = warehouse.name  # Set temporary attribute for save()
+                backorder.save()
+
+                for bo_item_data in backorder_items_to_create:
+                    original_item = bo_item_data['original_item']
+                    OrderItem.objects.create(
+                        order=backorder,
+                        product=original_item.product,
+                        requested_quantity=bo_item_data['quantity'],
+                        allocated_quantity=0,
+                        price=original_item.price,
+                        payment_term=original_item.payment_term,
+                        warehouse=original_item.warehouse,
+                        warehouse_status='backorder'
+                    )
+
+            if has_allocated_items:
+                order.status = 'ready'
+            else:
+                order.status = 'closed_backordered'
+
+            order.save()
+
+            if order.parent_order:
+                update_parent_order_status(order.parent_order)
+
+        return JsonResponse({'success': True, 'message': 'تخصیص با موفقیت انجام شد.'})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'داده‌های ارسالی نامعتبر است.'}, status=400)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': f'خطا در تخصیص کالا: {str(e)}'}, status=500)
+    
+@login_required
+def search_customers(request):
+    try:
+        query = request.GET.get('q', '')
+        print(f"جستجوی مشتری با عبارت: {query}")  # برای دیباگ
+        
+        # اگر query خالی باشد، همه مشتریان را برمی‌گرداند
+        if not query:
+            customers = Customer.objects.all().order_by('first_name', 'last_name')[:20]
+        else:
+            customers = Customer.objects.filter(
+                Q(first_name__icontains=query) |
+                Q(last_name__icontains=query)
+            ).order_by('first_name', 'last_name')[:10]
+            
+        print(f"تعداد {customers.count()} مشتری پیدا شد")  # برای دیباگ
+        
+        results = [{
+            'id': customer.id,
+            'first_name': customer.first_name,
+            'last_name': customer.last_name,
+            'store_name': customer.store_name or '',
+            'mobile': customer.mobile or ''
+        } for customer in customers]
+        
+        return JsonResponse({'customers': results})
+    except Exception as e:
+        print(f"خطا در جستجوی مشتریان: {str(e)}")  # برای دیباگ
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
+def resend_backorder_item_to_warehouse(request):
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        quantity = int(data.get('quantity', 0))
+
+        item = get_object_or_404(OrderItem, id=item_id)
+        order = item.order
+
+        if item.warehouse_status != 'backorder':
+            return JsonResponse({'success': False, 'message': 'این آیتم در وضعیت بک‌اوردر نیست.'}, status=400)
+
+        if quantity > item.requested_quantity:
+            return JsonResponse({'success': False, 'message': 'مقدار وارد شده بیش از تعداد مورد نیاز است.'}, status=400)
+        if quantity <= 0:
+            return JsonResponse({'success': False, 'message': 'تعداد باید بیشتر از صفر باشد.'}, status=400)
+
+        # ساخت شماره سفارش RE جدید
+        warehouse_name_fa = item.warehouse.name if item.warehouse else "UNKNOWN"
+
+        if warehouse_name_fa == "انبار پخش":
+            warehouse_name = "PAKHSH"
+        elif warehouse_name_fa == "انبار فروشگاه":
+            warehouse_name = "SHOP"
+        else:
+            warehouse_name = "unknown"
+
+        parent_order = order.parent_order if hasattr(order, "parent_order") and order.parent_order else order
+        parent_order_number = parent_order.order_number
+
+        prefix = f"BO-{warehouse_name}-{parent_order_number}-"
+        existing_resends = Order.objects.filter(
+            order_number__startswith=prefix,
+            order_number__endswith='RE'
+        ).count()
+        new_order_number = f"BO-{warehouse_name}-{parent_order_number}-{str(existing_resends+1).zfill(4)}-RE"
+
+        # ایجاد سفارش جدید با شماره RE...
+        new_order = Order.objects.create(
+            parent_order=parent_order,
+            status='waiting_for_warehouse_confirmation',
+            customer=order.customer,
+            order_number=new_order_number,
+            warehouse=item.warehouse
+        )
+
+        # ایجاد آیتم جدید در سفارش جدید
+        OrderItem.objects.create(
+            order=new_order,
+            product=item.product,
+            requested_quantity=quantity,
+            allocated_quantity=0,
+            price=item.price,
+            payment_term=item.payment_term,
+            warehouse=item.warehouse,
+            warehouse_status='waiting_for_warehouse_confirmation'
+        )
+
+        # کم کردن یا حذف آیتم قبلی
+        if quantity == item.requested_quantity:
+            item.delete()
+        else:
+            item.requested_quantity -= quantity
+            item.save()
+
+        update_order_status_based_on_items(order)
+        remaining_backorder_items = order.items.filter(warehouse_status='backorder').exists()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'آیتم با موفقیت به انبار ارسال شد و سفارش RE جدید ساخته شد.',
+            'item_id': item_id,
+            'order_id': order.id,
+            'order_should_remove': not remaining_backorder_items,
+            'new_order_number': new_order_number
+        })
+
+    except Exception as e:
+        logger.exception("An error occurred in resend_backorder_item_to_warehouse.")
+        return JsonResponse({'success': False, 'message': f'خطا در تخصیص کالا: {str(e)}'}, status=500)
+
+@csrf_exempt
+@require_POST
+def send_item_to_warehouse(request):
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+
+        if not item_id:
+            return JsonResponse({'success': False, 'message': 'شناسه آیتم لازم است.'}, status=400)
+
+        order_item = get_object_or_404(OrderItem, id=item_id)
+        order = order_item.order
+
+        # تغییر وضعیت آیتم به 'backorder'
+        order_item.warehouse_status = 'backorder'
+        order_item.save()
+        update_order_status_based_on_items(order)
+        
+
+        # بررسی آیتم‌های باقی‌مانده با وضعیت backorder
+        remaining_backorder_items = order.items.filter(warehouse_status='backorder').count()
+
+        if remaining_backorder_items == 0:
+            # اگر هیچ آیتمی باقی نمانده، وضعیت سفارش را به closed_backordered تغییر بده
+            order.status = 'closed_backordered'
+            order.save()
+            order_should_remove = True
+        else:
+            # اگر هنوز آیتم‌های backorder داریم، وضعیت سفارش را backorder نگه می‌داریم
+            order.status = 'backorder'
+            order.save()
+            order_should_remove = False
+
+        return JsonResponse({
+            'success': True, 
+            'message': 'آیتم با موفقیت به لیست تامین موجودی منتقل شد.',
+            'order_should_remove': order_should_remove,
+            'item_id': item_id,
+            'order_id': order.id
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'درخواست نامعتبر JSON.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+def update_order_status_based_on_items(order):
+    items = order.items.all()
+    if all(item.warehouse_status == 'ready' for item in items):
+        order.status = 'ready'
+    elif any(item.warehouse_status == 'backorder' for item in items):
+        order.status = 'backorder'
+    elif all(item.warehouse_status == 'delivered' for item in items):
+        order.status = 'delivered'
+    else:
+        order.status = 'pending'
+    order.save()
+
+def allocate_to_warehouse(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    
+    if order.status != 'pending':
+        messages.error(request, 'فقط سفارش‌های در انتظار تأیید قابل ارسال به انبار هستند.')
+        return redirect('manager_order_list')
+    
+    with transaction.atomic():
+        order.status = 'parent'
+        order.save()
+        
+        for item in order.items.all():
+            product = item.product
+            requested_quantity = item.requested_quantity
+            allocated_quantity = 0
+            
+            # بررسی موجودی در انبارها
+            warehouses = Warehouse.objects.filter(products__product=product).distinct()
+            for warehouse in warehouses:
+                warehouse_product = warehouse.products.filter(product=product).first()
+                if not warehouse_product:
+                    continue
+                    
+                available_quantity = warehouse_product.quantity
+                if available_quantity >= requested_quantity - allocated_quantity:
+                    # موجودی کافی در انبار
+                    quantity_to_allocate = requested_quantity - allocated_quantity
+                    warehouse_product.quantity -= quantity_to_allocate
+                    warehouse_product.save()
+                    
+                    # ایجاد زیرسفارش برای انبار
+                    sub_order = Order.objects.create(
+                        parent_order=order,
+                        status='warehouse',
+                        customer=order.customer,
+                        order_number=f"{order.order_number}-{warehouse.code}",
+                        warehouse=warehouse
+                    )
+                    OrderItem.objects.create(
+                        order=sub_order,
+                        product=product,
+                        requested_quantity=quantity_to_allocate,
+                        allocated_quantity=quantity_to_allocate,
+                        price=item.price
+                    )
+                    allocated_quantity += quantity_to_allocate
+                else:
+                    # موجودی ناکافی, تخصیص موجودی موجود
+                    if available_quantity > 0:
+                        warehouse_product.quantity = 0
+                        warehouse_product.save()
+                        
+                        sub_order = Order.objects.create(
+                            parent_order=order,
+                            status='warehouse',
+                            customer=order.customer,
+                            order_number=f"{order.order_number}-{warehouse.code}",
+                            warehouse=warehouse
+                        )
+                        OrderItem.objects.create(
+                            order=sub_order,
+                            product=product,
+                            requested_quantity=available_quantity,
+                            allocated_quantity=available_quantity,
+                            price=item.price
+                        )
+                        allocated_quantity += available_quantity
+            
+            # اگر مقداری تخصیص نیافته باقی مانده، ایجاد بک‌اوردر
+            if allocated_quantity < requested_quantity:
+                backorder_quantity = requested_quantity - allocated_quantity
+                backorder = Order.objects.create(
+                    parent_order=order,
+                    status='backorder',
+                    customer=order.customer,
+                    order_number=f"BO-{order.order_number}",
+                    warehouse=None
+                )
+                OrderItem.objects.create(
+                    order=backorder,
+                    product=product,
+                    requested_quantity=backorder_quantity,
+                    allocated_quantity=0,
+                    price=item.price
+                )
+        
+        # به‌روزرسانی سفارش فعلی
+        order.status = 'ready'
+        order.save()
+
+    messages.success(request, 'سفارش با موفقیت به انبارها تخصیص یافت.')
+    return redirect('manager_order_list')
+
+@csrf_exempt
+@login_required
+@require_POST
+@transaction.atomic
+def confirm_backorder_item(request):
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        order_id = data.get('order_id')
+        allocated_qty = int(data.get('allocated_quantity', 0))
+        note = data.get('note', '')
+        document_number = data.get('document_number')
+        package_count = int(data.get('package_count', 0))
+
+        # دریافت مدل‌ها
+        order_item = get_object_or_404(OrderItem, id=item_id)
+        order = get_object_or_404(Order, id=order_id)
+        parent_order_of_current_backorder = order.parent_order
+
+        # Determine the parent for the new backorder if unallocated quantity remains
+        parent_for_new_backorder = parent_order_of_current_backorder
+        # If the parent order exists and is already delivered or completed,
+        # or if the current 'order' itself was a top-level backorder (no parent),
+        # then the new backorder should be independent.
+        if parent_for_new_backorder and parent_for_new_backorder.status in ['delivered', 'completed']:
+            parent_for_new_backorder = None
+        elif not parent_order_of_current_backorder: # If current backorder itself was a top-level order
+            parent_for_new_backorder = None
+
+        # اعتبارسنجی
+        if allocated_qty > order_item.requested_quantity:
+            return JsonResponse({'success': False, 'message': 'مقدار تخصیص یافته نمی‌تواند از مقدار درخواستی بیشتر باشد.'}, status=400)
+        
+        unallocated_qty = order_item.requested_quantity - allocated_qty
+
+        # به‌روزرسانی آیتم سفارش اصلی: این آیتم اکنون به عنوان آیتم تخصیص یافته در نظر گرفته می‌شود
+        # و از 'backorder' خارج شده، وضعیت آن به 'ready' تغییر می‌کند.
+        order_item.allocated_quantity = allocated_qty
+        order_item.requested_quantity = allocated_qty # تعداد درخواستی را برابر با تخصیص یافته قرار می‌دهیم
+        order_item.warehouse_status = 'ready'
+        order_item.save()
+
+        # به‌روزرسانی سفارش فعلی
+        order.status = 'ready'
+        order.save()
+
+        return JsonResponse({'success': True, 'message': 'آیتم با موفقیت تایید و آماده ارسال شد.'})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'message': f'خطا در پردازش: {str(e)}'}, status=500)
+    
+@csrf_exempt
+@login_required
+def add_to_cart(request):
+    if request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            product_id = data.get("product_id")
+            quantity = int(data.get("quantity", 1))
+            customer_id = data.get("customer_id")
+
+            if not product_id or quantity <= 0:
+                return JsonResponse({"success": False, "message": "اطلاعات ناقص"}, status=400)
+            
+            product = Product.objects.get(id=product_id)
+            customer = None
+
+            # کاربر مشتری
+            if hasattr(request.user, 'customer_profile'):
+                customer = request.user.customer_profile
+            elif request.user.groups.filter(name='ویزیتور').exists():
+                # اگر ویزیتور هست، باید customer_id ارسال شده باشد
+                if not customer_id:
+                    return JsonResponse({"success": False, "message": "لطفاً ابتدا مشتری را انتخاب کنید."}, status=400)
+                customer = Customer.objects.get(id=customer_id)
+            else:
+                return JsonResponse({"success": False, "message": "نوع کاربری نامعتبر"}, status=403)
+
+            # بررسی سفارش باز یا ساخت سفارش جدید (سبد خرید)
+            cart_order, created = Order.objects.get_or_create(
+                customer=customer,
+                status='cart',  # وضعیت جدید برای سبد خرید
+                defaults={
+                    'visitor_name': request.user.username,
+                    'payment_term': 'cash'
+                }
+            )
+
+            # افزودن یا آپدیت آیتم در سبد خرید
+            item, created = OrderItem.objects.get_or_create(
+                order=cart_order,
+                product=product,
+                defaults={
+                    'requested_quantity': quantity, 
+                    'allocated_quantity': 0, 
+                    'price': product.price, 
+                    'payment_term': 'cash', 
+                    'warehouse': product.warehouse
+                }
+            )
+            if not created:
+                item.requested_quantity += quantity
+                item.save()
+
+            # تعداد کل آیتم‌ها در سبد خرید
+            cart_count = cart_order.items.count()
+            return JsonResponse({
+                "success": True, 
+                "cart_count": cart_count,
+                "message": "کالا به سبد خرید اضافه شد"
+            })
+
+        except Exception as e:
+            return JsonResponse({"success": False, "message": f"خطا: {str(e)}"}, status=500)
+
+    return JsonResponse({"success": False, "message": "روش درخواست نامعتبر"}, status=405)
+
+@login_required
+def get_cart(request):
+    """
+    دریافت محتویات سبد خرید کاربر
+    """
+    try:
+        customer = None
+        if hasattr(request.user, 'customer_profile'):
+            customer = request.user.customer_profile
+        elif request.user.groups.filter(name='ویزیتور').exists():
+            # برای ویزیتور، از query parameter یا session بگیریم
+            customer_id = request.GET.get('customer_id')
+            if customer_id:
+                customer = Customer.objects.get(id=customer_id)
+        
+        if not customer:
+            return JsonResponse({
+                'success': False,
+                'message': 'مشتری یافت نشد'
+            }, status=400)
+
+        # دریافت سفارش cart کاربر
+        cart_order = Order.objects.filter(
+            customer=customer,
+            status='cart'
+        ).first()
+
+        if not cart_order:
+            return JsonResponse({
+                'success': True,
+                'cart': [],
+                'total': 0
+            })
+
+        cart_items = []
+        total = 0
+        
+        for item in cart_order.items.all().select_related('product'):
+            item_total = item.price * item.requested_quantity
+            total += item_total
+            
+            cart_items.append({
+                'id': item.id,
+                'product_id': item.product.id,
+                'product_name': item.product.name,
+                'product_code': item.product.code,
+                'brand': item.product.brand if item.product.brand else None,
+                'car_group': item.product.car_group if item.product.car_group else None,
+                'quantity': item.requested_quantity,
+                'price': float(item.price),
+                'image': item.product.image.url if item.product.image else None,
+                'total': float(item_total),
+                
+            })
+
+        return JsonResponse({
+            'success': True,
+            'cart': cart_items,
+            'total': float(total)
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در دریافت سبد خرید: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@login_required
+@require_POST
+def change_cart_qty(request):
+    """
+    تغییر تعداد آیتم در سبد خرید
+    """
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        delta = int(data.get('delta', 0))
+        customer_id = data.get('customer_id')
+
+        if not item_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'شناسه آیتم ارسال نشده'
+            }, status=400)
+
+        # بررسی دسترسی کاربر به این آیتم
+        customer = None
+        if hasattr(request.user, 'customer_profile'):
+            customer = request.user.customer_profile
+        elif request.user.groups.filter(name='ویزیتور').exists():
+            if customer_id:
+                customer = Customer.objects.get(id=customer_id)
+
+        if not customer:
+            return JsonResponse({
+                'success': False,
+                'message': 'مشتری یافت نشد'
+            }, status=400)
+
+        item = OrderItem.objects.filter(
+            id=item_id,
+            order__customer=customer,
+            order__status='cart'
+        ).first()
+
+        if not item:
+            return JsonResponse({
+                'success': False,
+                'message': 'آیتم یافت نشد'
+            }, status=404)
+
+        new_quantity = item.requested_quantity + delta
+        
+        if new_quantity <= 0:
+            # حذف آیتم اگر تعداد صفر یا منفی شود
+            item.delete()
+        else:
+            item.requested_quantity = new_quantity
+            item.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'تعداد با موفقیت تغییر یافت'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'داده‌های ارسالی نامعتبر است'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در تغییر تعداد: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@login_required
+@require_POST
+def remove_cart_item(request):
+    """
+    حذف آیتم از سبد خرید
+    """
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        customer_id = data.get('customer_id')
+
+        if not item_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'شناسه آیتم ارسال نشده'
+            }, status=400)
+
+        # بررسی دسترسی کاربر به این آیتم
+        customer = None
+        if hasattr(request.user, 'customer_profile'):
+            customer = request.user.customer_profile
+        elif request.user.groups.filter(name='ویزیتور').exists():
+            if customer_id:
+                customer = Customer.objects.get(id=customer_id)
+
+        if not customer:
+            return JsonResponse({
+                'success': False,
+                'message': 'مشتری یافت نشد'
+            }, status=400)
+
+        item = OrderItem.objects.filter(
+            id=item_id,
+            order__customer=customer,
+            order__status='cart'
+        ).first()
+
+        if not item:
+            return JsonResponse({
+                'success': False,
+                'message': 'آیتم یافت نشد'
+            }, status=404)
+
+        item.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'آیتم با موفقیت حذف شد'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'داده‌های ارسالی نامعتبر است'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در حذف آیتم: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@login_required
+@require_POST
+def update_cart_quantities(request):
+    """
+    به‌روزرسانی تعداد آیتم‌های سبد خرید
+    """
+    try:
+        data = json.loads(request.body)
+        updates = data.get('updates', [])
+        
+        print(f"Received updates: {updates}")  # Debug log
+
+        if not updates:
+            return JsonResponse({
+                'success': False,
+                'message': 'هیچ به‌روزرسانی ارسال نشده'
+            }, status=400)
+
+        # بررسی دسترسی کاربر
+        customer = None
+        if hasattr(request.user, 'customer_profile'):
+            customer = request.user.customer_profile
+        elif request.user.groups.filter(name='ویزیتور').exists():
+            # برای ویزیتور، از اولین آیتم customer_id را بگیریم
+            if updates and 'customer_id' in updates[0]:
+                customer_id = updates[0]['customer_id']
+                try:
+                    customer = Customer.objects.get(id=customer_id)
+                except Customer.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'مشتری با شناسه {customer_id} یافت نشد'
+                    }, status=404)
+
+        if not customer:
+            return JsonResponse({
+                'success': False,
+                'message': 'مشتری یافت نشد'
+            }, status=400)
+
+        updated_items = []
+        for update in updates:
+            item_id = update.get('item_id')
+            quantity = update.get('quantity', 0)
+            payment_term = update.get('payment_term', 'cash')
+
+            if not item_id:
+                continue
+
+            item = OrderItem.objects.filter(
+                id=item_id,
+                order__customer=customer,
+                order__status='cart'
+            ).first()
+
+            if item:
+                print(f"Found item: {item.id}, current quantity: {item.requested_quantity}")  # Debug log
+                if quantity <= 0:
+                    # حذف آیتم اگر تعداد صفر یا منفی شود
+                    item.delete()
+                    print(f"Deleted item: {item_id}")  # Debug log
+                else:
+                    item.requested_quantity = quantity
+                    item.payment_term = payment_term
+                    item.save()
+                    print(f"Updated item: {item_id} to quantity: {quantity}, payment_term: {payment_term}")  # Debug log
+                    updated_items.append({
+                        'item_id': item_id,
+                        'quantity': quantity,
+                        'payment_term': payment_term,
+                        'total': item.price * quantity
+                    })
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{len(updated_items)} آیتم با موفقیت به‌روزرسانی شد',
+            'updated_items': updated_items
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'داده‌های ارسالی نامعتبر است'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در به‌روزرسانی تعداد: {str(e)}'
+        }, status=500)
+
+@csrf_exempt
+@login_required
+@require_POST
+@transaction.atomic
+def submit_order(request):
+    """
+    ثبت نهایی سفارش از سبد خرید
+    """
+    try:
+        customer = None
+        if hasattr(request.user, 'customer_profile'):
+            customer = request.user.customer_profile
+        elif request.user.groups.filter(name='ویزیتور').exists():
+            # برای ویزیتور، باید از request body customer_id بگیریم
+            data = json.loads(request.body)
+            customer_id = data.get('customer_id')
+            if customer_id:
+                customer = Customer.objects.get(id=customer_id)
+
+        if not customer:
+            return JsonResponse({
+                'success': False,
+                'message': 'مشتری یافت نشد'
+            }, status=400)
+
+        # دریافت سفارش cart کاربر
+        cart_order = Order.objects.filter(
+            customer=customer,
+            status='cart'
+        ).first()
+
+        if not cart_order or not cart_order.items.exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'سبد خرید خالی است'
+            }, status=400)
+
+        with transaction.atomic():
+            # ایجاد شماره سفارش جدید
+            order_count = Order.objects.filter(
+                created_at__date=timezone.now().date()
+            ).count()
+            order_number = f"ORD-{timezone.now().strftime('%Y%m%d')}-{str(order_count + 1).zfill(4)}"
+            
+            # به‌روزرسانی سفارش
+            cart_order.order_number = order_number
+            cart_order.status = 'pending'  # در انتظار تایید
+            cart_order.visitor_name = request.user.username
+            
+            # گروه‌بندی آیتم‌ها بر اساس انبار
+            items_by_warehouse = {}
+            for item in cart_order.items.all():
+                warehouse = item.product.warehouse
+                if warehouse not in items_by_warehouse:
+                    items_by_warehouse[warehouse] = []
+                items_by_warehouse[warehouse].append(item)
+            
+            # اگر کالاها از انبارهای مختلف هستند، سفارش را به چند زیرسفارش تقسیم کنیم
+            if len(items_by_warehouse) > 1:
+                cart_order.status = 'parent'  # این سفارش، سفارش مادر خواهد بود
+                cart_order.save()
+                
+                # ایجاد زیرسفارش برای هر انبار
+                for warehouse, items in items_by_warehouse.items():
+                    sub_order = Order.objects.create(
+                        customer=customer,
+                        visitor_name=request.user.username,
+                        parent_order=cart_order,
+                        status='pending',
+                        payment_term='cash',
+                        order_number=f"{order_number}-{warehouse.code if warehouse else 'MISC'}"
+                    )
+                    
+                    # انتقال آیتم‌ها به زیرسفارش
+                    for item in items:
+                        OrderItem.objects.create(
+                            order=sub_order,
+                            product=item.product,
+                            requested_quantity=item.requested_quantity,
+                            allocated_quantity=0,
+                            price=item.price,
+                            payment_term=item.payment_term,
+                            warehouse=item.product.warehouse
+                        )
+                        
+                    # حذف آیتم‌ها از سفارش اصلی
+                    cart_order.items.filter(product__warehouse=warehouse).delete()
+                    
+            else:
+                # اگر همه کالاها از یک انبار هستند، فقط سفارش اصلی را به‌روز کنیم
+                cart_order.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'سفارش با موفقیت ثبت شد و منتظر تایید است',
+            'order_number': order_number
+        })
+
+    except Customer.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'message': 'مشتری مورد نظر یافت نشد'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در ثبت سفارش: {str(e)}'
+        }, status=500)
+
+
+@login_required
+def get_product(request):
+    if request.method == 'GET':
+        product_code = request.GET.get('code')
+        try:
+            product = Product.objects.get(code=product_code)
+            return JsonResponse({
+                'success': True,
+                'product': {
+                    'name': product.name,
+                    'price': product.price,
+                }
+            })
+        except Product.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'کالا یافت نشد'}, status=404)
+    return JsonResponse({'success': False, 'message': 'درخواست نامعتبر'}, status=400)
+
+@csrf_exempt
+@login_required
+@group_required('حسابداری')
+def parse_invoice_excel(request):
+    if request.method == 'POST' and request.FILES.get('excel_file'):
+        excel_file = request.FILES['excel_file']
+        try:
+            df = pd.read_excel(excel_file, engine='openpyxl', dtype=str)  # Force all columns to string
+            # Try to find columns by Farsi or English names
+            code_col = next((col for col in df.columns if 'کد' in col or 'code' in col.lower()), None)
+            qty_col = next((col for col in df.columns if 'تعداد' in col or 'qty' in col.lower()), None)
+            price_col = next((col for col in df.columns if 'قیمت' in col or 'price' in col.lower()), None)
+            profit_col = next((col for col in df.columns if 'سود' in col or 'profit' in col.lower()), None)
+            discount_col = next((col for col in df.columns if 'تخفیف' in col or 'discount' in col.lower()), None)
+            if not code_col:
+                return JsonResponse({'success': False, 'message': 'ستون کد کالا یافت نشد.'}, status=400)
+            result = []
+            for _, row in df.iterrows():
+                code = str(row.get(code_col, '')).strip()  # Always string, preserves leading zeros
+                if not code:
+                    continue
+                result.append({
+                    'product_code': code,
+                    'quantity': int(float(row.get(qty_col, 0))) if qty_col and row.get(qty_col, '').strip() else 0,
+                    'price': float(row.get(price_col, 0)) if price_col and row.get(price_col, '').strip() else 0,
+                    'profit_percentage': float(row.get(profit_col, 0)) if profit_col and row.get(profit_col, '').strip() else 0,
+                    'discount': float(row.get(discount_col, 0)) if discount_col and row.get(discount_col, '').strip() else 0,
+                })
+            return JsonResponse({'success': True, 'items': result})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'خطا در خواندن فایل: {str(e)}'}, status=500)
+    return JsonResponse({'success': False, 'message': 'درخواست نامعتبر'}, status=400)
+
+@login_required
+@group_required('حسابداری')
+def purchase_invoice_list_view(request):
+    invoices = PurchaseInvoice.objects.all().order_by('-invoice_date', '-created_at')
+    return render(request, 'products/purchase_invoice_list.html', {'invoices': invoices})
+
+@login_required
+@group_required('حسابداری')
+def purchase_invoice_detail_view(request, invoice_id):
+    invoice = get_object_or_404(PurchaseInvoice, id=invoice_id)
+    items = invoice.items.select_related('product').all()
+    return render(request, 'products/purchase_invoice_detail.html', {'invoice': invoice, 'items': items})
+
+
+@login_required
+@group_required('حسابداری')
+def sales_invoice_list_view(request):
+    invoices = SalesInvoice.objects.all().order_by('-invoice_date', '-created_at')
+    return render(request, 'products/sales_invoice_list.html', {'invoices': invoices})
+
+
+@login_required
+@group_required('حسابداری')
+def sales_invoice_detail_view(request, invoice_id):
+    invoice = get_object_or_404(SalesInvoice, id=invoice_id)
+    items = invoice.items.select_related('product').all()
+    return render(request, 'products/sales_invoice_detail.html', {'invoice': invoice, 'items': items})
+
+
+@login_required
+@group_required('حسابداری')
+def sales_invoice_view(request):
+    """
+    Renders the sales invoice page and handles invoice registration.
+    """
+    import jdatetime
+    from django.contrib import messages
+    today = jdatetime.date.today().strftime("%Y/%m/%d")
+    customers = Customer.objects.all()
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Get invoice fields
+                customer_id = request.POST.get('customer_id')
+                invoice_number = request.POST.get('invoice_number')
+                invoice_date = request.POST.get('invoice_date')
+                description = request.POST.get('description', '')
+                customer = Customer.objects.get(id=customer_id)
+                # Calculate total amount
+                product_codes = request.POST.getlist('product_code')
+                quantities = request.POST.getlist('quantity')
+                prices = request.POST.getlist('price')
+                discounts = request.POST.getlist('discount')
+                profit_percentages = request.POST.getlist('profit_percentage')
+                descriptions = request.POST.getlist('description')
+                totals = request.POST.getlist('total')
+                total_amount = 0
+                for t in totals:
+                    try:
+                        total_amount += int(str(t).replace(',', ''))
+                    except Exception:
+                        pass
+                # Create invoice
+                invoice = SalesInvoice.objects.create(
+                    invoice_number=invoice_number,
+                    invoice_date=invoice_date,
+                    customer=customer,
+                    created_by=request.user,
+                    total_amount=total_amount,
+                    description=description,
+                    status='registered',
+                )
+                # Create invoice items
+                for i, code in enumerate(product_codes):
+                    try:
+                        product = Product.objects.get(code=code)
+                        qty = int(quantities[i]) if i < len(quantities) and quantities[i] else 0
+                        price = int(prices[i]) if i < len(prices) and prices[i] else product.price
+                        discount = float(discounts[i]) if i < len(discounts) and discounts[i] else 0
+                        profit_percentage = float(profit_percentages[i]) if i < len(profit_percentages) and profit_percentages[i] else 0
+                        item_total = int(str(totals[i]).replace(',', '')) if i < len(totals) and totals[i] else 0
+                        item_description = descriptions[i] if i < len(descriptions) else ''
+                        SalesInvoiceItem.objects.create(
+                            invoice=invoice,
+                            product=product,
+                            quantity=qty,
+                            price=price,
+                            discount=discount,
+                            profit_percentage=profit_percentage,
+                            total=item_total,
+                            description=item_description,
+                        )
+                        # Update product inventory
+                        product.quantity -= qty
+                        product.save()
+                    except Product.DoesNotExist:
+                        continue
+                # Handle settlement fields if present
+                invoice.settle_cash = request.POST.get('settle_cash', 0) or 0
+                invoice.settle_card = request.POST.get('settle_card', 0) or 0
+                invoice.settle_bank = request.POST.get('settle_bank', 0) or 0
+                invoice.settle_cheque = request.POST.get('settle_cheque', 0) or 0
+                invoice.settle_balance = request.POST.get('settle_balance', 0) or 0
+                invoice.settle_extra_discount = request.POST.get('settle_extra_discount', 0) or 0
+                invoice.save()
+                messages.success(request, 'فاکتور فروش با موفقیت ثبت شد و موجودی کالاها به‌روزرسانی شد.')
+                return redirect('products:sales_invoice_detail', invoice_id=invoice.id)
+        except Exception as e:
+            messages.error(request, f'خطا در ثبت فاکتور: {e}')
+            return redirect(request.path)
+
+    return render(request, 'products/sales_invoice.html', {'today': today, 'customers': customers})
+
+@login_required
+@require_POST
+@csrf_protect
+def ajax_purchase_invoice_register(request):
+    try:
+        with transaction.atomic():
+            # Get and validate customer_id
+            customer_id = request.POST.get('customer_id')
+            if not customer_id:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'لطفاً طرف حساب را انتخاب کنید'
+                }, status=400)
+
+            # Get and validate invoice number
+            invoice_number = request.POST.get('invoice_number')
+            if not invoice_number:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'لطفاً شماره فاکتور را وارد کنید'
+                }, status=400)
+
+            # Check for duplicate invoice number
+            if PurchaseInvoice.objects.filter(invoice_number=invoice_number).exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'این شماره فاکتور قبلاً ثبت شده است'
+                }, status=400)
+
+            # Get and validate invoice date
+            invoice_date = request.POST.get('invoice_date')
+            if not invoice_date:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'لطفاً تاریخ فاکتور را وارد کنید'
+                }, status=400)
+            
+            try:
+                # تبدیل تاریخ شمسی به میلادی
+                from django.utils import timezone
+                import jdatetime
+                
+                # تبدیل اعداد فارسی به انگلیسی
+                invoice_date = invoice_date.replace('۰', '0').replace('۱', '1').replace('۲', '2')\
+                    .replace('۳', '3').replace('۴', '4').replace('۵', '5')\
+                    .replace('۶', '6').replace('۷', '7').replace('۸', '8').replace('۹', '9')
+                
+                # اگر تاریخ با خط تیره جدا شده، به اسلش تبدیل کنیم
+                invoice_date = invoice_date.replace('-', '/')
+                
+                # بررسی فرمت تاریخ و اصلاح آن
+                date_parts = invoice_date.split('/')
+                if len(date_parts) == 3:
+                    year = int(date_parts[0])
+                    month = int(date_parts[1])
+                    day = int(date_parts[2])
+                    
+                    # اگر سال کمتر از 100 است، 1300 اضافه کنیم
+                    if year < 100:
+                        year += 1300
+                    
+                    # ساخت تاریخ شمسی
+                    jd = jdatetime.date(year, month, day)
+                    # تبدیل به تاریخ میلادی
+                    invoice_date = jd.togregorian()
+                else:
+                    raise ValueError("فرمت تاریخ نامعتبر است")
+            except (ValueError, TypeError, AttributeError) as e:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'خطا در تبدیل تاریخ. لطفاً تاریخ را به فرمت صحیح وارد کنید (مثال: ۱۴۰۲/۰۱/۰۱)'
+                }, status=400)
+
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'طرف حساب انتخاب شده در سیستم وجود ندارد'
+                }, status=400)
+            except ValueError:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'شناسه طرف حساب نامعتبر است'
+                }, status=400)
+
+            description = request.POST.get('description', '')
+            product_codes = request.POST.getlist('product_code')
+            quantities = request.POST.getlist('quantity')
+            prices = request.POST.getlist('price')
+            discounts = request.POST.getlist('discount')
+            profit_percentages = request.POST.getlist('profit_percentage')
+            descriptions = request.POST.getlist('description')
+            totals = request.POST.getlist('total')
+
+            # Validate that there are product items
+            if not product_codes:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'لطفاً حداقل یک کالا به فاکتور اضافه کنید'
+                }, status=400)
+
+            total_amount = 0
+            for t in totals:
+                try:
+                    total_amount += int(str(t).replace(',', ''))
+                except (ValueError, TypeError):
+                    continue
+
+            # Create invoice
+            invoice = PurchaseInvoice.objects.create(
+                invoice_number=invoice_number,
+                invoice_date=invoice_date,
+                customer=customer,
+                created_by=request.user,
+                total_amount=total_amount,
+                description=description,
+                status='registered',
+            )
+
+            # Process invoice items
+            for i, code in enumerate(product_codes):
+                if not code.strip():  # Skip empty product codes
+                    continue
+                    
+                try:
+                    product = Product.objects.get(code=code)
+                    qty = int(quantities[i]) if i < len(quantities) and quantities[i] else 0
+                    price = int(prices[i]) if i < len(prices) and prices[i] else product.purchase_price
+                    discount = float(discounts[i]) if i < len(discounts) and discounts[i] else 0
+                    profit_percentage = float(profit_percentages[i]) if i < len(profit_percentages) and profit_percentages[i] else 0
+                    item_total = int(str(totals[i]).replace(',', '')) if i < len(totals) and totals[i] else 0
+                    item_description = descriptions[i] if i < len(descriptions) else ''
+
+                    if qty <= 0:
+                        continue
+
+                    PurchaseInvoiceItem.objects.create(
+                        invoice=invoice,
+                        product=product,
+                        quantity=qty,
+                        price=price,
+                        discount=discount,
+                        profit_percentage=profit_percentage,
+                        total=item_total,
+                        description=item_description,
+                    )
+
+                    # Update product
+                    product.quantity += qty
+                    product.purchase_price = price - (price * discount / 100)
+                    product.profit_percentage = profit_percentage
+                    product.price = product.purchase_price + (product.purchase_price * profit_percentage / 100)
+                    product.save()
+
+                except Product.DoesNotExist:
+                    continue
+                except (ValueError, TypeError) as e:
+                    return JsonResponse({
+                        'success': False,
+                        'message': f'خطا در مقادیر ورودی برای کالای {code}: {str(e)}'
+                    }, status=400)
+
+            # Process settlement amounts
+            try:
+                invoice.settle_cash = int(request.POST.get('settle_cash', 0) or 0)
+                invoice.settle_card = int(request.POST.get('settle_card', 0) or 0)
+                invoice.settle_bank = int(request.POST.get('settle_bank', 0) or 0)
+                invoice.settle_cheque = int(request.POST.get('settle_cheque', 0) or 0)
+                invoice.settle_balance = int(request.POST.get('settle_balance', 0) or 0)
+                invoice.settle_extra_discount = int(request.POST.get('settle_extra_discount', 0) or 0)
+                invoice.save()
+            except (ValueError, TypeError) as e:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'خطا در مقادیر تسویه: {str(e)}'
+                }, status=400)
+
+            return JsonResponse({
+                'success': True,
+                'redirect_url': reverse('products:purchase_invoice_detail', kwargs={'invoice_id': invoice.id})
+            })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در ثبت فاکتور: {str(e)}'
+        }, status=400)
+
+def accounting_reports(request):
+    invoices = Invoice.objects.all().order_by('-date')  # یا هر فیلد تاریخ ثبت
+    return render(request, 'products/accounting_reports.html', {
+        'invoices': invoices
+    })
+
+@login_required
+def financial_year_list(request):
+    years = FinancialYear.objects.all().order_by('-year')
+    return render(request, 'products/accounting/financial_year_list.html', {'years': years})
+
+@login_required
+def financial_year_create(request):
+    if request.method == 'POST':
+        form = FinancialYearForm(request.POST)
+        if form.is_valid():
+            year = form.save(commit=False)
+            year.created_by = request.user
+            year.save()
+            messages.success(request, 'سال مالی جدید با موفقیت ایجاد شد.')
+            return redirect('financial_year_list')
+    else:
+        form = FinancialYearForm()
+    
+    return render(request, 'products/accounting/financial_year_form.html', {
+        'form': form,
+        'title': 'ایجاد سال مالی جدید'
+    })
+
+@login_required
+def financial_year_edit(request, pk):
+    year = get_object_or_404(FinancialYear, pk=pk)
+    if request.method == 'POST':
+        form = FinancialYearForm(request.POST, instance=year)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'سال مالی با موفقیت ویرایش شد.')
+            return redirect('financial_year_list')
+    else:
+        form = FinancialYearForm(instance=year)
+    
+    return render(request, 'products/accounting/financial_year_form.html', {
+        'form': form,
+        'title': 'ویرایش سال مالی'
+    })
+
+@login_required
+def currency_list(request):
+    currencies = Currency.objects.all().order_by('-is_default', 'code')
+    return render(request, 'products/accounting/currency_list.html', {'currencies': currencies})
+
+@login_required
+def currency_create(request):
+    if request.method == 'POST':
+        form = CurrencyForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'ارز جدید با موفقیت ایجاد شد.')
+            return redirect('currency_list')
+    else:
+        form = CurrencyForm()
+    
+    return render(request, 'products/accounting/currency_form.html', {
+        'form': form,
+        'title': 'تعریف ارز جدید'
+    })
+
+@login_required
+def currency_edit(request, pk):
+    currency = get_object_or_404(Currency, pk=pk)
+    if request.method == 'POST':
+        form = CurrencyForm(request.POST, instance=currency)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'ارز با موفقیت ویرایش شد.')
+            return redirect('currency_list')
+    else:
+        form = CurrencyForm(instance=currency)
+    
+    return render(request, 'products/accounting/currency_form.html', {
+        'form': form,
+        'title': 'ویرایش ارز'
+    })
+    
+class AccountingReportListView(LoginRequiredMixin, ListView):
+    model = AccountingReport
+    template_name = 'products/accounting_report_list.html'
+    context_object_name = 'reports'
+    ordering = ['-created_at']
+    paginate_by = 10
+
+class AccountingReportDetailView(LoginRequiredMixin, DetailView):
+    model = AccountingReport
+    template_name = 'products/accounting_report_detail.html'
+    context_object_name = 'report'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        report = self.get_object()
+        
+        # اضافه کردن جزئیات بدهکاران و بستانکاران
+        context['debtors'] = AccountingReportDetail.objects.filter(
+            report=report,
+            transaction_type='debtor'
+        ).order_by('-balance')[:10]  # 10 بدهکار برتر
+        
+        context['creditors'] = AccountingReportDetail.objects.filter(
+            report=report,
+            transaction_type='creditor'
+        ).order_by('balance')[:10]  # 10 بستانکار برتر
+        
+        return context
+
+class AccountingReportCreateView(LoginRequiredMixin, CreateView):
+    model = AccountingReport
+    template_name = 'products/accounting_report_create.html'
+    fields = ['report_type']
+    success_url = reverse_lazy('accounting-report-list')
+    
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['start_date_shamsi'] = forms.CharField(
+            label="تاریخ شروع",
+            widget=forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'تاریخ شروع را انتخاب کنید',
+                'readonly': 'readonly'
+            }),
+            required=True
+        )
+        form.fields['end_date_shamsi'] = forms.CharField(
+            label="تاریخ پایان",
+            widget=forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'تاریخ پایان را انتخاب کنید',
+                'readonly': 'readonly'
+            }),
+            required=True
+        )
+        return form
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        
+        # تبدیل تاریخ‌های شمسی به میلادی
+        start_date_shamsi = form.cleaned_data.get('start_date_shamsi')
+        end_date_shamsi = form.cleaned_data.get('end_date_shamsi')
+        
+        if start_date_shamsi and end_date_shamsi:
+            try:
+                from .views import convert_shamsi_to_gregorian
+                form.instance.start_date = convert_shamsi_to_gregorian(start_date_shamsi)
+                form.instance.end_date = convert_shamsi_to_gregorian(end_date_shamsi)
+            except ValueError as e:
+                form.add_error(None, f"خطا در فرمت تاریخ: {str(e)}")
+                return self.form_invalid(form)
+        
+        return super().form_valid(form)
+
+    def get_initial(self):
+        today = jdatetime.date.today()
+        return {
+            'report_type': 'monthly',
+            'start_date_shamsi': today.replace(day=1).strftime('%Y/%m/%d'),  # اول ماه جاری
+            'end_date_shamsi': today.strftime('%Y/%m/%d'),
+        }
+
+
+@login_required
+@group_required('حسابداری')
+def accounting_reports_menu(request):
+    return render(request, 'products/accounting_reports_menu.html')        
+
+@login_required
+def financial_report_view(request, report_type):
+    """نمایش گزارشات مالی"""
+    
+    # عناوین گزارش‌ها
+    report_titles = {
+        'profit_loss': 'گزارش سود و زیان',
+        'sales_by_product': 'فروش به تفکیک کالا',
+        'sales_by_customer': 'فروش به تفکیک مشتری',
+        'product_profit': 'گزارش سود کالا',
+        'customer_profit': 'گزارش سود مشتری',
+        'accounts_receivable_payable': 'حساب‌های دریافتی و پرداختی',
+        'cash_flow': 'گزارش گردش صندوق',
+        'bank_statement': 'صورت حساب بانک',
+        'checks': 'چک‌های دریافتی و پرداختی',
+        'petty_cash': 'گزارش تنخواه'
+    }
+    
+    context = {
+        'report_type': report_type,
+        'report_title': report_titles.get(report_type, 'گزارش مالی'),
+        'current_date': timezone.now(),
+    }
+    
+    # بر اساس نوع گزارش، داده‌های مختلف ارسال می‌کنیم
+    if report_type == 'profit_loss':
+        context.update(get_profit_loss_data(request))
+    elif report_type == 'sales_by_product':
+        context.update(get_sales_by_product_data(request))
+    elif report_type == 'sales_by_customer':
+        context.update(get_sales_by_customer_data(request))
+    elif report_type == 'product_profit':
+        context.update(get_product_profit_data(request))
+    elif report_type == 'customer_profit':
+        context.update(get_customer_profit_data(request))
+    elif report_type == 'accounts_receivable_payable':
+        context.update(get_accounts_receivable_payable_data(request))
+    elif report_type == 'cash_flow':
+        context.update(get_cash_flow_data(request))
+    elif report_type == 'bank_statement':
+        context.update(get_bank_statement_data(request))
+    elif report_type == 'checks':
+        context.update(get_checks_data(request))
+    elif report_type == 'petty_cash':
+        context.update(get_petty_cash_data(request))
+    
+    return render(request, f'products/reports/financial/{report_type}.html', context)
+
+# =============================================================================
+# گزارشات انبار و موجودی
+# =============================================================================
+
+@login_required
+def inventory_report_view(request, report_type):
+    """نمایش گزارشات انبار و موجودی"""
+    
+    report_titles = {
+        'inventory_stock': 'گزارش موجودی کالا',
+        'product_turnover': 'گزارش گردش کالا',
+        'fast_slow_moving': 'کالاهای سریع و کند گردش',
+        'quantity_sales': 'گزارش فروش تعدادی',
+        'stock_depletion_estimate': 'تخمین زمان اتمام موجودی'
+    }
+    
+    context = {
+        'report_type': report_type,
+        'report_title': report_titles.get(report_type, 'گزارش انبار'),
+        'current_date': timezone.now(),
+    }
+    
+    if report_type == 'inventory_stock':
+        context.update(get_inventory_stock_data(request))
+    elif report_type == 'product_turnover':
+        context.update(get_product_turnover_data(request))
+    elif report_type == 'fast_slow_moving':
+        context.update(get_fast_slow_moving_data(request))
+    elif report_type == 'quantity_sales':
+        context.update(get_quantity_sales_data(request))
+    elif report_type == 'stock_depletion_estimate':
+        context.update(get_stock_depletion_data(request))
+    
+    return render(request, f'products/reports/inventory/{report_type}.html', context)
+
+# =============================================================================
+# گزارشات عملیاتی و سفارشات
+# =============================================================================
+
+@login_required
+def operational_report_view(request, report_type):
+    """نمایش گزارشات عملیاتی و سفارشات"""
+    
+    report_titles = {
+        'order_status': 'گزارش وضعیت سفارشات',
+        'shipping_delivery': 'گزارش ارسال و تحویل',
+        'overdue_orders': 'گزارش سفارشات معوق',
+        'purchase_invoices': 'گزارش فاکتورهای خرید',
+        'price_change_history': 'تاریخ تغییر قیمت کالاها'
+    }
+    
+    context = {
+        'report_type': report_type,
+        'report_title': report_titles.get(report_type, 'گزارش عملیاتی'),
+        'current_date': timezone.now(),
+    }
+    
+    if report_type == 'order_status':
+        context.update(get_order_status_data(request))
+    elif report_type == 'shipping_delivery':
+        context.update(get_shipping_delivery_data(request))
+    elif report_type == 'overdue_orders':
+        context.update(get_overdue_orders_data(request))
+    elif report_type == 'purchase_invoices':
+        context.update(get_purchase_invoices_data(request))
+    elif report_type == 'price_change_history':
+        context.update(get_price_change_data(request))
+    
+    return render(request, f'products/reports/operational/{report_type}.html', context)
+
+# =============================================================================
+# گزارشات مشتریان
+# =============================================================================
+
+@login_required
+def customer_report_view(request, report_type):
+    """نمایش گزارشات مشتریان"""
+    
+    report_titles = {
+        'customer_list': 'فهرست مشتریان',
+        'debtors': 'گزارش بدهکاران',
+        'creditors': 'گزارش بستانکاران',
+        'customer_statements': 'صورتحساب مشتریان'
+    }
+    
+    context = {
+        'report_type': report_type,
+        'report_title': report_titles.get(report_type, 'گزارش مشتریان'),
+        'current_date': timezone.now(),
+    }
+    
+    if report_type == 'customer_list':
+        context.update(get_customer_list_data(request))
+    elif report_type == 'debtors':
+        context.update(get_debtors_data(request))
+    elif report_type == 'creditors':
+        context.update(get_creditors_data(request))
+    elif report_type == 'customer_statements':
+        context.update(get_customer_statements_data(request))
+    
+    return render(request, f'products/reports/customer/{report_type}.html', context)
+
+@login_required
+@group_required('حسابداری')
+def financial_operations_menu(request):
+    """
+    نمایش منوی عملیات مالی
+    """
+    return render(request, 'products/financial_operations_menu.html')
+
+@login_required
+@group_required('حسابداری')
+def accounting_reports_menu(request):
+    """
+    نمایش منوی گزارشات حسابداری
+    """
+    return render(request, 'products/accounting_reports_menu.html')
+
+# در اینجا view های مربوط به هر عملیات مالی را اضافه می‌کنیم:
+
+
+
+@login_required
+@group_required('حسابداری')
+def pay_to_customer_view(request):
+    """
+    پرداخت به طرف حساب مشتری
+    """
+    customers = Customer.objects.all()
+    return render(request, 'financial_operations/pay_to_customer.html', {
+        'customers': customers
+    })
+
+@login_required
+@group_required('حسابداری')
+def capital_investment_view(request):
+    """
+    سرمایه گذاری
+    """
+    return render(request, 'financial_operations/capital_investment.html')
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def receive_from_bank_view(request):
+    """
+    دریافت از بانک - با منطق کامل و انتقال به صندوق
+    """
+    from .forms import ReceiveFromBankForm
+    from .models import FinancialOperation, Fund
+    if request.method == 'POST':
+        form = ReceiveFromBankForm(request.POST)
+        if form.is_valid():
+            try:
+                operation = form.save(commit=False)
+                operation.operation_type = 'RECEIVE_FROM_BANK'  # دریافت از بانک
+                operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+                operation.created_by = request.user
+                operation.status = 'CONFIRMED'
+                operation.confirmed_by = request.user
+                operation.confirmed_at = timezone.now()
+                
+                # تنظیم اطلاعات بانک از حساب انتخاب شده
+                bank_account = form.cleaned_data['bank_account']
+                operation.bank_name = bank_account.bank.name
+                operation.account_number = bank_account.account_number
+                
+                operation.save()
+
+                # به‌روزرسانی موجودی بانک (کسر مبلغ)
+                bank_account.current_balance -= operation.amount
+                bank_account.save()
+
+                # انتقال به صندوق (افزایش موجودی صندوق)
+                cash_fund, created = Fund.objects.get_or_create(
+                    fund_type='CASH',
+                    defaults={'name': 'صندوق نقدی', 'initial_balance': 0}
+                )
+                cash_fund.current_balance += operation.amount
+                cash_fund.save()
+
+                # ثبت سند حسابداری
+                try:
+                    from .accounting_utils import AccountingVoucherManager
+                    voucher_manager = AccountingVoucherManager()
+                    voucher = voucher_manager.create_voucher_from_financial_operation(operation)
+                    if voucher:
+                        success_message = f'عملیات دریافت از بانک با موفقیت ثبت شد. مبلغ {operation.amount:,} ریال از حساب {bank_account.title} به صندوق انتقال یافت. شماره سند: {voucher.number}'
+                    else:
+                        success_message = f'عملیات دریافت از بانک با موفقیت ثبت شد. مبلغ {operation.amount:,} ریال از حساب {bank_account.title} به صندوق انتقال یافت.'
+                except Exception as e:
+                    success_message = f'عملیات ثبت شد اما خطا در ایجاد سند حسابداری: {str(e)}'
+
+                # پیام موفقیت در session و ریدایرکت به صفحه تأیید
+                request.session['success_message'] = success_message
+                request.session['operation_type'] = 'receive_from_bank'
+                return redirect('products:operation_confirmation')
+            except Exception as e:
+                messages.error(request, f'خطا در ثبت عملیات: {str(e)}')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"خطا در فیلد {field}: {error}")
+    else:
+        form = ReceiveFromBankForm(initial={'operation_type': 'RECEIVE_FROM_BANK'})
+    return render(request, 'financial_operations/receive_from_bank.html', {'form': form})
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def pay_to_bank_view(request):
+    """
+    پرداخت به بانک - با منطق کامل
+    """
+    from .forms import BankOperationForm
+    from .models import FinancialOperation
+    if request.method == 'POST':
+        form = BankOperationForm(request.POST)
+        if form.is_valid():
+            try:
+                operation = form.save(commit=False)
+                operation.operation_type = 'PAY_TO_BANK'
+                operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+                operation.created_by = request.user
+                operation.status = 'CONFIRMED'
+                operation.confirmed_by = request.user
+                operation.confirmed_at = timezone.now()
+                operation.save()
+
+                # به‌روزرسانی موجودی بانک
+                update_fund_balance(operation)
+
+                # ثبت سند حسابداری
+                try:
+                    from .accounting_utils import AccountingVoucherManager
+                    voucher_manager = AccountingVoucherManager()
+                    voucher = voucher_manager.create_voucher_from_financial_operation(operation)
+                    if voucher:
+                        success_message = f'عملیات پرداخت به بانک با موفقیت ثبت شد. شماره سند: {voucher.number}'
+                    else:
+                        success_message = 'عملیات پرداخت به بانک با موفقیت ثبت شد.'
+                except Exception as e:
+                    success_message = f'عملیات ثبت شد اما خطا در ایجاد سند حسابداری: {str(e)}'
+
+                # پیام موفقیت در session و ریدایرکت به صفحه تأیید
+                request.session['success_message'] = success_message
+                request.session['operation_type'] = 'pay_to_bank'
+                return redirect('products:operation_confirmation')
+            except Exception as e:
+                messages.error(request, f'خطا در ثبت عملیات: {str(e)}')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"خطا در فیلد {field}: {error}")
+    else:
+        form = BankOperationForm(initial={'operation_type': 'PAY_TO_BANK'})
+    return render(request, 'financial_operations/pay_to_bank.html', {'form': form})
+
+@login_required
+@group_required('حسابداری')
+def bank_transfer_view(request):
+    """
+    حواله بانکی
+    """
+    return render(request, 'financial_operations/bank_transfer.html')
+
+@login_required
+@group_required('حسابداری')
+def cash_withdrawal_view(request):
+    """
+    برداشت نقدی از بانک
+    """
+    return render(request, 'financial_operations/cash_withdrawal.html')
+
+@login_required
+@group_required('حسابداری')
+def payment_from_cash_view(request):
+    """
+    پرداخت از صندوق
+    """
+    return render(request, 'financial_operations/payment_from_cash.html')
+
+@login_required
+@group_required('حسابداری')
+def payment_to_cash_view(request):
+    """
+    پرداخت به صندوق
+    """
+    return render(request, 'financial_operations/payment_to_cash.html')
+
+# Financial Operations Views
+@login_required
+@group_required('حسابداری')
+def fund_list_view(request):
+    """
+    نمایش لیست صندوق‌ها
+    """
+    funds = Fund.objects.filter(is_active=True).order_by('fund_type', 'name')
+    
+    # آمار حساب‌های بانکی
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+    total_bank_accounts_balance = sum(account.current_balance for account in bank_accounts)
+    
+    # محاسبه مانده‌ها از دیتابیس
+    total_cash_balance = 0
+    total_bank_balance = 0
+    
+    for fund in funds:
+        if fund.fund_type == 'CASH':
+            # به‌روزرسانی مانده از عملیات‌ها
+            fund.recalculate_balance()
+            total_cash_balance += fund.current_balance
+        elif fund.fund_type == 'BANK':
+            # به‌روزرسانی مانده از عملیات‌ها
+            fund.recalculate_balance()
+            total_bank_balance += fund.current_balance
+    
+    # محاسبه مانده تنخواه از عملیات تنخواه
+    total_petty_cash_balance = Fund.get_petty_cash_balance()
+    
+    context = {
+        'funds': funds,
+        'total_cash_balance': total_cash_balance,
+        'total_bank_balance': total_bank_balance,
+        'total_petty_cash_balance': total_petty_cash_balance,
+        'total_bank_accounts_balance': total_bank_accounts_balance,
+        'bank_accounts': bank_accounts,
+    }
+    
+    return render(request, 'products/fund_list.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def fund_create_view(request):
+    """
+    ایجاد صندوق جدید
+    """
+    if request.method == 'POST':
+        form = FundForm(request.POST)
+        if form.is_valid():
+            fund = form.save(commit=False)
+            fund.created_by = request.user
+            fund.current_balance = fund.initial_balance
+            fund.save()
+            messages.success(request, 'صندوق با موفقیت ایجاد شد.')
+            return redirect('products:fund_list')
+    else:
+        form = FundForm()
+    
+    return render(request, 'products/fund_form.html', {'form': form, 'title': 'ایجاد صندوق جدید'})
+
+
+@login_required
+@group_required('حسابداری')
+def fund_edit_view(request, fund_id):
+    """
+    ویرایش صندوق
+    """
+    fund = get_object_or_404(Fund, id=fund_id)
+    
+    if request.method == 'POST':
+        form = FundForm(request.POST, instance=fund)
+        if form.is_valid():
+            # ذخیره تغییرات موجودی اولیه
+            old_initial_balance = fund.initial_balance
+            fund = form.save(commit=False)
+            
+            # اگر موجودی اولیه تغییر کرده، موجودی فعلی را به‌روزرسانی کن
+            if fund.initial_balance != old_initial_balance:
+                # محاسبه تفاوت موجودی اولیه
+                balance_difference = fund.initial_balance - old_initial_balance
+                # به‌روزرسانی موجودی فعلی
+                fund.current_balance += balance_difference
+            
+            fund.save()
+            messages.success(request, 'صندوق با موفقیت ویرایش شد.')
+            return redirect('products:fund_list')
+    else:
+        form = FundForm(instance=fund)
+    
+    return render(request, 'products/fund_form.html', {
+        'form': form, 
+        'fund': fund,
+        'title': 'ویرایش صندوق'
+    })
+
+
+@login_required
+@group_required('حسابداری')
+def fund_detail_view(request, fund_id):
+    """
+    نمایش جزئیات صندوق
+    """
+    # Handle empty or invalid fund_id
+    if not fund_id or fund_id == '':
+        from django.http import Http404
+        raise Http404("Fund not found")
+    
+    try:
+        fund = get_object_or_404(Fund, id=fund_id)
+    except (ValueError, TypeError):
+        from django.http import Http404
+        raise Http404("Invalid fund ID")
+    
+    # عملیات مالی مرتبط با این صندوق
+    # Build filter conditions safely
+    financial_filter_conditions = Q()
+    
+    # Only add bank_name condition if it's not empty
+    if fund.bank_name and fund.bank_name.strip():
+        financial_filter_conditions |= Q(bank_name=fund.bank_name)
+    
+    # Only add account_number condition if it's not empty
+    if fund.account_number and fund.account_number.strip():
+        financial_filter_conditions |= Q(account_number=fund.account_number)
+    
+    # If no valid conditions, get all operations
+    if not financial_filter_conditions:
+        financial_operations = FinancialOperation.objects.all().order_by('-date', '-created_at')[:50]
+    else:
+        financial_operations = FinancialOperation.objects.filter(
+            financial_filter_conditions
+        ).order_by('-date', '-created_at')[:50]
+    
+    # عملیات تنخواه مرتبط با این صندوق
+    petty_cash_operations = []
+    if fund.fund_type == 'PETTY_CASH':
+        # برای صندوق تنخواه، فقط عملیات تنخواه را نمایش می‌دهیم
+        from .models import PettyCashOperation
+        petty_cash_operations = PettyCashOperation.objects.all().order_by('-date', '-created_at')[:50]
+        
+        # ترکیب عملیات‌ها و مرتب‌سازی بر اساس تاریخ
+        all_operations = []
+        
+        for op in petty_cash_operations:
+            # تشخیص منبع شارژ تنخواه
+            source_info = ""
+            if op.operation_type == 'ADD':
+                if op.source_fund:
+                    if op.source_fund.fund_type == 'CASH':
+                        source_info = "شارژ تنخواه از طریق صندوق نقدی"
+                    elif op.source_fund.fund_type == 'BANK':
+                        source_info = f"شارژ تنخواه از طریق بانک {op.source_fund.bank_name}"
+                elif op.source_bank_account:
+                    source_info = f"شارژ تنخواه از طریق بانک {op.source_bank_account.bank.name}"
+                else:
+                    source_info = "شارژ تنخواه"
+            elif op.operation_type == 'WITHDRAW':
+                source_info = "برداشت از تنخواه"
+            
+            all_operations.append({
+                'type': 'petty_cash',
+                'operation': op,
+                'date': op.date,
+                'amount': op.amount,
+                'description': op.description,
+                'operation_type': op.operation_type,
+                'operation_display': source_info,  # نمایش نوع عملیات با جزئیات منبع
+                'status': 'CONFIRMED'  # عملیات تنخواه همیشه تایید شده هستند
+            })
+        
+        # مرتب‌سازی بر اساس تاریخ (جدیدترین اول)
+        all_operations.sort(key=lambda x: x['date'], reverse=True)
+        
+        # محاسبه آمار برای تنخواه
+        total_in = sum(op['amount'] for op in all_operations if op['operation_type'] == 'ADD')
+        total_out = sum(op['amount'] for op in all_operations if op['operation_type'] == 'WITHDRAW')
+        
+        # محاسبه مانده فعلی (ورودی - خروجی)
+        current_balance = total_in - total_out
+        
+        # محاسبه مانده پس از هر عملیات (برای نمایش در جدول)
+        running_balance = 0
+        for op in all_operations:
+            if op['operation_type'] == 'ADD':
+                running_balance += op['amount']
+            elif op['operation_type'] == 'WITHDRAW':
+                running_balance -= op['amount']
+            op['running_balance'] = running_balance
+    
+    else:
+        # برای سایر صندوق‌ها، عملیات تنخواه که از این صندوق منبع گرفته‌اند
+        from .models import PettyCashOperation
+        
+        # Build filter conditions safely
+        filter_conditions = Q(source_fund=fund)
+        
+        # Only add bank condition if bank_name is not empty
+        if fund.bank_name and fund.bank_name.strip():
+            filter_conditions |= Q(source_bank_account__bank=fund.bank_name)
+        
+        petty_cash_operations = PettyCashOperation.objects.filter(
+            filter_conditions
+        ).order_by('-date', '-created_at')[:50]
+        
+        # ترکیب عملیات‌ها و مرتب‌سازی بر اساس تاریخ
+        all_operations = []
+        
+        for op in financial_operations:
+            all_operations.append({
+                'type': 'financial',
+                'operation': op,
+                'date': op.date,
+                'amount': op.amount,
+                'description': op.description,
+                'operation_type': op.operation_type,
+                'status': op.status
+            })
+        
+        for op in petty_cash_operations:
+            # تشخیص اینکه آیا این عملیات تنخواه از صندوق نقدی منبع گرفته شده یا نه
+            is_from_cash_fund = op.source_fund and op.source_fund.fund_type == 'CASH'
+            
+            # تشخیص نوع عملیات برای نمایش
+            operation_display = ""
+            if op.operation_type == 'ADD':
+                if is_from_cash_fund:
+                    operation_display = "انتقال به حساب تنخواه"
+                else:
+                    operation_display = "افزودن به تنخواه"
+            elif op.operation_type == 'WITHDRAW':
+                operation_display = "برداشت از تنخواه"
+            
+            all_operations.append({
+                'type': 'petty_cash',
+                'operation': op,
+                'date': op.date,
+                'amount': op.amount,
+                'description': op.description,
+                'operation_type': 'WITHDRAW',  # برای صندوق منبع، عملیات تنخواه خروجی است
+                'status': 'CONFIRMED',  # عملیات تنخواه همیشه تایید شده هستند
+                'is_from_cash_fund': is_from_cash_fund,  # اضافه کردن فیلد جدید
+                'operation_display': operation_display  # نمایش نوع عملیات
+            })
+        
+        # مرتب‌سازی بر اساس تاریخ (قدیمی‌ترین اول برای محاسبه صحیح مانده)
+        all_operations.sort(key=lambda x: x['date'])
+        
+        # محاسبه آمار
+        total_in = sum(op['amount'] for op in all_operations if 'RECEIVE' in op['operation_type'])
+        total_out = sum(op['amount'] for op in all_operations if 'PAY' in op['operation_type'] or op['operation_type'] == 'WITHDRAW')
+        
+        # محاسبه مانده فعلی (ورودی - خروجی)
+        current_balance = total_in - total_out
+        
+        # محاسبه مانده پس از هر عملیات (برای نمایش در جدول)
+        running_balance = 0
+        for op in all_operations:
+            if 'RECEIVE' in op['operation_type']:
+                running_balance += op['amount']
+            elif 'PAY' in op['operation_type'] or op['operation_type'] == 'WITHDRAW':
+                running_balance -= op['amount']
+            op['running_balance'] = running_balance
+        
+        # مرتب‌سازی بر اساس تاریخ (جدیدترین اول برای نمایش)
+        all_operations.sort(key=lambda x: x['date'], reverse=True)
+    
+    context = {
+        'fund': fund,
+        'operations': all_operations[:50],  # حداکثر 50 عملیات
+        'financial_operations': financial_operations,
+        'petty_cash_operations': petty_cash_operations,
+        'total_in': total_in,
+        'total_out': total_out,
+        'current_balance': current_balance,  # مانده فعلی
+        'balance_history': fund.get_balance_history()[:20] if hasattr(fund, 'get_balance_history') else []
+    }
+    
+    return render(request, 'products/fund_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def financial_operation_list_view(request):
+    """
+    نمایش لیست عملیات مالی
+    """
+    operations = FinancialOperation.objects.all().order_by('-date', '-created_at')
+    
+    # فیلترها
+    operation_type = request.GET.get('operation_type')
+    status = request.GET.get('status')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    if operation_type:
+        operations = operations.filter(operation_type=operation_type)
+    if status:
+        operations = operations.filter(status=status)
+    if date_from:
+        try:
+            from .views import convert_shamsi_to_gregorian
+            date_from_gregorian = convert_shamsi_to_gregorian(date_from)
+            operations = operations.filter(date__gte=date_from_gregorian)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            from .views import convert_shamsi_to_gregorian
+            date_to_gregorian = convert_shamsi_to_gregorian(date_to)
+            operations = operations.filter(date__lte=date_to_gregorian)
+        except ValueError:
+            pass
+    
+    # آمار کلی
+    total_amount = operations.aggregate(Sum('amount'))['amount__sum'] or 0
+    confirmed_operations = operations.filter(status='CONFIRMED')
+    confirmed_amount = confirmed_operations.aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    context = {
+        'operations': operations,
+        'total_amount': total_amount,
+        'confirmed_amount': confirmed_amount,
+        'operation_types': FinancialOperation.OPERATION_TYPES,
+        'status_choices': FinancialOperation.STATUS_CHOICES,
+    }
+    
+    return render(request, 'products/financial_operation_list.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def financial_operation_detail_view(request, operation_id):
+    """
+    نمایش جزئیات عملیات مالی
+    """
+    operation = get_object_or_404(FinancialOperation, id=operation_id)
+    
+    context = {
+        'operation': operation,
+        'transactions': operation.transactions.all(),
+    }
+    
+    return render(request, 'products/financial_operation_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def financial_operation_delete_view(request, operation_id):
+    """
+    حذف نرم عملیات مالی
+    """
+    operation = get_object_or_404(FinancialOperation, id=operation_id)
+    
+    if request.method == 'POST':
+        operation_number = operation.operation_number
+        operation.soft_delete(request.user)
+        messages.success(request, f'عملیات مالی {operation_number} با موفقیت حذف شد.')
+        return redirect('products:financial_operation_list')
+    
+    context = {
+        'operation': operation,
+        'title': 'حذف عملیات مالی'
+    }
+    return render(request, 'financial_operations/operation_confirm_delete.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def financial_operation_edit_view(request, operation_id):
+    """
+    ویرایش عملیات مالی
+    """
+    from .forms import FinancialOperationEditForm
+    
+    operation = get_object_or_404(FinancialOperation, id=operation_id)
+    
+    if request.method == 'POST':
+        form = FinancialOperationEditForm(request.POST, instance=operation)
+        if form.is_valid():
+            operation = form.save(commit=False)
+            operation.updated_at = timezone.now()
+            operation.save()
+            # علامت‌گذاری به عنوان اصلاح شده
+            operation.mark_as_modified(request.user)
+            messages.success(request, f'عملیات مالی {operation.operation_number} با موفقیت ویرایش شد.')
+            return redirect('products:financial_operation_detail', operation_id=operation.id)
+    else:
+        form = FinancialOperationEditForm(instance=operation)
+    
+    context = {
+        'form': form,
+        'operation': operation,
+        'title': 'ویرایش عملیات مالی'
+    }
+    return render(request, 'financial_operations/operation_edit.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def receive_from_customer_view(request):
+    """
+    دریافت از مشتری - با منطق کامل
+    """
+    if request.method == 'POST':
+        form = ReceiveFromCustomerForm(request.POST)
+        if form.is_valid():
+            try:
+                operation = form.save(commit=False)
+                operation.operation_type = 'RECEIVE_FROM_CUSTOMER'
+                operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+                operation.created_by = request.user
+                operation.status = 'CONFIRMED'
+                operation.confirmed_by = request.user
+                operation.confirmed_at = timezone.now()
+                operation.save()
+                
+                # به‌روزرسانی موجودی مشتری
+                customer_balance, created = CustomerBalance.objects.get_or_create(
+                    customer=operation.customer,
+                    defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+                )
+                customer_balance.update_balance(operation.amount, operation.operation_type)
+                
+                # به‌روزرسانی موجودی صندوق
+                update_fund_balance(operation)
+                
+                # نمایش پیام تأیید
+                success_message = f'عملیات دریافت از مشتری با موفقیت ثبت شد. شماره عملیات: {operation.operation_number}'
+                
+                # ذخیره پیام در session برای نمایش در صفحه تأیید
+                request.session['success_message'] = success_message
+                request.session['operation_type'] = 'receive_from_customer'
+                return redirect('products:operation_confirmation')
+                
+            except Exception as e:
+                messages.error(request, f'خطا در ثبت عملیات: {str(e)}')
+                return redirect('products:financial_operations_menu')
+    else:
+        form = ReceiveFromCustomerForm()
+    
+    customers = Customer.objects.all().order_by('first_name', 'last_name')
+    return render(request, 'financial_operations/receive_from_customer.html', {
+        'form': form,
+        'customers': customers
+    })
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def pay_to_customer_view(request):
+    """
+    پرداخت به مشتری - با منطق کامل
+    """
+    if request.method == 'POST':
+        form = PayToCustomerForm(request.POST)
+        if form.is_valid():
+            operation = form.save(commit=False)
+            operation.operation_type = 'PAY_TO_CUSTOMER'
+            operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+            operation.created_by = request.user
+            operation.status = 'CONFIRMED'
+            operation.confirmed_by = request.user
+            operation.confirmed_at = timezone.now()
+            operation.save()
+            
+            # ایجاد سند حسابداری
+            try:
+                voucher = operation.create_accounting_entries()
+                if not voucher:
+                    messages.warning(request, 'عملیات ثبت شد اما سند حسابداری ایجاد نشد.')
+            except Exception as e:
+                messages.warning(request, f'عملیات ثبت شد اما خطا در ایجاد سند حسابداری: {str(e)}')
+                voucher = None
+            
+            # به‌روزرسانی موجودی مشتری
+            customer_balance, created = CustomerBalance.objects.get_or_create(
+                customer=operation.customer,
+                defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+            )
+            customer_balance.update_balance(operation.amount, operation.operation_type)
+            
+            # به‌روزرسانی موجودی صندوق
+            update_fund_balance(operation)
+            
+            # نمایش پیام تأیید با شماره سند
+            if voucher:
+                success_message = f'عملیات پرداخت به مشتری با موفقیت ثبت شد. شماره سند: {voucher.number}'
+            else:
+                success_message = 'عملیات پرداخت به مشتری با موفقیت ثبت شد.'
+            
+            # ذخیره پیام در session برای نمایش در صفحه تأیید
+            request.session['success_message'] = success_message
+            request.session['operation_type'] = 'pay_to_customer'
+            return redirect('products:operation_confirmation')
+    else:
+        form = PayToCustomerForm()
+    
+    customers = Customer.objects.all().order_by('first_name', 'last_name')
+    return render(request, 'financial_operations/pay_to_customer.html', {
+        'form': form,
+        'customers': customers
+    })
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def bank_operation_view(request, operation_type):
+    """
+    عملیات بانکی - دریافت از بانک یا پرداخت به بانک
+    """
+    if request.method == 'POST':
+        form = BankOperationForm(request.POST)
+        if form.is_valid():
+            operation = form.save(commit=False)
+            operation.operation_type = operation_type
+            operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+            operation.created_by = request.user
+            operation.status = 'CONFIRMED'
+            operation.confirmed_by = request.user
+            operation.confirmed_at = timezone.now()
+            operation.save()
+            
+            # به‌روزرسانی موجودی صندوق
+            update_fund_balance(operation)
+            
+            messages.success(request, f'عملیات {operation.get_operation_type_display()} با موفقیت ثبت شد.')
+            return redirect('products:financial_operation_list')
+    else:
+        form = BankOperationForm()
+    
+    title = 'دریافت از بانک' if operation_type == 'RECEIVE_FROM_BANK' else 'پرداخت به بانک'
+    template = 'receive_from_bank.html' if operation_type == 'RECEIVE_FROM_BANK' else 'pay_to_bank.html'
+    
+    return render(request, f'financial_operations/{template}', {
+        'form': form,
+        'title': title
+    })
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def bank_transfer_view(request):
+    """
+    حواله بانکی - با انتخاب حساب‌های تعریف شده و بانک‌های موجود
+    """
+    if request.method == 'POST':
+        form = BankTransferForm(request.POST)
+        if form.errors:
+            # نمایش خطاها به کاربر
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"خطا در فیلد {field}: {error}")
+            return render(request, 'financial_operations/bank_transfer.html', {'form': form, 'customers': Customer.objects.all().order_by('first_name', 'last_name')})
+        if form.is_valid():
+            try:
+                # دریافت اطلاعات فرم
+                amount = form.cleaned_data['amount']
+                date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+                description = form.cleaned_data['description']
+                from_bank_account = form.cleaned_data['from_bank_account']
+                to_bank = form.cleaned_data['to_bank']
+                to_account = form.cleaned_data['to_account']
+                recipient = form.cleaned_data['recipient']
+                
+                # اگر گیرنده انتخاب نشده، اولین مشتری را انتخاب کن
+                if not recipient:
+                    recipient = Customer.objects.first()
+                    if not recipient:
+                        messages.error(request, 'هیچ مشتری در سیستم ثبت نشده است.')
+                        return render(request, 'financial_operations/bank_transfer.html', {'form': form})
+                
+
+                
+                # بررسی موجودی حساب مبدا
+                if from_bank_account.current_balance < amount:
+                    messages.error(request, f'موجودی حساب {from_bank_account.title} کافی نیست. موجودی فعلی: {from_bank_account.current_balance:,} ریال')
+                    return render(request, 'financial_operations/bank_transfer.html', {'form': form})
+                
+                # عملیات برداشت از حساب مبدا
+                withdrawal_operation = FinancialOperation.objects.create(
+                    operation_type='RECEIVE_FROM_BANK',
+                    date=date,
+                    amount=amount,
+                    bank_name=from_bank_account.bank.name,
+                    account_number=from_bank_account.account_number,
+                    payment_method='bank_transfer',
+                    description=f"برداشت برای حواله به {to_bank.name} - {recipient.get_full_name()}: {description}",
+                    created_by=request.user,
+                    status='CONFIRMED',
+                    confirmed_by=request.user,
+                    confirmed_at=timezone.now()
+                )
+                
+                # عملیات پرداخت به مشتری (واریز به حساب مقصد)
+                deposit_operation = FinancialOperation.objects.create(
+                    operation_type='PAY_TO_CUSTOMER',
+                    date=date,
+                    amount=amount,
+                    customer=recipient,
+                    payment_method='bank_transfer',
+                    description=f"پرداخت حواله از {from_bank_account.title} به {recipient.get_full_name()}: {description}",
+                    created_by=request.user,
+                    status='CONFIRMED',
+                    confirmed_by=request.user,
+                    confirmed_at=timezone.now()
+                )
+                
+                # به‌روزرسانی موجودی مشتری
+                customer_balance, created = CustomerBalance.objects.get_or_create(
+                    customer=recipient,
+                    defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+                )
+                customer_balance.update_balance(amount, 'PAY_TO_CUSTOMER')
+                
+                # به‌روزرسانی موجودی حساب بانکی مبدا
+                from_bank_account.current_balance -= amount
+                from_bank_account.save()
+                
+                # ایجاد اسناد حسابداری
+                try:
+                    from .accounting_utils import AccountingVoucherManager
+                    voucher_manager = AccountingVoucherManager()
+                    
+                    # سند برای برداشت از حساب مبدا
+                    withdrawal_voucher = voucher_manager.create_voucher_from_financial_operation(withdrawal_operation)
+                    
+                    # سند برای واریز به حساب مقصد
+                    deposit_voucher = voucher_manager.create_voucher_from_financial_operation(deposit_operation)
+                    
+                    if withdrawal_voucher and deposit_voucher:
+                        voucher_info = f"شماره سند برداشت: {withdrawal_voucher.number}، شماره سند واریز: {deposit_voucher.number}"
+                    elif withdrawal_voucher:
+                        voucher_info = f"شماره سند برداشت: {withdrawal_voucher.number}، خطا در ایجاد سند واریز"
+                    elif deposit_voucher:
+                        voucher_info = f"خطا در ایجاد سند برداشت، شماره سند واریز: {deposit_voucher.number}"
+                    else:
+                        voucher_info = "خطا در ایجاد اسناد حسابداری"
+                except Exception as e:
+                    voucher_info = f"خطا در ایجاد سند حسابداری: {str(e)}"
+                
+                # نمایش پیام تأیید
+                success_message = f'حواله بانکی به مبلغ {amount:,} ریال با موفقیت ثبت شد. شماره عملیات برداشت: {withdrawal_operation.operation_number}، شماره عملیات پرداخت: {deposit_operation.operation_number}. {voucher_info}'
+                
+                # ذخیره پیام در session برای نمایش در صفحه تأیید
+                request.session['success_message'] = success_message
+                request.session['operation_type'] = 'bank_transfer'
+                return redirect('products:operation_confirmation')
+                
+            except Exception as e:
+                messages.error(request, f'خطا در ثبت عملیات حواله بانکی: {str(e)}')
+                return render(request, 'financial_operations/bank_transfer.html', {'form': form})
+    else:
+        form = BankTransferForm()
+    
+    # دریافت لیست مشتریان برای مودال انتخاب گیرنده
+    customers = Customer.objects.all().order_by('first_name', 'last_name')
+    
+    return render(request, 'financial_operations/bank_transfer.html', {
+        'form': form,
+        'customers': customers
+    })
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def cash_operation_view(request, operation_type):
+    """
+    عملیات صندوق - پرداخت به صندوق یا پرداخت از صندوق
+    """
+    if request.method == 'POST':
+        form = CashOperationForm(request.POST)
+        if form.is_valid():
+            operation = form.save(commit=False)
+            operation.operation_type = operation_type
+            operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+            operation.created_by = request.user
+            operation.status = 'CONFIRMED'
+            operation.confirmed_by = request.user
+            operation.confirmed_at = timezone.now()
+            operation.save()
+            
+            # به‌روزرسانی موجودی صندوق
+            update_fund_balance(operation)
+            
+            messages.success(request, f'عملیات {operation.get_operation_type_display()} با موفقیت ثبت شد.')
+            return redirect('products:financial_operation_list')
+    else:
+        form = CashOperationForm()
+    
+    title = 'پرداخت به صندوق' if operation_type == 'PAYMENT_TO_CASH' else 'پرداخت از صندوق'
+    template = 'payment_to_cash.html' if operation_type == 'PAYMENT_TO_CASH' else 'payment_from_cash.html'
+    
+    return render(request, f'financial_operations/{template}', {
+        'form': form,
+        'title': title
+    })
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def capital_investment_view(request):
+    """
+    سرمایه گذاری - با منطق کامل
+    """
+    if request.method == 'POST':
+        form = CapitalInvestmentForm(request.POST)
+        if form.is_valid():
+            operation = form.save(commit=False)
+            operation.operation_type = 'CAPITAL_INVESTMENT'
+            operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+            operation.created_by = request.user
+            operation.status = 'CONFIRMED'
+            operation.confirmed_by = request.user
+            operation.confirmed_at = timezone.now()
+            operation.save()
+            
+            # به‌روزرسانی موجودی صندوق
+            update_fund_balance(operation)
+            
+            messages.success(request, 'عملیات سرمایه گذاری با موفقیت ثبت شد.')
+            return redirect('products:financial_operation_list')
+    else:
+        form = CapitalInvestmentForm()
+    
+    return render(request, 'financial_operations/capital_investment.html', {'form': form})
+
+
+@login_required
+@group_required('حسابداری')
+def petty_cash_view(request):
+    """
+    عملیات تنخواه - با منطق کامل
+    """
+    if request.method == 'POST':
+        print("=== DEBUG: POST request received ===")
+        print(f"POST data: {request.POST}")
+        
+        form = PettyCashOperationForm(request.POST)
+        print(f"Form is valid: {form.is_valid()}")
+        
+        if form.is_valid():
+            print("=== DEBUG: Form is valid ===")
+            print(f"Cleaned data: {form.cleaned_data}")
+            
+            try:
+                # Use transaction.atomic to ensure data consistency
+                with transaction.atomic():
+                    operation = form.save(commit=False)
+                    operation.date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+                    operation.created_by = request.user
+                    
+                    print(f"Operation type: {operation.operation_type}")
+                    print(f"Amount: {operation.amount}")
+                    print(f"Date: {operation.date}")
+                    
+                    # منطق جدید برای عملیات تنخواه
+                    if operation.operation_type == 'ADD':
+                        print("=== DEBUG: Processing ADD operation ===")
+                        # افزودن به تنخواه
+                        source_fund = form.cleaned_data.get('source_fund')
+                        source_bank_account = form.cleaned_data.get('source_bank_account')
+                        
+                        print(f"Source fund: {source_fund}")
+                        print(f"Source bank account: {source_bank_account}")
+                        
+                        # به‌روزرسانی موجودی منبع و ثبت گردش
+                        if source_fund:
+                            print(f"Updating fund balance: {source_fund.current_balance} -> {source_fund.current_balance - operation.amount}")
+                            source_fund.current_balance -= operation.amount
+                            source_fund.save()
+                            
+                            # ثبت گردش صندوق منبع (خروجی)
+                            source_fund.add_transaction(
+                                transaction_type='OUT',
+                                amount=operation.amount,
+                                description=f"برداشت برای تنخواه - {operation.get_reason_display()}",
+                                reference_id=str(operation.id),
+                                reference_type='PettyCashOperation'
+                            )
+                            
+                        elif source_bank_account:
+                            print(f"Updating bank account balance: {source_bank_account.current_balance} -> {source_bank_account.current_balance - operation.amount}")
+                            source_bank_account.current_balance -= operation.amount
+                            source_bank_account.save()
+                        
+                        # ذخیره عملیات تنخواه (بدون ایجاد صندوق)
+                        operation.save()
+                        print(f"Petty cash operation saved: {operation.operation_type} - {operation.amount}")
+                        
+                        # ایجاد سند حسابداری
+                        try:
+                            create_petty_cash_voucher(operation, 'ADD')
+                            print("=== DEBUG: Voucher created successfully ===")
+                        except Exception as e:
+                            print(f"=== DEBUG: Error creating voucher: {e} ===")
+                        
+                        success_message = f'مبلغ {operation.amount:,} تومان با موفقیت به تنخواه اضافه شد.'
+                        print(f"=== DEBUG: Success message: {success_message} ===")
+                        
+                        # ذخیره پیام در session برای نمایش در صفحه تأیید
+                        request.session['success_message'] = success_message
+                        request.session['operation_type'] = 'petty_cash_add'
+                        return redirect('products:operation_confirmation')
+                        
+                    else:
+                        print("=== DEBUG: Processing WITHDRAW operation ===")
+                        # برداشت از تنخواه
+                        operation.save()
+                        print(f"Petty cash operation saved: {operation.operation_type} - {operation.amount}")
+                        
+                        # ایجاد سند حسابداری
+                        try:
+                            create_petty_cash_voucher(operation, 'WITHDRAW')
+                            print("=== DEBUG: Voucher created successfully ===")
+                        except Exception as e:
+                            print(f"=== DEBUG: Error creating voucher: {e} ===")
+                        
+                        success_message = f'مبلغ {operation.amount:,} تومان با موفقیت از تنخواه برداشت شد.'
+                        print(f"=== DEBUG: Success message: {success_message} ===")
+                        
+                        # ذخیره پیام در session برای نمایش در صفحه تأیید
+                        request.session['success_message'] = success_message
+                        request.session['operation_type'] = 'petty_cash_withdraw'
+                        return redirect('products:operation_confirmation')
+                    
+                    print("=== DEBUG: Operation saved successfully ===")
+                
+            except Exception as e:
+                print(f"=== DEBUG: Error in operation processing: {e} ===")
+                import traceback
+                traceback.print_exc()
+                messages.error(request, f'خطا در ثبت عملیات: {str(e)}')
+        else:
+            print("=== DEBUG: Form is not valid ===")
+            print(f"Form errors: {form.errors}")
+            for field, errors in form.errors.items():
+                print(f"Field {field}: {errors}")
+            messages.error(request, 'خطا در فرم. لطفاً اطلاعات را بررسی کنید.')
+    else:
+        form = PettyCashOperationForm()
+    
+    # نمایش موجودی تنخواه
+    petty_cash_fund = Fund.objects.filter(fund_type='PETTY_CASH').first()
+    petty_cash_operations = PettyCashOperation.objects.all().order_by('-date', '-created_at')[:20]
+    
+    # دریافت لیست صندوق‌ها و حساب‌های بانکی
+    available_funds = Fund.objects.filter(fund_type__in=['CASH', 'PETTY_CASH'], is_active=True)
+    available_bank_accounts = BankAccount.objects.filter(is_active=True)
+    
+    context = {
+        'form': form,
+        'petty_cash_fund': petty_cash_fund,
+        'petty_cash_operations': petty_cash_operations,
+        'available_funds': available_funds,
+        'available_bank_accounts': available_bank_accounts
+    }
+    
+    return render(request, 'products/petty_cash.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def customer_balance_list_view(request):
+    """
+    نمایش لیست موجودی مشتریان
+    """
+    # محاسبه مجدد موجودی تمام مشتریان از عملیات‌های واقعی
+    customers = Customer.objects.all()
+    
+    for customer in customers:
+        customer_balance, created = CustomerBalance.objects.get_or_create(
+            customer=customer,
+            defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+        )
+        
+        # عملیات‌های مرتبط با این مشتری
+        operations = FinancialOperation.objects.filter(customer=customer)
+        
+        # محاسبه مجموع‌ها از عملیات‌های واقعی
+        total_received = operations.filter(
+            operation_type='RECEIVE_FROM_CUSTOMER'
+        ).aggregate(Sum('amount'))['amount__sum'] or 0
+        
+        total_paid = operations.filter(
+            operation_type='PAY_TO_CUSTOMER'
+        ).aggregate(Sum('amount'))['amount__sum'] or 0
+        
+        # محاسبه موجودی فعلی
+        current_balance = total_paid - total_received
+        
+        # به‌روزرسانی موجودی مشتری
+        customer_balance.total_received = total_received
+        customer_balance.total_paid = total_paid
+        customer_balance.current_balance = current_balance
+        customer_balance.save()
+    
+    customer_balances = CustomerBalance.objects.select_related('customer').all().order_by('-current_balance')
+    
+    # فیلترها
+    search = request.GET.get('search')
+    if search:
+        customer_balances = customer_balances.filter(
+            Q(customer__first_name__icontains=search) |
+            Q(customer__last_name__icontains=search) |
+            Q(customer__store_name__icontains=search)
+        )
+    
+    # آمار کلی - محاسبه از عملیات‌های واقعی
+    all_operations = FinancialOperation.objects.filter(
+        customer__isnull=False
+    )
+    
+    total_received = all_operations.filter(
+        operation_type='RECEIVE_FROM_CUSTOMER'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    total_paid = all_operations.filter(
+        operation_type='PAY_TO_CUSTOMER'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    total_balance = total_paid - total_received
+    
+    context = {
+        'customer_balances': customer_balances,
+        'total_balance': total_balance,
+        'total_received': total_received,
+        'total_paid': total_paid,
+    }
+    
+    return render(request, 'products/customer_balance_list.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def customer_balance_detail_view(request, customer_id):
+    """
+    نمایش جزئیات موجودی مشتری
+    """
+    customer = get_object_or_404(Customer, id=customer_id)
+    customer_balance, created = CustomerBalance.objects.get_or_create(
+        customer=customer,
+        defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+    )
+    
+    # عملیات‌های مرتبط با این مشتری
+    operations = FinancialOperation.objects.filter(
+        customer=customer
+    ).order_by('-date', '-created_at')
+    
+    # محاسبه مجدد مجموع‌ها از عملیات‌های واقعی
+    total_received = operations.filter(
+        operation_type='RECEIVE_FROM_CUSTOMER'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    total_paid = operations.filter(
+        operation_type='PAY_TO_CUSTOMER'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # محاسبه موجودی فعلی
+    current_balance = total_paid - total_received
+    
+    # به‌روزرسانی موجودی مشتری
+    customer_balance.total_received = total_received
+    customer_balance.total_paid = total_paid
+    customer_balance.current_balance = current_balance
+    customer_balance.save()
+    
+    context = {
+        'customer': customer,
+        'customer_balance': customer_balance,
+        'operations': operations,
+        'total_received': total_received,
+        'total_paid': total_paid,
+        'current_balance': current_balance,
+    }
+    
+    return render(request, 'products/customer_balance_detail.html', context)
+
+
+# Helper functions
+def convert_shamsi_to_gregorian(shamsi_date_str):
+    """
+    تبدیل تاریخ شمسی به میلادی
+    """
+    try:
+        # فرض بر این است که تاریخ شمسی در فرمت YYYY/MM/DD است
+        year, month, day = map(int, shamsi_date_str.split('/'))
+        
+        # بررسی صحت تاریخ
+        if year < 1300 or year > 1500:  # محدوده منطقی برای سال شمسی
+            return timezone.now().date()
+        if month < 1 or month > 12:
+            return timezone.now().date()
+        if day < 1 or day > 31:
+            return timezone.now().date()
+            
+        jdate = jdatetime.date(year, month, day)
+        return jdate.togregorian()
+    except Exception as e:
+        print(f"Error converting date {shamsi_date_str}: {e}")
+        return timezone.now().date()
+
+
+def create_petty_cash_voucher(operation, operation_type):
+    """
+    ایجاد سند حسابداری برای عملیات تنخواه
+    """
+    try:
+        from .models import Voucher, VoucherItem, Account, FinancialYear
+        
+        # دریافت سال مالی فعال
+        financial_year = FinancialYear.objects.filter(is_active=True).first()
+        if not financial_year:
+            print("سال مالی فعال یافت نشد")
+            return
+        
+        # دریافت حساب‌های مربوطه
+        petty_cash_account = Account.objects.filter(code='1130').first()  # تنخواه گردان
+        cash_account = Account.objects.filter(code='1110').first()  # صندوق
+        bank_account = Account.objects.filter(code='1120').first()  # بانک‌ها
+        expense_account = Account.objects.filter(code='5300').first()  # هزینه‌های اداری
+        
+        if not petty_cash_account:
+            print("حساب تنخواه یافت نشد")
+            return
+        
+        # ایجاد سند
+        voucher = Voucher.objects.create(
+            financial_year=financial_year,
+            number=f"PC{operation.operation_number}",
+            date=operation.date,
+            type='PERMANENT',
+            description=f"سند عملیات تنخواه - {operation.get_operation_type_display()}",
+            created_by=operation.created_by
+        )
+        
+        if operation_type == 'ADD':
+            # افزودن به تنخواه
+            if operation.source_fund:
+                # از صندوق به تنخواه
+                VoucherItem.objects.create(
+                    voucher=voucher,
+                    account=cash_account or petty_cash_account,
+                    description=f"برداشت از صندوق {operation.source_fund.name}",
+                    debit=0,
+                    credit=operation.amount,
+                    reference_id=str(operation.id),
+                    reference_type='PettyCashOperation'
+                )
+            elif operation.source_bank_account:
+                # از بانک به تنخواه
+                VoucherItem.objects.create(
+                    voucher=voucher,
+                    account=bank_account or petty_cash_account,
+                    description=f"برداشت از حساب {operation.source_bank_account.title}",
+                    debit=0,
+                    credit=operation.amount,
+                    reference_id=str(operation.id),
+                    reference_type='PettyCashOperation'
+                )
+            
+            # بدهکار کردن تنخواه
+            VoucherItem.objects.create(
+                voucher=voucher,
+                account=petty_cash_account,
+                description="افزودن به تنخواه",
+                debit=operation.amount,
+                credit=0,
+                reference_id=str(operation.id),
+                reference_type='PettyCashOperation'
+            )
+            
+        else:
+            # برداشت از تنخواه
+            # بستانکار کردن تنخواه
+            VoucherItem.objects.create(
+                voucher=voucher,
+                account=petty_cash_account,
+                description="برداشت از تنخواه",
+                debit=0,
+                credit=operation.amount,
+                reference_id=str(operation.id),
+                reference_type='PettyCashOperation'
+            )
+            
+            # بدهکار کردن هزینه
+            VoucherItem.objects.create(
+                voucher=voucher,
+                account=expense_account or petty_cash_account,
+                description=f"هزینه {operation.get_reason_display()}",
+                debit=operation.amount,
+                credit=0,
+                reference_id=str(operation.id),
+                reference_type='PettyCashOperation'
+            )
+        
+        voucher.save()
+        print(f"سند حسابداری برای عملیات تنخواه {operation.operation_number} ایجاد شد")
+        
+    except Exception as e:
+        print(f"خطا در ایجاد سند حسابداری: {e}")
+        # Don't re-raise the exception to avoid transaction issues
+        pass
+
+
+def update_fund_balance(operation):
+    """
+    به‌روزرسانی موجودی صندوق بر اساس عملیات مالی
+    """
+    # تعیین صندوق مناسب بر اساس نوع عملیات
+    if operation.operation_type in ['RECEIVE_FROM_CUSTOMER', 'PAYMENT_TO_CASH']:
+        # افزایش موجودی صندوق نقدی
+        cash_fund, created = Fund.objects.get_or_create(
+            fund_type='CASH',
+            defaults={
+                'name': 'صندوق نقدی',
+                'initial_balance': 0,
+                'current_balance': 0,
+                'created_by': operation.created_by
+            }
+        )
+        cash_fund.current_balance += operation.amount
+        cash_fund.save()
+        
+    elif operation.operation_type in ['PAY_TO_CUSTOMER', 'PAYMENT_FROM_CASH']:
+        # کاهش موجودی صندوق نقدی
+        cash_fund, created = Fund.objects.get_or_create(
+            fund_type='CASH',
+            defaults={
+                'name': 'صندوق نقدی',
+                'initial_balance': 0,
+                'current_balance': 0,
+                'created_by': operation.created_by
+            }
+        )
+        cash_fund.current_balance -= operation.amount
+        cash_fund.save()
+        
+    elif operation.operation_type in ['RECEIVE_FROM_BANK']:
+        # افزایش موجودی حساب بانکی
+        bank_fund, created = Fund.objects.get_or_create(
+            fund_type='BANK',
+            bank_name=operation.bank_name,
+            account_number=operation.account_number,
+            defaults={
+                'name': f'حساب {operation.bank_name}',
+                'initial_balance': 0,
+                'current_balance': 0,
+                'created_by': operation.created_by
+            }
+        )
+        bank_fund.current_balance += operation.amount
+        bank_fund.save()
+        
+    elif operation.operation_type in ['PAY_TO_BANK', 'CASH_WITHDRAWAL']:
+        # کاهش موجودی حساب بانکی
+        bank_fund, created = Fund.objects.get_or_create(
+            fund_type='BANK',
+            bank_name=operation.bank_name,
+            account_number=operation.account_number,
+            defaults={
+                'name': f'حساب {operation.bank_name}',
+                'initial_balance': 0,
+                'current_balance': 0,
+                'created_by': operation.created_by
+            }
+        )
+        bank_fund.current_balance -= operation.amount
+        bank_fund.save()
+
+
+@login_required
+@group_required('حسابداری')
+def operation_confirmation_view(request):
+    """
+    صفحه تأیید عملیات مالی
+    """
+    success_message = request.session.get('success_message')
+    operation_type = request.session.get('operation_type')
+    
+    if not success_message or not operation_type:
+        return redirect('products:financial_dashboard')
+    
+    # حذف پیام از session بعد از نمایش
+    del request.session['success_message']
+    del request.session['operation_type']
+    
+    context = {
+        'success_message': success_message,
+        'operation_type': operation_type
+    }
+    
+    return render(request, 'financial_operations/operation_confirmation.html', context)
+
+@login_required
+@group_required('حسابداری')
+def financial_dashboard_view(request):
+    """
+    داشبورد مالی - نمایش آمار و اطلاعات کلی
+    """
+    from django.db.models import Sum, Q
+    
+    # آمار صندوق‌ها - محاسبه از دیتابیس
+    funds = Fund.objects.filter(is_active=True)
+    
+    # محاسبه مانده نقدی از عملیات‌های مالی
+    cash_funds = funds.filter(fund_type='CASH')
+    total_cash_balance = 0
+    for fund in cash_funds:
+        # محاسبه مانده از عملیات‌های مالی
+        financial_ops = FinancialOperation.objects.filter(
+            Q(bank_name=fund.bank_name) | Q(account_number=fund.account_number),
+            status='CONFIRMED'
+        )
+        
+        # اگر هیچ عملیاتی وجود ندارد، مانده صفر است
+        if not financial_ops.exists():
+            total_cash_balance += 0
+        else:
+            cash_in = sum(op.amount for op in financial_ops if 'RECEIVE' in op.operation_type)
+            cash_out = sum(op.amount for op in financial_ops if 'PAY' in op.operation_type)
+            total_cash_balance += (cash_in - cash_out)
+    
+    # محاسبه مانده بانکی از عملیات‌های مالی
+    bank_funds = funds.filter(fund_type='BANK')
+    total_bank_balance = 0
+    for fund in bank_funds:
+        financial_ops = FinancialOperation.objects.filter(
+            Q(bank_name=fund.bank_name) | Q(account_number=fund.account_number),
+            status='CONFIRMED'
+        )
+        
+        # اگر هیچ عملیاتی وجود ندارد، مانده صفر است
+        if not financial_ops.exists():
+            total_bank_balance += 0
+        else:
+            bank_in = sum(op.amount for op in financial_ops if 'RECEIVE' in op.operation_type)
+            bank_out = sum(op.amount for op in financial_ops if 'PAY' in op.operation_type)
+            total_bank_balance += (bank_in - bank_out)
+    
+    # محاسبه مانده تنخواه از عملیات تنخواه
+    total_petty_cash_balance = Fund.get_petty_cash_balance()
+    
+    # آمار حساب‌های بانکی
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+    total_bank_accounts_balance = sum(account.current_balance for account in bank_accounts)
+    
+    total_balance = total_cash_balance + total_bank_balance + total_petty_cash_balance + total_bank_accounts_balance
+    
+    # آمار عملیات‌های مالی
+    today = timezone.now().date()
+    today_operations = FinancialOperation.objects.filter(date=today, status='CONFIRMED')
+    today_income = sum(op.amount for op in today_operations if op.operation_type in ['RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK'])
+    today_expense = sum(op.amount for op in today_operations if op.operation_type in ['PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH'])
+    
+    # آمار مشتریان - محاسبه از عملیات‌های واقعی
+    all_customer_operations = FinancialOperation.objects.filter(
+        customer__isnull=False
+    )
+    
+    total_received = all_customer_operations.filter(
+        operation_type='RECEIVE_FROM_CUSTOMER'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    total_paid = all_customer_operations.filter(
+        operation_type='PAY_TO_CUSTOMER'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    total_customer_balance = total_paid - total_received
+    
+    # شمارش بدهکاران و بستانکاران
+    customer_balances = CustomerBalance.objects.all()
+    debtor_count = customer_balances.filter(current_balance__gt=0).count()
+    creditor_count = customer_balances.filter(current_balance__lt=0).count()
+    
+    # عملیات‌های اخیر
+    recent_operations = FinancialOperation.objects.filter(status='CONFIRMED').order_by('-date', '-created_at')[:10]
+    
+    context = {
+        'total_balance': total_balance,
+        'total_cash_balance': total_cash_balance,
+        'total_bank_balance': total_bank_balance,
+        'total_petty_cash_balance': total_petty_cash_balance,
+        'total_bank_accounts_balance': total_bank_accounts_balance,
+        'bank_accounts': bank_accounts,
+        'today_income': today_income,
+        'today_expense': today_expense,
+        'today_net': today_income - today_expense,
+        'total_customer_balance': total_customer_balance,
+        'debtor_count': debtor_count,
+        'creditor_count': creditor_count,
+        'recent_operations': recent_operations,
+        'funds': funds,
+    }
+    
+    return render(request, 'products/financial_dashboard.html', context)
+
+# =============================================================================
+# توابع داده برای گزارشات مالی
+# =============================================================================
+
+def get_profit_loss_data(request):
+    """داده‌های گزارش سود و زیان"""
+    from django.db.models import Sum, Q
+    from datetime import datetime, timedelta
+    
+    # دریافت تاریخ‌های فیلتر
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    # اگر تاریخ مشخص نشده، ماه جاری
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # محاسبه درآمدها (فروش)
+    sales_revenue = SalesInvoice.objects.filter(
+        invoice_date__range=[start_date, end_date],
+        status='confirmed'
+    ).aggregate(total=Sum('total_amount'))['total'] or 0
+    
+    # محاسبه هزینه‌ها (خرید)
+    purchase_cost = PurchaseInvoice.objects.filter(
+        invoice_date__range=[start_date, end_date],
+        status='confirmed'
+    ).aggregate(total=Sum('total_amount'))['total'] or 0
+    
+    # محاسبه سود ناخالص
+    gross_profit = sales_revenue - purchase_cost
+    
+    # محاسبه هزینه‌های عملیاتی (عملیات مالی)
+    operational_expenses = FinancialOperation.objects.filter(
+        date__range=[start_date, end_date],
+        operation_type__in=['PAYMENT_FROM_CASH', 'PAY_TO_BANK', 'PETTY_CASH'],
+        status='CONFIRMED'
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    # سود خالص
+    net_profit = gross_profit - operational_expenses
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'sales_revenue': sales_revenue,
+        'purchase_cost': purchase_cost,
+        'gross_profit': gross_profit,
+        'operational_expenses': operational_expenses,
+        'net_profit': net_profit,
+    }
+
+def get_sales_by_product_data(request):
+    """داده‌های فروش به تفکیک کالا - نسخه بهبود یافته"""
+    from django.db.models import Sum, Count, Avg, F, ExpressionWrapper, DecimalField
+    from django.db.models.functions import Coalesce
+    
+    # دریافت پارامترهای فیلتر
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    product_category = request.GET.get('category', '')
+    min_amount = request.GET.get('min_amount', '')
+    max_amount = request.GET.get('max_amount', '')
+    sort_by = request.GET.get('sort_by', 'total_amount')
+    sort_order = request.GET.get('sort_order', 'desc')
+    
+    # تنظیم تاریخ پیش‌فرض
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # فیلتر پایه
+    base_query = SalesInvoiceItem.objects.filter(
+        invoice__invoice_date__range=[start_date, end_date],
+        invoice__status='confirmed'
+    )
+    
+    # اعمال فیلترهای اضافی
+    if product_category:
+        base_query = base_query.filter(product__car_group__icontains=product_category)
+    
+    # محاسبه آمار کلی
+    total_stats = base_query.aggregate(
+        total_sales_amount=Coalesce(Sum('total'), 0),
+        total_quantity=Coalesce(Sum('quantity'), 0),
+        total_invoices=Count('invoice', distinct=True),
+        avg_amount_per_invoice=Coalesce(Sum('total') / Count('invoice', distinct=True), 0)
+    )
+    
+    # فروش به تفکیک محصول با محاسبات پیشرفته
+    sales_by_product = base_query.values(
+        'product__name',
+        'product__code',
+        'product__car_group',
+        'product__purchase_price'
+    ).annotate(
+        total_quantity=Sum('quantity'),
+        total_amount=Sum('total'),
+        invoice_count=Count('invoice', distinct=True),
+        avg_quantity_per_invoice=ExpressionWrapper(
+            F('total_quantity') / F('invoice_count'),
+            output_field=DecimalField()
+        ),
+        avg_amount_per_invoice=ExpressionWrapper(
+            F('total_amount') / F('invoice_count'),
+            output_field=DecimalField()
+        ),
+        # محاسبه سود
+        total_cost=Sum(F('quantity') * F('product__purchase_price')),
+        profit=ExpressionWrapper(
+            F('total_amount') - F('total_cost'),
+            output_field=DecimalField()
+        ),
+        profit_margin=ExpressionWrapper(
+            (F('profit') / F('total_amount')) * 100,
+            output_field=DecimalField()
+        ),
+        # محاسبه درصد از کل فروش
+        percentage_of_total=ExpressionWrapper(
+            (F('total_amount') / total_stats['total_sales_amount']) * 100,
+            output_field=DecimalField()
+        )
+    )
+    
+    # اعمال فیلترهای مبلغ
+    if min_amount:
+        sales_by_product = sales_by_product.filter(total_amount__gte=min_amount)
+    if max_amount:
+        sales_by_product = sales_by_product.filter(total_amount__lte=max_amount)
+    
+    # مرتب‌سازی
+    if sort_order == 'desc':
+        sales_by_product = sales_by_product.order_by(f'-{sort_by}')
+    else:
+        sales_by_product = sales_by_product.order_by(sort_by)
+    
+    # محاسبه رتبه‌بندی
+    for i, item in enumerate(sales_by_product):
+        item['rank'] = i + 1
+    
+    # آمار تکمیلی
+    additional_stats = {
+        'total_products': sales_by_product.count(),
+        'top_product': sales_by_product.first(),
+        'bottom_product': sales_by_product.last() if sales_by_product.count() > 1 else None,
+        'avg_profit_margin': sales_by_product.aggregate(
+            avg_margin=Coalesce(Avg('profit_margin'), 0)
+        )['avg_margin'],
+        'total_profit': sales_by_product.aggregate(
+            total_profit=Coalesce(Sum('profit'), 0)
+        )['total_profit']
+    }
+    
+    # گروه‌بندی بر اساس دسته‌بندی محصولات
+    category_stats = base_query.values('product__car_group').annotate(
+        category_total=Sum('total'),
+        category_quantity=Sum('quantity'),
+        category_invoices=Count('invoice', distinct=True)
+    ).order_by('-category_total')
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'sales_by_product': sales_by_product,
+        'total_stats': total_stats,
+        'additional_stats': additional_stats,
+        'category_stats': category_stats,
+        'filters': {
+            'category': product_category,
+            'min_amount': min_amount,
+            'max_amount': max_amount,
+            'sort_by': sort_by,
+            'sort_order': sort_order
+        }
+    }
+
+def get_sales_by_customer_data(request):
+    """داده‌های فروش به تفکیک مشتری"""
+    from django.db.models import Sum, Count
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # فروش به تفکیک مشتری
+    sales_by_customer = SalesInvoice.objects.filter(
+        invoice_date__range=[start_date, end_date],
+        status='confirmed'
+    ).values(
+        'customer__first_name',
+        'customer__last_name',
+        'customer__store_name'
+    ).annotate(
+        total_amount=Sum('total_amount'),
+        invoice_count=Count('id'),
+        avg_amount=Sum('total_amount') / Count('id')
+    ).order_by('-total_amount')
+    
+    # محاسبه جمع کل
+    totals = sales_by_customer.aggregate(
+        total_amount=Sum('total_amount'),
+        avg_amount=Sum('total_amount') / Count('id')
+    )
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'sales_by_customer': sales_by_customer,
+        'total_amount': totals['total_amount'] or 0,
+        'avg_amount': totals['avg_amount'] or 0,
+    }
+
+def get_product_profit_data(request):
+    """داده‌های سود کالا"""
+    from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # محاسبه سود هر محصول
+    product_profits = SalesInvoiceItem.objects.filter(
+        invoice__invoice_date__range=[start_date, end_date],
+        invoice__status='confirmed'
+    ).values(
+        'product__name',
+        'product__code'
+    ).annotate(
+        total_sales=Sum('total'),
+        total_cost=Sum(F('quantity') * F('product__purchase_price')),
+        profit=ExpressionWrapper(
+            F('total_sales') - F('total_cost'),
+            output_field=DecimalField()
+        ),
+        profit_margin=ExpressionWrapper(
+            (F('profit') / F('total_sales')) * 100,
+            output_field=DecimalField()
+        )
+    ).order_by('-profit')
+    
+    # محاسبه جمع کل
+    totals = product_profits.aggregate(
+        total_profit=Sum('profit'),
+        avg_profit_margin=Sum('profit_margin')
+    )
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'product_profits': product_profits,
+        'total_profit': totals['total_profit'] or 0,
+        'avg_profit_margin': (totals['avg_profit_margin'] or 0) / max(len(product_profits), 1),
+    }
+
+def get_customer_profit_data(request):
+    """داده‌های سود مشتری"""
+    from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # محاسبه سود هر مشتری
+    customer_profits = SalesInvoice.objects.filter(
+        invoice_date__range=[start_date, end_date],
+        status='confirmed'
+    ).values(
+        'customer__first_name',
+        'customer__last_name',
+        'customer__store_name'
+    ).annotate(
+        total_sales=Sum('total_amount'),
+        total_cost=Sum(F('items__quantity') * F('items__product__purchase_price')),
+        profit=ExpressionWrapper(
+            F('total_sales') - F('total_cost'),
+            output_field=DecimalField()
+        ),
+        profit_margin=ExpressionWrapper(
+            (F('profit') / F('total_sales')) * 100,
+            output_field=DecimalField()
+        )
+    ).order_by('-profit')
+    
+    # محاسبه جمع کل
+    totals = customer_profits.aggregate(
+        total_profit=Sum('profit'),
+        avg_profit_margin=Sum('profit_margin')
+    )
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'customer_profits': customer_profits,
+        'total_profit': totals['total_profit'] or 0,
+        'avg_profit_margin': (totals['avg_profit_margin'] or 0) / max(len(customer_profits), 1),
+    }
+
+def get_accounts_receivable_payable_data(request):
+    """داده‌های حساب‌های دریافتی و پرداختی"""
+    from django.db.models import Sum
+    
+    # حساب‌های دریافتی (بدهکاران)
+    accounts_receivable = CustomerBalance.objects.filter(
+        current_balance__gt=0
+    ).select_related('customer').order_by('-current_balance')
+    
+    # حساب‌های پرداختی (بستانکاران)
+    accounts_payable = CustomerBalance.objects.filter(
+        current_balance__lt=0
+    ).select_related('customer').order_by('current_balance')
+    
+    # جمع کل
+    total_receivable = accounts_receivable.aggregate(
+        total=Sum('current_balance')
+    )['total'] or 0
+    
+    total_payable = abs(accounts_payable.aggregate(
+        total=Sum('current_balance')
+    )['total'] or 0)
+    
+    return {
+        'accounts_receivable': accounts_receivable,
+        'accounts_payable': accounts_payable,
+        'total_receivable': total_receivable,
+        'total_payable': total_payable,
+    }
+
+def get_cash_flow_data(request):
+    """داده‌های گردش صندوق"""
+    from django.db.models import Sum
+    from datetime import datetime, timedelta
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # دریافتی‌های نقدی
+    cash_inflows = FinancialOperation.objects.filter(
+        date__range=[start_date, end_date],
+        operation_type__in=['RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK', 'PAYMENT_TO_CASH'],
+        payment_method='cash',
+        status='CONFIRMED'
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    # پرداخت‌های نقدی
+    cash_outflows = FinancialOperation.objects.filter(
+        date__range=[start_date, end_date],
+        operation_type__in=['PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH', 'CASH_WITHDRAWAL'],
+        payment_method='cash',
+        status='CONFIRMED'
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    # گردش خالص
+    net_cash_flow = cash_inflows - cash_outflows
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'cash_inflows': cash_inflows,
+        'cash_outflows': cash_outflows,
+        'net_cash_flow': net_cash_flow,
+    }
+
+def get_bank_statement_data(request):
+    """داده‌های صورت حساب بانک"""
+    from django.db.models import Sum
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # تراکنش‌های بانکی
+    bank_transactions = FinancialOperation.objects.filter(
+        date__range=[start_date, end_date],
+        operation_type__in=['RECEIVE_FROM_BANK', 'PAY_TO_BANK', 'BANK_TRANSFER'],
+        status='CONFIRMED'
+    ).order_by('-date')
+    
+    # جمع دریافتی‌های بانکی
+    bank_inflows = bank_transactions.filter(
+        operation_type__in=['RECEIVE_FROM_BANK', 'BANK_TRANSFER']
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    # جمع پرداخت‌های بانکی
+    bank_outflows = bank_transactions.filter(
+        operation_type__in=['PAY_TO_BANK']
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'bank_transactions': bank_transactions,
+        'bank_inflows': bank_inflows,
+        'bank_outflows': bank_outflows,
+        'net_bank_flow': bank_inflows - bank_outflows,
+    }
+
+def get_checks_data(request):
+    """داده‌های چک‌های دریافتی و پرداختی"""
+    from django.db.models import Sum
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # چک‌های دریافتی
+    received_checks = Check.objects.filter(
+        date__range=[start_date, end_date],
+        status='RECEIVED'
+    ).order_by('-date')
+    
+    # چک‌های پرداختی
+    issued_checks = Check.objects.filter(
+        date__range=[start_date, end_date],
+        status='ISSUED'
+    ).order_by('-date')
+    
+    # جمع مبالغ
+    total_received = received_checks.aggregate(total=Sum('amount'))['total'] or 0
+    total_issued = issued_checks.aggregate(total=Sum('amount'))['total'] or 0
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'received_checks': received_checks,
+        'issued_checks': issued_checks,
+        'total_received': total_received,
+        'total_issued': total_issued,
+    }
+
+def get_petty_cash_data(request):
+    """داده‌های تنخواه"""
+    from django.db.models import Sum
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # عملیات تنخواه
+    petty_cash_operations = PettyCashOperation.objects.filter(
+        date__range=[start_date, end_date]
+    ).order_by('-date')
+    
+    total_withdrawals = petty_cash_operations.filter(
+        operation_type='WITHDRAW'
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    # موجودی تنخواه (فرضی)
+    petty_cash_balance = 1000000  # این مقدار باید از مدل Fund محاسبه شود
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'petty_cash_operations': petty_cash_operations,
+        'total_withdrawals': total_withdrawals,
+        'petty_cash_balance': petty_cash_balance,
+    }
+
+# =============================================================================
+# توابع داده‌های انبار و موجودی
+# =============================================================================
+
+def get_inventory_stock_data(request):
+    """داده‌های موجودی کالا"""
+    from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+    
+    # دریافت تمام محصولات با موجودی
+    inventory_items = Product.objects.annotate(
+        total_value=ExpressionWrapper(
+            F('quantity') * F('price'),
+            output_field=DecimalField()
+        )
+    ).order_by('-quantity')
+    
+    # محاسبه جمع کل موجودی و ارزش
+    totals = inventory_items.aggregate(
+        total_quantity=Sum('quantity'),
+        total_value=Sum(F('quantity') * F('price'))
+    )
+    
+    return {
+        'inventory_items': inventory_items,
+        'total_quantity': totals['total_quantity'] or 0,
+        'total_value': totals['total_value'] or 0,
+    }
+
+def get_product_turnover_data(request):
+    """داده‌های گردش کالا"""
+    from django.db.models import Sum, Count, Avg
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # گردش کالا
+    product_turnover = SalesInvoiceItem.objects.filter(
+        invoice__invoice_date__range=[start_date, end_date],
+        invoice__status='confirmed'
+    ).values(
+        'product__name',
+        'product__code',
+        'product__car_group'
+    ).annotate(
+        total_sold=Sum('quantity'),
+        total_revenue=Sum('total'),
+        avg_price=Avg('price'),
+        invoice_count=Count('invoice', distinct=True)
+    ).order_by('-total_sold')
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'product_turnover': product_turnover,
+    }
+
+def get_fast_slow_moving_data(request):
+    """داده‌های کالاهای سریع و کند گردش"""
+    from django.db.models import Sum, Count, Avg
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # کالاهای سریع گردش
+    fast_moving = SalesInvoiceItem.objects.filter(
+        invoice__invoice_date__range=[start_date, end_date],
+        invoice__status='confirmed'
+    ).values(
+        'product__name',
+        'product__code'
+    ).annotate(
+        total_sold=Sum('quantity'),
+        total_revenue=Sum('total')
+    ).filter(total_sold__gte=10).order_by('-total_sold')[:10]
+    
+    # کالاهای کند گردش
+    slow_moving = SalesInvoiceItem.objects.filter(
+        invoice__invoice_date__range=[start_date, end_date],
+        invoice__status='confirmed'
+    ).values(
+        'product__name',
+        'product__code'
+    ).annotate(
+        total_sold=Sum('quantity'),
+        total_revenue=Sum('total')
+    ).filter(total_sold__lt=5).order_by('total_sold')[:10]
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'fast_moving': fast_moving,
+        'slow_moving': slow_moving,
+    }
+
+def get_quantity_sales_data(request):
+    """داده‌های فروش تعدادی"""
+    from django.db.models import Sum, Count
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # فروش تعدادی
+    quantity_sales = SalesInvoiceItem.objects.filter(
+        invoice__invoice_date__range=[start_date, end_date],
+        invoice__status='confirmed'
+    ).values(
+        'product__name',
+        'product__code'
+    ).annotate(
+        total_quantity=Sum('quantity'),
+        total_amount=Sum('total'),
+        avg_quantity=Sum('quantity') / Count('invoice', distinct=True)
+    ).order_by('-total_quantity')
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'quantity_sales': quantity_sales,
+    }
+
+def get_stock_depletion_data(request):
+    """داده‌های تخمین زمان اتمام موجودی"""
+    from django.db.models import Sum, Avg, F, ExpressionWrapper, DecimalField
+    
+    # تخمین زمان اتمام موجودی بر اساس فروش متوسط
+    stock_depletion = Product.objects.annotate(
+        avg_daily_sales=ExpressionWrapper(
+            F('sales_invoice_items__quantity') / 30,  # فرض 30 روز
+            output_field=DecimalField()
+        ),
+        days_to_depletion=ExpressionWrapper(
+            F('quantity') / F('avg_daily_sales'),
+            output_field=DecimalField()
+        )
+    ).filter(quantity__gt=0).order_by('days_to_depletion')
+    
+    return {
+        'stock_depletion': stock_depletion,
+    }
+
+# =============================================================================
+# توابع داده‌های عملیاتی
+# =============================================================================
+
+def get_order_status_data(request):
+    """داده‌های وضعیت سفارشات"""
+    from django.db.models import Count
+    
+    # سفارشات بر اساس وضعیت
+    orders = Order.objects.select_related('customer').order_by('-created_at')
+    completed_orders = orders.filter(status='completed')
+    pending_orders = orders.filter(status__in=['pending', 'warehouse', 'ready'])
+    
+    return {
+        'orders': orders,
+        'completed_orders': completed_orders,
+        'pending_orders': pending_orders,
+    }
+
+def get_shipping_delivery_data(request):
+    """داده‌های ارسال و تحویل"""
+    from django.db.models import Count
+    
+    # ارسال‌ها
+    shipments = Shipment.objects.select_related('order').order_by('-shipment_date')
+    delivered_shipments = shipments.filter(status='delivered')
+    in_transit_shipments = shipments.filter(status='in_transit')
+    
+    return {
+        'shipments': shipments,
+        'delivered_shipments': delivered_shipments,
+        'in_transit_shipments': in_transit_shipments,
+    }
+
+def get_overdue_orders_data(request):
+    """داده‌های سفارشات معوق"""
+    from datetime import timedelta
+    
+    # سفارشات معوق (بیش از 7 روز)
+    cutoff_date = timezone.now() - timedelta(days=7)
+    overdue_orders = Order.objects.filter(
+        created_at__lt=cutoff_date,
+        status__in=['pending', 'warehouse', 'ready']
+    ).select_related('customer').order_by('created_at')
+    
+    return {
+        'overdue_orders': overdue_orders,
+        'cutoff_date': cutoff_date,
+    }
+
+def get_purchase_invoices_data(request):
+    """داده‌های فاکتورهای خرید"""
+    from django.db.models import Sum
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # فاکتورهای خرید
+    purchase_invoices = PurchaseInvoice.objects.filter(
+        invoice_date__range=[start_date, end_date],
+        status='confirmed'
+    ).select_related('customer').order_by('-invoice_date')
+    
+    total_amount = purchase_invoices.aggregate(
+        total=Sum('total_amount')
+    )['total'] or 0
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'purchase_invoices': purchase_invoices,
+        'total_amount': total_amount,
+    }
+
+def get_price_change_history_data(request):
+    """داده‌های تاریخ تغییر قیمت کالاها"""
+    from django.db.models import Count
+    
+    # تغییرات قیمت
+    price_changes = PriceChange.objects.select_related('product').order_by('-change_date')
+    
+    return {
+        'price_changes': price_changes,
+    }
+
+# =============================================================================
+# توابع داده‌های مشتریان
+# =============================================================================
+
+def get_customer_list_data(request):
+    """داده‌های لیست مشتریان"""
+    from django.db.models import Count, Sum
+    
+    # مشتریان با آمار سفارش
+    customers = Customer.objects.annotate(
+        order_count=Count('orders'),
+        total_purchase=Sum('orders__total_price')
+    ).order_by('-order_count')
+    
+    active_customers = customers.filter(order_count__gt=0)
+    new_customers = customers.filter(created_at__month=timezone.now().month)
+    
+    return {
+        'customers': customers,
+        'active_customers': active_customers,
+        'new_customers': new_customers,
+    }
+
+def get_debtors_data(request):
+    """داده‌های بدهکاران"""
+    # مشتریان با مانده بدهی
+    debtors = Customer.objects.filter(
+        customer_balance__current_balance__gt=0
+    ).select_related('customer_balance').order_by('-customer_balance__current_balance')
+    
+    return {
+        'debtors': debtors,
+    }
+
+def get_creditors_data(request):
+    """داده‌های بستانکاران"""
+    # مشتریان با مانده بستانکاری
+    creditors = Customer.objects.filter(
+        customer_balance__current_balance__lt=0
+    ).select_related('customer_balance').order_by('customer_balance__current_balance')
+    
+    return {
+        'creditors': creditors,
+    }
+
+def get_customer_statements_data(request):
+    """داده‌های صورت حساب مشتریان"""
+    from django.db.models import Sum
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    if not start_date or not end_date:
+        today = datetime.now()
+        start_date = today.replace(day=1).strftime('%Y-%m-%d')
+        end_date = today.strftime('%Y-%m-%d')
+    
+    # صورت حساب مشتریان
+    customer_statements = Customer.objects.annotate(
+        total_sales=Sum('sales_invoices__total_amount'),
+        total_purchases=Sum('purchase_invoices__total_amount')
+    ).filter(
+        sales_invoices__invoice_date__range=[start_date, end_date]
+    ).distinct()
+    
+    return {
+        'start_date': start_date,
+        'end_date': end_date,
+        'customer_statements': customer_statements,
+    }
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def bank_account_create_view(request):
+    """
+    ایجاد حساب بانکی جدید
+    """
+    from .forms import BankAccountForm
+    from .models import Account, BankAccount, AccountGroup, Currency
+    
+    if request.method == 'POST':
+        form = BankAccountForm(request.POST)
+        if form.is_valid():
+            try:
+                # Get default currency (IRR)
+                default_currency = Currency.objects.filter(is_default=True).first()
+                if not default_currency:
+                    # Create default currency if it doesn't exist
+                    default_currency = Currency.objects.create(
+                        code='IRR',
+                        name='ریال',
+                        symbol='﷼',
+                        is_default=True,
+                        exchange_rate=1
+                    )
+                
+                # Get or create bank account group
+                bank_group, created = AccountGroup.objects.get_or_create(
+                    name='حساب‌های بانکی',
+                    defaults={'code': '1200', 'description': 'حساب‌های بانکی و نقدی'}
+                )
+                
+                # Create the Account record first
+                account = Account.objects.create(
+                    group=bank_group,
+                    code=f"1200{Account.objects.filter(group=bank_group).count() + 1:03d}",
+                    name=form.cleaned_data['title'],
+                    level='DETAIL',
+                    currency=default_currency,
+                    opening_balance=form.cleaned_data['initial_balance'],
+                    current_balance=form.cleaned_data['initial_balance'],
+                    description=f"حساب بانکی {form.cleaned_data['bank'].name} - {form.cleaned_data['account_number']}"
+                )
+                
+                # Create the BankAccount record
+                bank_account = form.save(commit=False)
+                bank_account.account = account
+                bank_account.created_by = request.user
+                bank_account.current_balance = bank_account.initial_balance
+                bank_account.save()
+                
+                messages.success(request, 'حساب بانکی با موفقیت ایجاد شد.')
+                return redirect('products:bank_account_list')
+            except Exception as e:
+                messages.error(request, f'خطا در ایجاد حساب بانکی: {str(e)}')
+    else:
+        form = BankAccountForm()
+    
+    return render(request, 'products/bank_account_form.html', {
+        'form': form, 
+        'title': 'تعریف حساب بانکی جدید'
+    })
+
+
+@login_required
+@group_required('حسابداری')
+def bank_account_list_view(request):
+    """
+    نمایش لیست حساب‌های بانکی
+    """
+    bank_accounts = BankAccount.objects.select_related('bank', 'account', 'created_by').order_by('-created_at')
+    
+    context = {
+        'bank_accounts': bank_accounts,
+        'title': 'لیست حساب‌های بانکی'
+    }
+    
+    return render(request, 'products/bank_account_list.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def bank_account_detail_view(request, bank_account_id):
+    """
+    نمایش جزئیات حساب بانکی
+    """
+    from django.shortcuts import get_object_or_404
+    
+    bank_account = get_object_or_404(BankAccount.objects.select_related(
+        'bank', 'account', 'created_by'
+    ), id=bank_account_id)
+    
+    context = {
+        'bank_account': bank_account,
+        'title': f'جزئیات حساب بانکی {bank_account.title}'
+    }
+    
+    return render(request, 'products/bank_account_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def checkbook_detail_view(request, checkbook_id):
+    """
+    نمایش جزئیات دسته چک
+    """
+    from django.shortcuts import get_object_or_404
+    from .models import CheckBook, Check
+    
+    checkbook = get_object_or_404(CheckBook.objects.select_related(
+        'bank_account', 'bank_account__bank', 'created_by'
+    ), id=checkbook_id)
+    
+    # دریافت چک‌های مرتبط
+    checks = Check.objects.filter(checkbook=checkbook).order_by('number')
+    
+    context = {
+        'checkbook': checkbook,
+        'checks': checks,
+        'title': f'جزئیات دسته چک {checkbook.serial}'
+    }
+    
+    return render(request, 'products/checkbook_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def checkbook_edit_view(request, checkbook_id):
+    """
+    ویرایش دسته چک
+    """
+    from django.shortcuts import get_object_or_404, redirect
+    from .forms import CheckBookForm
+    from .models import CheckBook
+    
+    checkbook = get_object_or_404(CheckBook, id=checkbook_id)
+    
+    if request.method == 'POST':
+        form = CheckBookForm(request.POST, instance=checkbook)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'دسته چک با موفقیت ویرایش شد.')
+            return redirect('products:checkbook_detail', checkbook_id=checkbook.id)
+    else:
+        form = CheckBookForm(instance=checkbook)
+    
+    context = {
+        'form': form,
+        'checkbook': checkbook,
+        'title': f'ویرایش دسته چک {checkbook.serial}'
+    }
+    
+    return render(request, 'products/checkbook_edit.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def issued_checks_report_view(request, checkbook_id):
+    """
+    گزارش چک‌های خرجی
+    """
+    from django.shortcuts import get_object_or_404
+    from .models import CheckBook, Check
+    from django.db import models
+    
+    checkbook = get_object_or_404(CheckBook.objects.select_related(
+        'bank_account', 'bank_account__bank'
+    ), id=checkbook_id)
+    
+    # دریافت چک‌های صادر شده
+    issued_checks = Check.objects.filter(
+        checkbook=checkbook,
+        status__in=['ISSUED', 'RECEIVED', 'DEPOSITED', 'CLEARED', 'BOUNCED']
+    ).order_by('-date', '-created_at')
+    
+    # محاسبه آمار
+    total_amount = issued_checks.aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    cleared_amount = issued_checks.filter(status='CLEARED').aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    bounced_amount = issued_checks.filter(status='BOUNCED').aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    pending_amount = issued_checks.filter(
+        status__in=['ISSUED', 'RECEIVED', 'DEPOSITED']
+    ).aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    context = {
+        'checkbook': checkbook,
+        'issued_checks': issued_checks,
+        'total_amount': total_amount,
+        'cleared_amount': cleared_amount,
+        'bounced_amount': bounced_amount,
+        'pending_amount': pending_amount,
+        'title': f'گزارش چک‌های خرجی - {checkbook.serial}'
+    }
+    
+    return render(request, 'products/issued_checks_report.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def bank_account_edit_view(request, bank_account_id):
+    """
+    ویرایش حساب بانکی
+    """
+    from django.shortcuts import get_object_or_404, redirect
+    from .forms import BankAccountForm, CheckBookForm
+    
+    bank_account = get_object_or_404(BankAccount, id=bank_account_id)
+    
+    # Initialize forms
+    form = BankAccountForm(instance=bank_account)
+    checkbook_form = CheckBookForm()
+    
+    if request.method == 'POST':
+        if 'add_checkbook' in request.POST:
+            # اضافه کردن دسته چک جدید
+            checkbook_form = CheckBookForm(request.POST)
+            if checkbook_form.is_valid():
+                checkbook = checkbook_form.save(commit=False)
+                checkbook.bank_account = bank_account
+                checkbook.created_by = request.user
+                checkbook.save()
+                
+                # ایجاد چک‌ها
+                start_number = checkbook_form.cleaned_data.get('start_number')
+                end_number = checkbook_form.cleaned_data.get('end_number')
+                
+                if start_number and end_number:
+                    from .models import Check
+                    for check_number in range(start_number, end_number + 1):
+                        Check.objects.create(
+                            checkbook=checkbook,
+                            number=str(check_number),
+                            status='UNUSED',
+                            amount=0,  # مقدار پیش‌فرض
+                            date=timezone.now().date(),  # تاریخ پیش‌فرض
+                            payee='',  # خالی
+                            description='',  # خالی
+                            created_by=request.user  # کاربر ایجاد کننده
+                        )
+                
+                messages.success(request, 'دسته چک با موفقیت اضافه شد.')
+                return redirect('products:bank_account_detail', bank_account_id=bank_account.id)
+        else:
+            # ویرایش اطلاعات حساب بانکی
+            form = BankAccountForm(request.POST, instance=bank_account)
+            if form.is_valid():
+                # دریافت موجودی اولیه جدید و موجودی جدید از فرم
+                new_initial_balance = form.cleaned_data.get('initial_balance')
+                new_balance = form.cleaned_data.get('new_balance')
+                
+                # ذخیره موجودی اولیه قبلی
+                old_initial_balance = bank_account.initial_balance
+                
+                # ذخیره فرم
+                bank_account = form.save(commit=False)
+                
+                # اگر موجودی جدید وارد شده باشد
+                if new_balance is not None:
+                    # به‌روزرسانی موجودی اولیه و موجودی فعلی
+                    bank_account.initial_balance = new_initial_balance
+                    bank_account.current_balance = new_balance
+                    bank_account.save()
+                    messages.success(request, f'حساب بانکی با موفقیت ویرایش شد. موجودی فعلی به‌روزرسانی شد.')
+                else:
+                    bank_account.save()
+                    messages.success(request, 'حساب بانکی با موفقیت ویرایش شد.')
+                
+                return redirect('products:bank_account_list')
+    
+    context = {
+        'form': form,
+        'checkbook_form': checkbook_form,
+        'bank_account': bank_account,
+        'title': f'ویرایش حساب بانکی {bank_account.title}'
+    }
+    
+    return render(request, 'products/bank_account_edit.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def bank_statement_view(request, bank_account_id):
+    """
+    نمایش صورتحساب بانکی
+    """
+    from django.shortcuts import get_object_or_404
+    from django.db.models import Q, Sum
+    from datetime import datetime, timedelta
+    
+    bank_account = get_object_or_404(BankAccount, id=bank_account_id)
+    
+    # دریافت پارامترهای فیلتر
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    operation_type = request.GET.get('operation_type')
+    
+    # فیلتر کردن تراکنش‌ها - بر اساس نام بانک و شماره حساب
+    transactions = FinancialOperation.objects.filter(
+        bank_name=bank_account.bank.name,
+        account_number=bank_account.account_number
+    ).order_by('-date', '-created_at')
+    
+    if start_date:
+        try:
+            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            transactions = transactions.filter(date__gte=start_date_obj)
+        except ValueError:
+            pass
+    
+    if end_date:
+        try:
+            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            transactions = transactions.filter(date__lte=end_date_obj)
+        except ValueError:
+            pass
+    
+    if operation_type:
+        transactions = transactions.filter(operation_type=operation_type)
+    
+    # محاسبه آمار
+    total_credit = transactions.filter(operation_type='CREDIT').aggregate(
+        total=Sum('amount')
+    )['total'] or 0
+    
+    total_debit = transactions.filter(operation_type='DEBIT').aggregate(
+        total=Sum('amount')
+    )['total'] or 0
+    
+    final_balance = total_credit - total_debit
+    
+    # محاسبه موجودی پس از هر تراکنش
+    running_balance = bank_account.initial_balance
+    for transaction in transactions:
+        if transaction.operation_type == 'CREDIT':
+            running_balance += transaction.amount
+        else:
+            running_balance -= transaction.amount
+        transaction.balance_after = running_balance
+    
+    context = {
+        'bank_account': bank_account,
+        'transactions': transactions,
+        'total_credit': total_credit,
+        'total_debit': total_debit,
+        'final_balance': final_balance,
+        'start_date': start_date,
+        'end_date': end_date,
+        'operation_type': operation_type,
+        'title': f'صورتحساب بانکی - {bank_account.title}',
+        'initial_balance': bank_account.initial_balance,
+        'current_balance': bank_account.current_balance,
+    }
+    
+    return render(request, 'products/bank_statement.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def voucher_list_view(request):
+    """
+    نمایش لیست اسناد حسابداری
+    """
+    from .models import Voucher
+    
+    vouchers = Voucher.objects.select_related(
+        'financial_year', 'created_by', 'confirmed_by'
+    ).prefetch_related('items__account').order_by('-date', '-created_at')
+    
+    # محاسبه آمار
+    confirmed_count = vouchers.filter(is_confirmed=True).count()
+    unconfirmed_count = vouchers.filter(is_confirmed=False).count()
+    
+    context = {
+        'vouchers': vouchers,
+        'confirmed_count': confirmed_count,
+        'unconfirmed_count': unconfirmed_count,
+        'title': 'لیست اسناد حسابداری'
+    }
+    
+    return render(request, 'products/voucher_list.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def voucher_detail_view(request, voucher_id):
+    """
+    نمایش جزئیات سند حسابداری
+    """
+    from .models import Voucher
+    from django.shortcuts import get_object_or_404
+    from django.db.models import Sum
+    
+    voucher = get_object_or_404(Voucher.objects.select_related(
+        'financial_year', 'created_by', 'confirmed_by'
+    ).prefetch_related('items__account'), id=voucher_id)
+    
+    # محاسبه جمع کل بدهکار و بستانکار
+    totals = voucher.items.aggregate(
+        total_debit=Sum('debit'),
+        total_credit=Sum('credit')
+    )
+    
+    context = {
+        'voucher': voucher,
+        'total_debit': totals['total_debit'] or 0,
+        'total_credit': totals['total_credit'] or 0,
+        'title': f'سند حسابداری شماره {voucher.number}'
+    }
+    
+    return render(request, 'products/voucher_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def fund_transactions_view(request, fund_id):
+    """
+    نمایش گردش صندوق
+    """
+    try:
+        fund = Fund.objects.get(id=fund_id)
+        transactions = fund.get_transactions()
+        
+        # محاسبه آمار
+        total_in = sum(t.amount for t in transactions if t.transaction_type == 'IN')
+        total_out = sum(t.amount for t in transactions if t.transaction_type == 'OUT')
+        
+        context = {
+            'fund': fund,
+            'transactions': transactions,
+            'total_in': total_in,
+            'total_out': total_out,
+        }
+        
+        return render(request, 'products/fund_transactions.html', context)
+        
+    except Fund.DoesNotExist:
+        messages.error(request, 'صندوق مورد نظر یافت نشد.')
+        return redirect('products:fund_list')
+    except Exception as e:
+        messages.error(request, f'خطا در بارگذاری گردش صندوق: {str(e)}')
+        return redirect('products:fund_list')

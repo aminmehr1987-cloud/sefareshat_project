@@ -1,0 +1,104 @@
+<div class="modal-body">
+    <div class="manager-dashboard">
+        <div class="invoice-menu-container">
+            <a href="{% url 'products:purchase_invoice' %}" class="invoice-menu-tile orders-tile" title="فاکتور خرید">
+                <div class="invoice-tile-content">
+                    <i class="bi bi-cart-plus-fill"></i>
+                    <span>فاکتور خرید</span>
+                </div>
+            </a>
+            <a href="#" class="invoice-menu-tile upload-tile" title="فاکتور فروش">
+                <div class="invoice-tile-content">
+                    <i class="bi bi-cart-check-fill"></i>
+                    <span>فاکتور فروش</span>
+                </div>
+            </a>
+            <a href="#" class="invoice-menu-tile reports-tile" title="برگشت از خرید">
+                <div class="invoice-tile-content">
+                    <i class="bi bi-arrow-left-square-fill"></i>
+                    <span>برگشت از خرید</span>
+                </div>
+            </a>
+            <a href="#" class="invoice-menu-tile" style="background: linear-gradient(135deg, #ef4444, #b91c1c);" title="برگشت از فروش">
+                <div class="invoice-tile-content">
+                    <i class="bi bi-arrow-right-square-fill"></i>
+                    <span>برگشت از فروش</span>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+
+<style>
+.invoice-menu-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.invoice-menu-tile {
+    position: relative;
+    height: 140px;
+    border-radius: 15px;
+    overflow: hidden;
+    text-decoration: none;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+
+.invoice-menu-tile:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 25px rgba(0,0,0,0.15);
+}
+
+.invoice-tile-content {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    color: white;
+    text-align: center;
+}
+
+.invoice-menu-tile i {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.invoice-menu-tile:hover i {
+    transform: scale(1.1);
+}
+
+.invoice-menu-tile span {
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+/* Gradient backgrounds for tiles */
+.invoice-menu-tile.orders-tile {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.invoice-menu-tile.upload-tile {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.invoice-menu-tile.reports-tile {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+html, body {
+    max-width: 100vw !important;
+    overflow-x: hidden !important;
+}
+</style>

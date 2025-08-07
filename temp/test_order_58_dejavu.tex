@@ -1,0 +1,33 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{xepersian}
+\settextfont{DejaVuSans}
+\usepackage{longtable}
+\usepackage{setspace}
+\setstretch{1.2}
+\begin{document}
+\begin{center}
+    \textbf{\Large فاکتور سفارش}
+\end{center}
+\vspace{0.5cm}
+\begin{flushright}
+    \textbf{ویزیتور:} Amin \\
+    \textbf{مشتری:} تست \\
+    \textbf{تاریخ:} 1404/03/08 01:22 \\
+    \textbf{نحوه تسویه:} نقدی
+\end{flushright}
+\vspace{0.5cm}
+\begin{longtable}{|r|r|r|r|r|r|}
+    \hline
+    \textbf{ردیف} & \textbf{کد کالا} & \textbf{نام کالا} & \textbf{تعداد} & \textbf{قیمت واحد (ریال)} & \textbf{جمع (ریال)} \\
+    \hline
+    \endhead
+    1 & 0020200944 & نيم موتور 405 & 2 & 100,000 & 200,000 \\
+    \hline
+    2 & 0021300082 & سرسيلندر ال90 کونکس & 5 & 200,000 & 1,000,000 \\
+    \hline
+    \multicolumn{5}{|r|}{\textbf{جمع کل (ریال):}} & \textbf{1,200,000} \\
+    \hline
+\end{longtable}
+\end{document}

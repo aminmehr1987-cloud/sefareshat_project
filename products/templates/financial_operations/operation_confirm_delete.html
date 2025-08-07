@@ -1,0 +1,353 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}حذف عملیات مالی{% endblock %}
+
+{% block content %}
+<div class="delete-confirmation-container">
+    <div class="confirmation-card">
+        <div class="confirmation-header">
+            <i class="bi bi-exclamation-triangle text-warning"></i>
+            <h1>تأیید حذف عملیات مالی</h1>
+        </div>
+        
+        <div class="operation-details">
+            <h2>جزئیات عملیات:</h2>
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>شماره سند:</label>
+                    <span>{{ operation.operation_number }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>تاریخ:</label>
+                    <span>{{ operation.date|jalali_date }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>نوع عملیات:</label>
+                    <span>{{ operation.get_operation_type_display }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>مبلغ:</label>
+                    <span>{{ operation.amount|persian_number_format }} ریال</span>
+                </div>
+                <div class="detail-item">
+                    <label>وضعیت:</label>
+                    <span class="status-badge {{ operation.status|lower }}">
+                        {{ operation.get_status_display }}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <label>طرف حساب:</label>
+                    <span>
+                        {% if operation.customer %}
+                            {{ operation.customer.get_full_name }}
+                        {% elif operation.bank_name %}
+                            {{ operation.bank_name }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="warning-message">
+            <div class="warning-icon">
+                <i class="bi bi-exclamation-circle"></i>
+            </div>
+            <div class="warning-text">
+                <h3>هشدار!</h3>
+                <p>با حذف این عملیات مالی:</p>
+                <ul>
+                    <li>عملیات به حالت حذف شده تغییر وضعیت می‌دهد</li>
+                    <li>موجودی صندوق‌های مرتبط به‌روزرسانی می‌شود</li>
+                    <li>تاریخچه حذف در سیستم ثبت می‌شود</li>
+                    <li>امکان بازگردانی عملیات وجود دارد</li>
+                </ul>
+            </div>
+        </div>
+        
+        <form method="post" class="confirmation-form">
+            {% csrf_token %}
+            <div class="form-actions">
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-trash"></i>
+                    حذف عملیات
+                </button>
+                <a href="{% url 'products:financial_operation_list' %}" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i>
+                    انصراف
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.delete-confirmation-container {
+    width: 99%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.confirmation-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.confirmation-header {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    padding: 2rem;
+    text-align: center;
+    border-bottom: 1px solid #fecaca;
+}
+
+.confirmation-header i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #f59e0b;
+}
+
+.confirmation-header h1 {
+    margin: 0;
+    color: #991b1b;
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+.operation-details {
+    padding: 2rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.operation-details h2 {
+    margin: 0 0 1.5rem 0;
+    color: #2c3e50;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.detail-item span {
+    color: #1f2937;
+    font-size: 1rem;
+    padding: 0.5rem;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    display: inline-block;
+    min-width: 80px;
+}
+
+.status-badge.draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.confirmed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.cancelled {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.warning-message {
+    padding: 2rem;
+    background: #fef3c7;
+    border: 1px solid #fde68a;
+    margin: 1rem 2rem;
+    border-radius: 10px;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.warning-icon {
+    flex-shrink: 0;
+}
+
+.warning-icon i {
+    font-size: 2rem;
+    color: #f59e0b;
+}
+
+.warning-text h3 {
+    margin: 0 0 1rem 0;
+    color: #92400e;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.warning-text p {
+    margin: 0 0 0.5rem 0;
+    color: #92400e;
+    font-weight: 600;
+}
+
+.warning-text ul {
+    margin: 0;
+    padding-right: 1.5rem;
+    color: #92400e;
+}
+
+.warning-text li {
+    margin-bottom: 0.25rem;
+}
+
+.confirmation-form {
+    padding: 2rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    font-family: 'BHoma', sans-serif;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+    transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .delete-confirmation-container {
+        padding: 1rem;
+        width: 100%;
+    }
+    
+    .confirmation-header {
+        padding: 1.5rem;
+    }
+    
+    .confirmation-header h1 {
+        font-size: 1.25rem;
+    }
+    
+    .operation-details,
+    .confirmation-form {
+        padding: 1.5rem;
+    }
+    
+    .detail-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .warning-message {
+        margin: 1rem;
+        padding: 1.5rem;
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .delete-confirmation-container {
+        padding: 0.5rem;
+    }
+    
+    .confirmation-header {
+        padding: 1rem;
+    }
+    
+    .confirmation-header i {
+        font-size: 2rem;
+    }
+    
+    .confirmation-header h1 {
+        font-size: 1.1rem;
+    }
+    
+    .operation-details,
+    .confirmation-form {
+        padding: 1rem;
+    }
+    
+    .warning-message {
+        padding: 1rem;
+    }
+}
+</style>
+{% endblock %} 

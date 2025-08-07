@@ -1,0 +1,1119 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}داشبورد مالی{% endblock %}
+
+{% block content %}
+<div class="financial-dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <h1><i class="bi bi-graph-up"></i> داشبورد مالی</h1>
+        <div class="dashboard-actions">
+            <a href="{% url 'products:fund_list' %}" class="btn btn-primary">
+                <i class="bi bi-wallet"></i> مدیریت صندوق‌ها
+            </a>
+            <a href="{% url 'products:financial_operation_list' %}" class="btn btn-secondary">
+                <i class="bi bi-list-ul"></i> عملیات مالی
+            </a>
+            <a href="{% url 'products:customer_balance_list' %}" class="btn btn-info">
+                <i class="bi bi-people"></i> بدهکاران و بستانکاران
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+        <div class="card summary-card total-balance">
+            <div class="card-body">
+                <div class="card-icon">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+                <div class="card-content">
+                    <h3>کل موجودی</h3>
+                    <p class="amount">{{ total_balance|persian_number_format }} ریال</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card summary-card cash-balance">
+            <div class="card-body">
+                <div class="card-icon">
+                    <i class="bi bi-wallet"></i>
+                </div>
+                <div class="card-content">
+                    <h3>موجودی نقدی</h3>
+                    <p class="amount">{{ total_cash_balance|persian_number_format }} ریال</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card summary-card bank-balance">
+            <div class="card-body">
+                <div class="card-icon">
+                    <i class="bi bi-bank"></i>
+                </div>
+                <div class="card-content">
+                    <h3>موجودی حسابهای بانکی</h3>
+                    <p class="amount">{{ total_bank_accounts_balance|persian_number_format }} ریال</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card summary-card petty-cash-balance">
+            <div class="card-body">
+                <div class="card-icon">
+                    <i class="bi bi-piggy-bank"></i>
+                </div>
+                <div class="card-content">
+                    <h3>موجودی تنخواه</h3>
+                    <p class="amount">{{ total_petty_cash_balance|persian_number_format }} ریال</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Summary -->
+    <div class="today-summary">
+        <h2><i class="bi bi-calendar-day"></i> خلاصه صندوق امروز</h2>
+        <div class="today-cards">
+            <div class="card today-card income">
+                <div class="card-body">
+                    <h4>دریافتی امروز</h4>
+                    <p class="amount positive">{{ today_income|persian_number_format }} ریال</p>
+                </div>
+            </div>
+            <div class="card today-card expense">
+                <div class="card-body">
+                    <h4>پرداختی امروز</h4>
+                    <p class="amount negative">{{ today_expense|persian_number_format }} ریال</p>
+                </div>
+            </div>
+            <div class="card today-card net">
+                <div class="card-body">
+                    <h4>خالص امروز</h4>
+                    <p class="amount {% if today_net >= 0 %}positive{% else %}negative{% endif %}">
+                        {{ today_net|persian_number_format }} ریال
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Balances Summary -->
+    <div class="customer-summary">
+        <h2><i class="bi bi-people"></i> خلاصه موجودی مشتریان</h2>
+        <div class="customer-cards">
+            <div class="card customer-card glass-card">
+                <div class="card-body">
+                    <h4>کل موجودی مشتریان</h4>
+                    <p class="amount {% if total_customer_balance >= 0 %}positive{% else %}negative{% endif %}">
+                        {{ total_customer_balance|persian_number_format }} ریال
+                    </p>
+                </div>
+            </div>
+            <div class="card customer-card glass-card">
+                <div class="card-body">
+                    <h4>تعداد بدهکاران</h4>
+                    <p class="count">{{ debtor_count }} نفر</p>
+                </div>
+            </div>
+            <div class="card customer-card glass-card">
+                <div class="card-body">
+                    <h4>تعداد بستانکاران</h4>
+                    <p class="count">{{ creditor_count }} نفر</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bank Accounts Overview -->
+    <div class="bank-accounts-overview">
+        <h2><i class="bi bi-bank2"></i> خلاصه حساب‌های بانکی</h2>
+        <div class="bank-accounts-grid">
+            {% for account in bank_accounts %}
+            <div class="card bank-account-card glass-card">
+                <div class="card-body">
+                    <div class="account-header">
+                        <h4>{{ account.title }}</h4>
+                        <span class="account-bank">{{ account.bank.name }}</span>
+                    </div>
+                    <div class="account-balance">
+                        <p class="amount {% if account.current_balance >= 0 %}positive{% else %}negative{% endif %}">
+                            {{ account.current_balance|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="account-details">
+                        <small>{{ account.account_number }}</small>
+                        <a href="{% url 'products:bank_account_detail' account.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="no-bank-accounts">
+                <p>هیچ حساب بانکی تعریف نشده است.</p>
+                <a href="{% url 'products:bank_account_create' %}" class="btn btn-primary">ایجاد حساب بانکی</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Funds Overview -->
+    <div class="funds-overview">
+        <h2><i class="bi bi-wallet2"></i> خلاصه صندوق‌ها</h2>
+        <div class="funds-grid">
+            {% for fund in funds %}
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>{{ fund.name }}</h4>
+                        <span class="fund-type">{{ fund.get_fund_type_display }}</span>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount {% if fund.current_balance >= 0 %}positive{% else %}negative{% endif %}">
+                            {{ fund.current_balance|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <div class="fund-info">
+                            {% if fund.bank_name %}
+                            <small>{{ fund.bank_name }} - {{ fund.account_number }}</small>
+                            {% endif %}
+                        </div>
+                        <a href="{% url 'products:fund_detail' fund.id %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="no-funds">
+                <p>هیچ صندوقی تعریف نشده است.</p>
+                <a href="{% url 'products:fund_create' %}" class="btn btn-primary">ایجاد صندوق</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Recent Operations -->
+    <div class="recent-operations">
+        <h2><i class="bi bi-clock-history"></i> عملیات‌های اخیر</h2>
+        <div class="operations-table">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>تاریخ</th>
+                        <th>نوع عملیات</th>
+                        <th>مبلغ</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for operation in recent_operations %}
+                    <tr>
+                        <td>{{ operation.date|jalali_date }}</td>
+                        <td>{{ operation.get_operation_type_display }}</td>
+                        <td class="amount">{{ operation.amount|persian_number_format }} ریال</td>
+                        <td>
+                            <span class="status-badge {{ operation.status|lower }}">
+                                {{ operation.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">هیچ عملیاتی یافت نشد.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="view-all">
+            <a href="{% url 'products:financial_operation_list' %}" class="btn btn-outline-primary">
+                مشاهده همه عملیات
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.financial-dashboard-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.dashboard-header h1 {
+    color: #1f2937;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dashboard-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.summary-card .card-body {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem;
+}
+
+.card-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 1rem;
+    font-size: 1.5rem;
+    color: white;
+}
+
+.total-balance .card-icon {
+    background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.cash-balance .card-icon {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.bank-balance .card-icon {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.petty-cash-balance .card-icon {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.card-content h3 {
+    font-size: 1rem;
+    color: #6b7280;
+    margin: 0 0 0.5rem 0;
+    font-weight: 600;
+}
+
+.amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.positive {
+    color: #10b981;
+}
+
+.negative {
+    color: #ef4444;
+}
+
+.today-summary, .customer-summary, .funds-overview, .recent-operations {
+    margin-bottom: 2rem;
+}
+
+.today-summary h2, .customer-summary h2, .funds-overview h2, .recent-operations h2 {
+    color: #1f2937;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.today-cards, .customer-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.today-card, .customer-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+.customer-card.glass-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+    transition: all 0.3s ease;
+}
+
+.customer-card.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+.customer-card.glass-card .card-body {
+    padding: 1.5rem;
+}
+
+.customer-card.glass-card h4 {
+    color: #1f2937;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.customer-card.glass-card .amount,
+.customer-card.glass-card .count {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.today-card.income {
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+}
+
+.today-card.expense {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+}
+
+.today-card.net {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+}
+
+.bank-accounts-overview {
+    margin: 2rem 0;
+}
+
+.bank-accounts-summary {
+    margin-bottom: 1.5rem;
+}
+
+.bank-summary-card {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.bank-summary-card .summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.bank-summary-card .summary-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.bank-summary-card .summary-header i {
+    font-size: 1.5rem;
+}
+
+.bank-summary-card .summary-balance .amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.bank-accounts-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 1200px) {
+    .bank-accounts-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .bank-accounts-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .bank-accounts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.bank-account-card {
+    border: none;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0);
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+}
+
+
+
+.bank-account-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+
+
+.account-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.account-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.account-bank {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.account-balance {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    text-align: center;
+    backdrop-filter: blur(5px);
+}
+
+.account-balance .amount {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.account-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #6b7280;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.no-bank-accounts {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.funds-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 1200px) {
+    .funds-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .funds-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .funds-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .fund-card {
+        margin-bottom: 1rem;
+    }
+}
+
+.fund-card {
+    border: none;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+}
+
+.fund-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+.fund-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.fund-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.fund-type {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.fund-balance {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    text-align: center;
+    backdrop-filter: blur(5px);
+}
+
+.fund-balance .amount {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.fund-balance .amount.positive {
+    color: #10b981;
+}
+
+.fund-balance .amount.negative {
+    color: #ef4444;
+}
+
+.fund-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #6b7280;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.fund-details small {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.fund-info {
+    flex: 1;
+}
+
+.fund-details .btn {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+    margin-left: auto;
+}
+
+.fund-details .btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: #2563eb;
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: translateY(-2px);
+}
+
+.operations-table {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.table {
+    margin: 0;
+}
+
+.table th {
+    background: #f9fafb;
+    border: none;
+    padding: 1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.table td {
+    border: none;
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 5px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge.draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.confirmed {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.status-badge.cancelled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.view-all {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.no-funds {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+}
+
+.funds-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+@media (max-width: 1200px) {
+    .funds-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .funds-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .funds-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    .fund-card {
+        margin-bottom: 1rem;
+    }
+}
+
+.fund-card {
+    border: none;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+}
+
+.fund-card:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+}
+
+
+
+.neon-border {
+    position: relative;
+    border: 2px solid;
+    border-image: linear-gradient(0deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    border-radius: 14px;
+    animation: neonGlow 30s ease-in-out infinite;
+    background: rgba(255, 255, 255, 0.082);
+}
+
+@keyframes neonGlow {
+    0% {
+        border-image: linear-gradient(0deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    3.33% {
+        border-image: linear-gradient(12deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    6.67% {
+        border-image: linear-gradient(24deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    10% {
+        border-image: linear-gradient(36deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    13.33% {
+        border-image: linear-gradient(48deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    16.67% {
+        border-image: linear-gradient(60deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    20% {
+        border-image: linear-gradient(72deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    23.33% {
+        border-image: linear-gradient(84deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    26.67% {
+        border-image: linear-gradient(96deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    30% {
+        border-image: linear-gradient(108deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    33.33% {
+        border-image: linear-gradient(120deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    36.67% {
+        border-image: linear-gradient(132deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    40% {
+        border-image: linear-gradient(144deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    43.33% {
+        border-image: linear-gradient(156deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    46.67% {
+        border-image: linear-gradient(168deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    50% {
+        border-image: linear-gradient(180deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    53.33% {
+        border-image: linear-gradient(192deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    56.67% {
+        border-image: linear-gradient(204deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    60% {
+        border-image: linear-gradient(216deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    63.33% {
+        border-image: linear-gradient(228deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    66.67% {
+        border-image: linear-gradient(240deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    70% {
+        border-image: linear-gradient(252deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    73.33% {
+        border-image: linear-gradient(264deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    76.67% {
+        border-image: linear-gradient(276deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    80% {
+        border-image: linear-gradient(288deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    83.33% {
+        border-image: linear-gradient(300deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    86.67% {
+        border-image: linear-gradient(312deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    90% {
+        border-image: linear-gradient(324deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    93.33% {
+        border-image: linear-gradient(336deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    96.67% {
+        border-image: linear-gradient(348deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+    100% {
+        border-image: linear-gradient(360deg, #ff0000, #ff2000, #ff4000, #ff6000, #ff8000, #ffa000, #ffc000, #ffe000, #ffff00, #e0ff00, #c0ff00, #a0ff00, #80ff00, #60ff00, #40ff00, #20ff00, #00ff00, #00ff20, #00ff40, #00ff60) 1;
+    }
+}
+
+.fund-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.fund-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.fund-type {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.fund-balance {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    text-align: center;
+    backdrop-filter: blur(5px);
+}
+
+.fund-balance .amount {
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.fund-balance .amount.positive {
+    color: #10b981;
+}
+
+.fund-balance .amount.negative {
+    color: #ef4444;
+}
+
+.fund-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #6b7280;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+}
+
+.fund-details small {
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.fund-info {
+    flex: 1;
+}
+
+.fund-details .btn {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+    margin-left: auto;
+}
+
+.fund-details .btn:hover {
+    background: rgba(59, 130, 246, 0.2);
+    color: #2563eb;
+    border-color: rgba(59, 130, 246, 0.5);
+    transform: translateY(-2px);
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    color: white;
+}
+
+.btn-outline-primary {
+    background: transparent;
+    color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+.btn-outline-primary:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.count {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .financial-dashboard-container {
+        padding: 1rem;
+    }
+    
+    .dashboard-header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .dashboard-actions {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .summary-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .today-cards, .customer-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .funds-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .bank-accounts-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .bank-account-card {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+{% endblock %} 

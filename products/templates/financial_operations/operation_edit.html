@@ -1,0 +1,550 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}ویرایش عملیات مالی{% endblock %}
+
+{% block content %}
+<div class="edit-operation-container">
+    <div class="edit-header">
+        <h1><i class="bi bi-pencil-square"></i> ویرایش عملیات مالی</h1>
+        <div class="header-actions">
+            <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-secondary">
+                <i class="bi bi-eye"></i> مشاهده جزئیات
+            </a>
+            <a href="{% url 'products:financial_operation_list' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-right"></i> بازگشت به لیست
+            </a>
+        </div>
+    </div>
+
+    <div class="edit-card">
+        <div class="operation-summary">
+            <h2>خلاصه عملیات</h2>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <label>شماره سند:</label>
+                    <span>{{ operation.operation_number }}</span>
+                </div>
+                <div class="summary-item">
+                    <label>نوع عملیات:</label>
+                    <span>{{ operation.get_operation_type_display }}</span>
+                </div>
+                <div class="summary-item">
+                    <label>وضعیت فعلی:</label>
+                    <span class="status-badge {{ operation.status|lower }}">
+                        {{ operation.get_status_display }}
+                    </span>
+                </div>
+                <div class="summary-item">
+                    <label>تاریخ ایجاد:</label>
+                    <span>{{ operation.created_at|jalali_datetime }}</span>
+                </div>
+            </div>
+        </div>
+
+        <form method="post" class="edit-form">
+            {% csrf_token %}
+            
+            <div class="form-sections">
+                <!-- اطلاعات اصلی -->
+                <div class="form-section">
+                    <h3><i class="bi bi-info-circle"></i> اطلاعات اصلی</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="{{ form.operation_type.id_for_label }}">نوع عملیات:</label>
+                            {{ form.operation_type }}
+                            {% if form.operation_type.errors %}
+                                <div class="error-message">{{ form.operation_type.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.amount.id_for_label }}">مبلغ:</label>
+                            {{ form.amount }}
+                            {% if form.amount.errors %}
+                                <div class="error-message">{{ form.amount.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.date_shamsi.id_for_label }}">تاریخ:</label>
+                            {{ form.date_shamsi }}
+                            {% if form.date_shamsi.errors %}
+                                <div class="error-message">{{ form.date_shamsi.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.payment_method.id_for_label }}">روش پرداخت:</label>
+                            {{ form.payment_method }}
+                            {% if form.payment_method.errors %}
+                                <div class="error-message">{{ form.payment_method.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- اطلاعات طرف حساب -->
+                <div class="form-section">
+                    <h3><i class="bi bi-person"></i> اطلاعات طرف حساب</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="{{ form.customer.id_for_label }}">مشتری:</label>
+                            {{ form.customer }}
+                            {% if form.customer.errors %}
+                                <div class="error-message">{{ form.customer.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.bank_name.id_for_label }}">نام بانک:</label>
+                            {{ form.bank_name }}
+                            {% if form.bank_name.errors %}
+                                <div class="error-message">{{ form.bank_name.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.account_number.id_for_label }}">شماره حساب:</label>
+                            {{ form.account_number }}
+                            {% if form.account_number.errors %}
+                                <div class="error-message">{{ form.account_number.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- اطلاعات اضافی -->
+                <div class="form-section">
+                    <h3><i class="bi bi-card-text"></i> اطلاعات اضافی</h3>
+                    <div class="form-grid">
+                        <div class="form-group full-width">
+                            <label for="{{ form.description.id_for_label }}">توضیحات:</label>
+                            {{ form.description }}
+                            {% if form.description.errors %}
+                                <div class="error-message">{{ form.description.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.reference_number.id_for_label }}">شماره مرجع:</label>
+                            {{ form.reference_number }}
+                            {% if form.reference_number.errors %}
+                                <div class="error-message">{{ form.reference_number.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.cheque_number.id_for_label }}">شماره چک:</label>
+                            {{ form.cheque_number }}
+                            {% if form.cheque_number.errors %}
+                                <div class="error-message">{{ form.cheque_number.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="{{ form.cheque_date.id_for_label }}">تاریخ چک:</label>
+                            {{ form.cheque_date }}
+                            {% if form.cheque_date.errors %}
+                                <div class="error-message">{{ form.cheque_date.errors.0 }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- وضعیت -->
+                <div class="form-section">
+                    <h3><i class="bi bi-gear"></i> وضعیت</h3>
+                    <div class="form-group">
+                        <label for="{{ form.status.id_for_label }}">وضعیت:</label>
+                        {{ form.status }}
+                        {% if form.status.errors %}
+                            <div class="error-message">{{ form.status.errors.0 }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i>
+                    ذخیره تغییرات
+                </button>
+                <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i>
+                    انصراف
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.edit-operation-container {
+    width: 99%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.edit-header h1 {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.edit-header h1 i {
+    color: #3b82f6;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.edit-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.operation-summary {
+    padding: 2rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.operation-summary h2 {
+    margin: 0 0 1.5rem 0;
+    color: #2c3e50;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.summary-item label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.summary-item span {
+    color: #1f2937;
+    font-size: 1rem;
+    padding: 0.5rem;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    display: inline-block;
+    min-width: 80px;
+}
+
+.status-badge.draft {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.status-badge.confirmed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.cancelled {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.edit-form {
+    padding: 2rem;
+}
+
+.form-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.form-section {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 1.5rem;
+    background: #fafafa;
+}
+
+.form-section h3 {
+    margin: 0 0 1.5rem 0;
+    color: #2c3e50;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.form-section h3 i {
+    color: #3b82f6;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 0.75rem 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: 'BHoma', sans-serif;
+    background-color: white;
+    transition: all 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.error-message {
+    color: #ef4444;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    font-family: 'BHoma', sans-serif;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+    transform: translateY(-1px);
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    color: #6b7280;
+    border: 1px solid #6b7280;
+}
+
+.btn-outline-secondary:hover {
+    background: #6b7280;
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .edit-operation-container {
+        padding: 1rem;
+        width: 100%;
+    }
+    
+    .edit-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .edit-header h1 {
+        font-size: 1.5rem;
+        justify-content: center;
+    }
+    
+    .header-actions {
+        justify-content: center;
+    }
+    
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .summary-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .edit-operation-container {
+        padding: 0.5rem;
+    }
+    
+    .edit-header h1 {
+        font-size: 1.3rem;
+    }
+    
+    .edit-card {
+        border-radius: 10px;
+    }
+    
+    .operation-summary,
+    .edit-form {
+        padding: 1rem;
+    }
+    
+    .form-section {
+        padding: 1rem;
+    }
+}
+</style>
+
+<!-- jQuery and Persian Datepicker CSS and JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@latest/dist/css/persian-datepicker.min.css">
+<script src="https://unpkg.com/persian-date@latest/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@latest/dist/js/persian-datepicker.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Persian Datepicker for date fields
+    $('.persian-datepicker').persianDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValue: false,
+        autoClose: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        onSelect: function(unix) {
+            // Convert Persian date to Gregorian for form submission
+            const persianDate = this.getDate();
+            const gregorianDate = persianDate.toCalendar('gregorian').format('YYYY-MM-DD');
+            this.model.inputElement.value = gregorianDate;
+        }
+    });
+
+    // Set initial values for date fields if they exist
+    const dateShamsi = document.getElementById('{{ form.date_shamsi.id_for_label }}');
+    const chequeDate = document.getElementById('{{ form.cheque_date.id_for_label }}');
+    
+    if (dateShamsi && dateShamsi.value) {
+        // Convert Gregorian to Persian for display
+        const gregorianDate = new Date(dateShamsi.value);
+        const persianDate = new persianDate(gregorianDate);
+        dateShamsi.value = persianDate.format('YYYY/MM/DD');
+    }
+    
+    if (chequeDate && chequeDate.value) {
+        // Convert Gregorian to Persian for display
+        const gregorianDate = new Date(chequeDate.value);
+        const persianDate = new persianDate(gregorianDate);
+        chequeDate.value = persianDate.format('YYYY/MM/DD');
+    }
+});
+</script>
+{% endblock %} 

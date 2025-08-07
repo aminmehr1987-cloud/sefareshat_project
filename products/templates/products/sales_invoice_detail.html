@@ -1,0 +1,220 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block extra_css %}
+<style>
+/* Hide customer and cart elements in header for this page */
+.customer-input-group,
+#customerModal,
+#cart-icon-container {
+    display: none !important;
+}
+@font-face {
+    font-family: 'BHoma';
+    src: url('{% static "fonts/BHoma.ttf" %}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+body, html, input, button, select, textarea {
+    font-family: 'BHoma', Tahoma, Arial, sans-serif !important;
+}
+.order-detail-glass {
+    background: rgba(255,255,255,0.25);
+    border-radius: 18px;
+    margin: 2rem auto;
+    max-width: 1100px;
+    padding: 2.5rem 2rem 2rem 2rem;
+    box-shadow: 0 10px 30px rgba(76, 102, 219, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1.5px solid rgba(2,2,2,0.12);
+}
+.order-detail-title {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #374151;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+.order-detail-section {
+    background: rgba(255,255,255,0.45);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(76, 102, 219, 0.07);
+    padding: 1.5rem 1.2rem;
+    margin-bottom: 1.5rem;
+}
+.order-detail-label {
+    color: #374151;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+.order-detail-value {
+    color: #222;
+    font-size: 1.1rem;
+}
+.order-detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1.5rem;
+    background: rgba(255,255,255,0.7);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(76, 102, 219, 0.07);
+}
+.order-detail-table th, .order-detail-table td {
+    padding: 1rem 0.5rem;
+    text-align: right;
+}
+.order-detail-table th {
+    background: #f8fafc;
+    color: #374151;
+    font-weight: 600;
+    font-size: 1rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+.order-detail-table td {
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 1rem;
+}
+.order-detail-status {
+    display: inline-block;
+    padding: 0.4rem 1.2rem;
+    border-radius: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    background: linear-gradient(45deg, #667eea, #4f46e5);
+    color: #fff;
+    margin-right: 0.5rem;
+}
+.order-detail-btn {
+    background: linear-gradient(45deg, #667eea, #4f46e5);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.8rem 2.2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(76, 102, 219, 0.13);
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    display: inline-block;
+    text-decoration: none;
+}
+.order-detail-btn:hover {
+    background: linear-gradient(45deg, #4f46e5, #667eea);
+    box-shadow: 0 8px 24px rgba(76, 102, 219, 0.18);
+    color: white;
+    text-decoration: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="order-detail-glass">
+    <div class="order-detail-title">
+        جزئیات فاکتور فروش <span style="color:#6366f1;">{{ invoice.invoice_number }}</span>
+    </div>
+    <div class="order-detail-section" style="display:flex; flex-wrap:wrap; gap:2rem; justify-content:space-between;">
+        <div style="flex:1 1 300px; min-width:260px;">
+            <div class="order-detail-label">تاریخ فاکتور:</div>
+            <div class="order-detail-value">{{ invoice.invoice_date|jformat:"%Y/%m/%d" }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">تاریخ ثبت:</div>
+            <div class="order-detail-value">{{ invoice.created_at|jformat:"%Y/%m/%d %H:%M" }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">وضعیت:</div>
+            <div class="order-detail-status">{{ invoice.get_status_display }}</div>
+        </div>
+        <div style="flex:1 1 300px; min-width:260px;">
+            <div class="order-detail-label">نام طرف حساب:</div>
+            <div class="order-detail-value">{{ invoice.customer.get_full_name }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">شماره موبایل:</div>
+            <div class="order-detail-value">{{ invoice.customer.mobile|default:'-' }}</div>
+            <div class="order-detail-label" style="margin-top:1rem;">آدرس:</div>
+            <div class="order-detail-value">{{ invoice.customer.address|default:'-' }}</div>
+        </div>
+        <div style="flex:1 1 300px; min-width:260px;">
+            <div class="order-detail-label">جمع کل فاکتور:</div>
+            <div class="order-detail-value" style="font-weight:bold; color:#059669; font-size:1.3rem;">
+                {{ invoice.total_amount|format_number }} ریال
+            </div>
+            <div class="order-detail-label" style="margin-top:1rem;">توضیحات:</div>
+            <div class="order-detail-value">{{ invoice.description|default:'-' }}</div>
+        </div>
+    </div>
+
+    <div class="order-detail-section">
+        <h3 style="font-size:1.2rem; color:#374151; margin-bottom:1rem;">جزئیات تسویه</h3>
+        <div style="display:flex; flex-wrap:wrap; gap:2rem;">
+            <div style="flex:1 1 200px;">
+                <div class="order-detail-label">تسویه نقدی:</div>
+                <div class="order-detail-value">{{ invoice.settle_cash|format_number }} ریال</div>
+            </div>
+            <div style="flex:1 1 200px;">
+                <div class="order-detail-label">تسویه کارتخوان:</div>
+                <div class="order-detail-value">{{ invoice.settle_card|format_number }} ریال</div>
+            </div>
+            <div style="flex:1 1 200px;">
+                <div class="order-detail-label">تسویه بانکی:</div>
+                <div class="order-detail-value">{{ invoice.settle_bank|format_number }} ریال</div>
+            </div>
+            <div style="flex:1 1 200px;">
+                <div class="order-detail-label">تسویه چک:</div>
+                <div class="order-detail-value">{{ invoice.settle_cheque|format_number }} ریال</div>
+            </div>
+            <div style="flex:1 1 200px;">
+                <div class="order-detail-label">مانده حساب:</div>
+                <div class="order-detail-value">{{ invoice.settle_balance|format_number }} ریال</div>
+            </div>
+            <div style="flex:1 1 200px;">
+                <div class="order-detail-label">تخفیف مازاد:</div>
+                <div class="order-detail-value">{{ invoice.settle_extra_discount|format_number }} ریال</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="order-detail-section">
+        <h3 style="font-size:1.2rem; color:#374151; margin-bottom:1rem;">اقلام فاکتور</h3>
+        <div style="overflow-x:auto;">
+            <table class="order-detail-table">
+                <thead>
+                    <tr>
+                        <th>کالا</th>
+                        <th>کد کالا</th>
+                        <th>تعداد</th>
+                        <th>قیمت واحد</th>
+                        <th>درصد تخفیف</th>
+                        <th>درصد سود</th>
+                        <th>مبلغ کل</th>
+                        <th>توضیحات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.product.name }}</td>
+                        <td>{{ item.product.code }}</td>
+                        <td>{{ item.quantity }}</td>
+                        <td>{{ item.price|format_number }} ریال</td>
+                        <td>{{ item.discount }}%</td>
+                        <td>{{ item.profit_percentage }}%</td>
+                        <td>{{ item.total|format_number }} ریال</td>
+                        <td>{{ item.description|default:'-' }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" style="text-align:center; color:#888;">هیچ کالایی در این فاکتور ثبت نشده است.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-top:2rem;">
+        <a href="{% url 'products:sales_invoice_list' %}" class="order-detail-btn">
+            بازگشت به لیست فاکتورها
+        </a>
+    </div>
+</div>
+{% endblock %}

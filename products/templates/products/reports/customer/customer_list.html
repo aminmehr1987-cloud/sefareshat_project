@@ -1,0 +1,87 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card positive">
+        <h3>تعداد مشتریان</h3>
+        <div class="amount">{{ customers|length }}</div>
+        <small>مشتری مختلف</small>
+    </div>
+    
+    <div class="summary-card info">
+        <h3>مشتریان فعال</h3>
+        <div class="amount">{{ active_customers|length }}</div>
+        <small>مشتریان با سفارش</small>
+    </div>
+    
+    <div class="summary-card warning">
+        <h3>مشتریان جدید</h3>
+        <div class="amount">{{ new_customers|length }}</div>
+        <small>مشتریان این ماه</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>لیست مشتریان</h3>
+    
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ردیف</th>
+                    <th>نام و نام خانوادگی</th>
+                    <th>نام فروشگاه</th>
+                    <th>شماره تماس</th>
+                    <th>تاریخ ثبت</th>
+                    <th>تعداد سفارش</th>
+                    <th>مجموع خرید</th>
+                    <th>وضعیت</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in customers %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <strong>{{ item.first_name }} {{ item.last_name }}</strong>
+                    </td>
+                    <td>
+                        {% if item.store_name %}
+                            <span class="badge bg-info">{{ item.store_name }}</span>
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {{ item.mobile }}
+                    </td>
+                    <td>
+                        {{ item.created_at|jalali_date }}
+                    </td>
+                    <td>
+                        <span class="badge bg-primary">{{ item.order_count }}</span>
+                    </td>
+                    <td>
+                        <span class="text-success fw-bold">{{ item.total_purchase|format_number }} ریال</span>
+                    </td>
+                    <td>
+                        {% if item.order_count > 0 %}
+                            <span class="badge bg-success">فعال</span>
+                        {% else %}
+                            <span class="badge bg-secondary">غیرفعال</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <p class="mt-2">هیچ مشتری یافت نشد</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %} 

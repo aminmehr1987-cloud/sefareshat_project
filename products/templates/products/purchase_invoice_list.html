@@ -1,0 +1,35 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% block content %}
+<div class="container mt-4">
+    <h1 class="title">لیست فاکتورهای خرید</h1>
+    <table class="table table-bordered table-hover text-center">
+        <thead class="table-light">
+            <tr>
+                <th>شماره فاکتور</th>
+                <th>تاریخ</th>
+                <th>طرف حساب</th>
+                <th>جمع کل</th>
+                <th>وضعیت</th>
+                <th>عملیات</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for invoice in invoices %}
+            <tr>
+                <td>{{ invoice.invoice_number }}</td>
+                <td>{{ invoice.invoice_date }}</td>
+                <td>{{ invoice.customer.get_full_name }}</td>
+                <td>{{ invoice.total_amount|intcomma }}</td>
+                <td>{{ invoice.get_status_display }}</td>
+                <td>
+                    <a href="{% url 'products:purchase_invoice_detail' invoice.id %}" class="btn btn-info btn-sm">جزئیات</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6">هیچ فاکتور خریدی ثبت نشده است.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %} 

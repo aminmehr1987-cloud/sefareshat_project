@@ -1,0 +1,79 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card positive">
+        <h3>تعداد محصولات</h3>
+        <div class="amount">{{ product_profits|length }}</div>
+        <small>محصول مختلف</small>
+    </div>
+    
+    <div class="summary-card success">
+        <h3>کل سود</h3>
+        <div class="amount">{{ total_profit|format_number }} ریال</div>
+        <small>سود کل از فروش محصولات</small>
+    </div>
+    
+    <div class="summary-card info">
+        <h3>میانگین سود</h3>
+        <div class="amount">{{ avg_profit_margin|floatformat:1 }}%</div>
+        <small>میانگین درصد سود</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>گزارش سود محصولات</h3>
+    
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ردیف</th>
+                    <th>نام محصول</th>
+                    <th>کد محصول</th>
+                    <th>فروش کل</th>
+                    <th>هزینه کل</th>
+                    <th>سود</th>
+                    <th>درصد سود</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in product_profits %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <strong>{{ item.product__name }}</strong>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">{{ item.product__code }}</span>
+                    </td>
+                    <td>
+                        <span class="text-success fw-bold">{{ item.total_sales|format_number }} ریال</span>
+                    </td>
+                    <td>
+                        <span class="text-danger">{{ item.total_cost|format_number }} ریال</span>
+                    </td>
+                    <td>
+                        <span class="text-{% if item.profit >= 0 %}success{% else %}danger{% endif %} fw-bold">
+                            {{ item.profit|format_number }} ریال
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-{% if item.profit_margin >= 20 %}success{% elif item.profit_margin >= 10 %}warning{% else %}danger{% endif %}">
+                            {{ item.profit_margin|floatformat:1 }}%
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <p class="mt-2">هیچ داده‌ای در این دوره یافت نشد</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %} 

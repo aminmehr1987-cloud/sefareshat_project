@@ -1,0 +1,136 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card positive">
+        <h3>درآمد کل</h3>
+        <div class="amount">{{ sales_revenue|format_number }} ریال</div>
+        <small>فروش تایید شده</small>
+    </div>
+    
+    <div class="summary-card negative">
+        <h3>هزینه خرید</h3>
+        <div class="amount">{{ purchase_cost|format_number }} ریال</div>
+        <small>هزینه‌های خرید</small>
+    </div>
+    
+    <div class="summary-card positive">
+        <h3>سود ناخالص</h3>
+        <div class="amount">{{ gross_profit|format_number }} ریال</div>
+        <small>درآمد - هزینه خرید</small>
+    </div>
+    
+    <div class="summary-card negative">
+        <h3>هزینه‌های عملیاتی</h3>
+        <div class="amount">{{ operational_expenses|format_number }} ریال</div>
+        <small>هزینه‌های جاری</small>
+    </div>
+    
+    <div class="summary-card {% if net_profit >= 0 %}positive{% else %}negative{% endif %}">
+        <h3>سود خالص</h3>
+        <div class="amount">{{ net_profit|format_number }} ریال</div>
+        <small>سود ناخالص - هزینه‌های عملیاتی</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>جزئیات محاسبات</h3>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="detail-section">
+                <h4>درآمدها</h4>
+                <table class="table table-striped">
+                    <tr>
+                        <td>فروش کل</td>
+                        <td class="text-left">{{ sales_revenue|format_number }} ریال</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="detail-section">
+                <h4>هزینه‌ها</h4>
+                <table class="table table-striped">
+                    <tr>
+                        <td>هزینه خرید</td>
+                        <td class="text-left">{{ purchase_cost|format_number }} ریال</td>
+                    </tr>
+                    <tr>
+                        <td>هزینه‌های عملیاتی</td>
+                        <td class="text-left">{{ operational_expenses|format_number }} ریال</td>
+                    </tr>
+                    <tr class="table-info">
+                        <td><strong>کل هزینه‌ها</strong></td>
+                        <td class="text-left"><strong>{{ purchase_cost|add:operational_expenses|format_number }} ریال</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <div class="profit-summary">
+        <h4>خلاصه سود و زیان</h4>
+        <table class="table table-bordered">
+            <tr class="table-success">
+                <td><strong>درآمد کل</strong></td>
+                <td class="text-left"><strong>{{ sales_revenue|format_number }} ریال</strong></td>
+            </tr>
+            <tr class="table-danger">
+                <td><strong>هزینه خرید</strong></td>
+                <td class="text-left"><strong>{{ purchase_cost|format_number }} ریال</strong></td>
+            </tr>
+            <tr class="table-info">
+                <td><strong>سود ناخالص</strong></td>
+                <td class="text-left"><strong>{{ gross_profit|format_number }} ریال</strong></td>
+            </tr>
+            <tr class="table-warning">
+                <td><strong>هزینه‌های عملیاتی</strong></td>
+                <td class="text-left"><strong>{{ operational_expenses|format_number }} ریال</strong></td>
+            </tr>
+            <tr class="{% if net_profit >= 0 %}table-success{% else %}table-danger{% endif %}">
+                <td><strong>سود خالص</strong></td>
+                <td class="text-left"><strong>{{ net_profit|format_number }} ریال</strong></td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+<style>
+.detail-section {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.detail-section h4 {
+    color: #495057;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 5px;
+}
+
+.profit-summary {
+    margin-top: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.profit-summary h4 {
+    color: #495057;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.text-left {
+    text-align: left !important;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,63 @@
+
+        \documentclass[a4paper,12pt]{article}
+        \usepackage{geometry}
+        \geometry{a4paper, margin=1in}
+        \usepackage{longtable}
+        \usepackage{colortbl}
+        \usepackage{xcolor}
+        \usepackage{setspace}
+        \setstretch{1.2}
+        \usepackage{xepersian}
+        \settextfont{Vazirmatn}
+
+        % تعریف رنگ سرستون جدول
+        \definecolor{headerblue}{RGB}{44, 62, 80}
+
+        \begin{document}
+
+        % عنوان
+        \begin{center}
+            {\Huge \textbf{پیش فاکتور فروشگاه اکبرزاده}}
+        \end{center}
+
+        \vspace{0.6cm}
+
+        % اطلاعات مشتری و سفارش
+        \noindent
+        \begin{tabular}{ p{7cm} p{7cm} }
+        \textbf{مشتری:} {{ order.customer_name }} & \textbf{شماره سفارش:} {{ order.id }} \\
+        \textbf{آدرس:} {{ order.customer_address|default:"-" }} & \textbf{تاریخ:} 1404/04/03 13:10 \\
+        \textbf{موبایل:} {{ order.customer_mobile|default:"-" }} & \textbf{نحوه تسویه:} نقدی \\
+        \textbf{ویزیتور:} AlirezaAbasnezhad & \\
+        \end{tabular}
+
+        \vspace{1cm}
+
+        % جدول کالاها
+        \begin{longtable}{|c|c|p{5cm}|c|c|c|}
+        \hline
+        \rowcolor{headerblue} \color{white}
+        \textbf{ردیف} & \textbf{کد کالا} & \textbf{نام کالا} & \textbf{تعداد} & \textbf{قیمت واحد (ریال)} & \textbf{جمع (ریال)} \\
+        \hline
+        \endhead
+        1 & 0021300082 & سرسيلندر ال90 کونکس & 1 & 1 & 1 \\
+\hline
+
+        \multicolumn{5}{|r|}{\textbf{جمع کل (ریال):}} & \textbf{1} \\
+        \hline
+        \end{longtable}
+
+        \vspace{0.6cm}
+
+        % توضیحات پایانی، امضا و مهر
+        \noindent
+        \textbf{توضیحات:} ...............................................................................................
+
+        \vspace{2cm}
+
+        \begin{flushleft}
+            امضا و مهر فروشنده: \hspace{7cm} امضا خریدار:
+        \end{flushleft}
+
+        \end{document}
+        

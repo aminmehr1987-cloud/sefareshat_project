@@ -1,0 +1,47 @@
+
+        \documentclass[a4paper,12pt]{article}
+        \usepackage{geometry}
+        \geometry{a4paper, margin=1in}
+        \usepackage{longtable}
+        \usepackage{setspace}
+        \setstretch{1.2}
+        \usepackage{xepersian}
+        \settextfont{Vazirmatn}
+        \begin{document}
+        \begin{center}
+            \textbf{\LARGE فاکتور فروشگاه اکبرزاده}
+        \end{center}
+
+        \vspace{0.5cm}
+
+        \noindent
+        \begin{tabular}{ p{7cm} p{7cm} }
+        \textbf{نام مشتری:} {{ order.customer_name }} & \textbf{شماره سفارش:} {{ order.id }} \\
+        \textbf{آدرس:} {{ order.customer_address|default:"-" }} & \textbf{تاریخ:} 1404/04/03 13:09 \\
+        \textbf{موبایل:} {{ order.customer_mobile|default:"-" }} & \textbf{نحوه تسویه:} نقدی \\
+        \textbf{ویزیتور:} AlirezaAbasnezhad & \\
+        \end{tabular}
+
+        \vspace{0.7cm}
+
+        \begin{longtable}{|c|c|c|c|c|c|}
+        \hline
+        \textbf{ردیف} & \textbf{کد کالا} & \textbf{شرح کالا} & \textbf{تعداد} & \textbf{قیمت واحد} & \textbf{جمع} \\
+        \hline
+        \endhead
+        
+        \multicolumn{5}{|r|}{\textbf{جمع کل (ریال):}} & \textbf{0} \\
+        \hline
+        \end{longtable}
+        \vspace{0.5cm}
+
+        \noindent
+        \textbf{توضیحات:} ...............................................................................................
+
+        \vspace{2cm}
+        \begin{flushleft}
+        امضا و مهر فروشنده: \hspace{8cm} امضا خریدار:
+        \end{flushleft}
+
+        \end{document}
+        

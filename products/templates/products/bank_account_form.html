@@ -1,0 +1,462 @@
+{% extends 'products/base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block customer_elements %}{% endblock customer_elements %}{% block cart_elements %}{% endblock cart_elements %}
+
+{% block content %}
+<style>
+  .bank-account-container {
+    max-width: 800px;
+    margin: 20px auto;
+    background: rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 24px 24px 18px 24px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(23, 162, 184, 0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    font-family: 'b homa', Tahoma, sans-serif;
+    box-sizing: border-box;
+    transition: all 0.25s;
+  }
+  h3 {
+    color: #000;
+    text-align: center;
+    margin-bottom: 25px;
+    font-size: 26px;
+  }
+  .form-group {
+    margin-bottom: 18px;
+    text-align: right;
+  }
+  label {
+    display: block;
+    margin-bottom: 8px;
+    color: #000;
+    font-size: 14px;
+  }
+  .required::after {
+    content: "*";
+    color: #dc3545;
+    margin-right: 4px;
+    font-size: 16px;
+  }
+  .form-control {
+    padding: 8px;
+    border-radius: 14px;
+    border: 1px solid rgba(0,0,0,0.9);
+    font-size: 13px;
+    background: rgba(255,255,255,0.5);
+    color: #000;
+    font-family: 'b homa', Tahoma, sans-serif;
+    transition: all 0.2s;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .form-control:focus {
+    outline: none;
+    background: #17a2b8;
+    color: #fff;
+  }
+  
+  /* Card number field specific styles */
+  #{{ form.card_number.id_for_label }} {
+    direction: ltr !important;
+    text-align: left !important;
+    font-family: 'Courier New', monospace !important;
+    letter-spacing: 1px !important;
+  }
+  .form-control::placeholder {
+    color: #666;
+    font-family: 'b homa', Tahoma, sans-serif;
+  }
+  textarea.form-control {
+    resize: vertical;
+    min-height: 100px;
+    width: 100%;
+  }
+  .submit-btn {
+    background: #17a2b8;
+    color: #000000;
+    padding: 10px 24px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 15px;
+    margin-top: 20px;
+    transition: background 0.25s;
+    font-family: 'b homa', Tahoma, sans-serif;
+    width: 100%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    font-weight: bold;
+  }
+  .submit-btn:hover {
+    background: #138496;
+  }
+  .error-message {
+    color: #dc3545;
+    font-size: 13px;
+    margin-top: 5px;
+  }
+  .success-message {
+    color: #17a2b8;
+    font-size: 14px;
+    text-align: center;
+    margin-top: 10px;
+  }
+  .form-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 15px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .form-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .form-col .form-control {
+    width: 100%;
+  }
+  .single-field {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .single-field .form-control {
+    width: 100%;
+  }
+
+  /* Tablet */
+  @media (max-width: 900px) {
+    .bank-account-container {
+      max-width: 98vw;
+      padding: 16px 7vw;
+      border-radius: 18px;
+    }
+    .form-row {
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    h3 {
+      font-size: 22px;
+    }
+  }
+  /* Mobile */
+  @media (max-width: 600px) {
+    .bank-account-container {
+      max-width: 100vw;
+      padding: 7vw 2vw 3vw 2vw;
+      margin: 0;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+    .form-row {
+      flex-direction: column;
+      gap: 0;
+      width: 100%;
+      margin: 0;
+    }
+    .form-col,
+    .form-col .form-control,
+    .single-field,
+    .single-field .form-control,
+    textarea.form-control,
+    .submit-btn {
+      width: 100%;
+      min-width: 0;
+    }
+    h3 {
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    .form-control {
+      padding: 6px;
+      font-size: 12px;
+    }
+    .submit-btn {
+      padding: 8px 0;
+      font-size: 13px;
+    }
+    label {
+      font-size: 12px;
+    }
+  }
+</style>
+
+<div class="bank-account-container">
+  <h3>{{ title }}</h3>
+  <form method="post" id="bankAccountForm">
+    {% csrf_token %}
+    
+    {% if messages %}
+      {% for message in messages %}
+        <div class="{% if message.tags %}{{ message.tags }}-message{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+    
+    <div class="form-row">
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.bank.id_for_label }}" class="required">نام بانک</label>
+          {{ form.bank }}
+          {% if form.bank.errors %}
+            <div class="error-message">{{ form.bank.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.account_number.id_for_label }}" class="required">شماره حساب</label>
+          {{ form.account_number }}
+          {% if form.account_number.errors %}
+            <div class="error-message">{{ form.account_number.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.sheba.id_for_label }}" class="required">شماره شبا</label>
+          {{ form.sheba }}
+          {% if form.sheba.errors %}
+            <div class="error-message">{{ form.sheba.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.card_number.id_for_label }}">شماره کارت</label>
+          {{ form.card_number }}
+          {% if form.card_number.errors %}
+            <div class="error-message">{{ form.card_number.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.account_type.id_for_label }}" class="required">نوع حساب</label>
+          {{ form.account_type }}
+          {% if form.account_type.errors %}
+            <div class="error-message">{{ form.account_type.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.title.id_for_label }}" class="required">عنوان حساب</label>
+          {{ form.title }}
+          {% if form.title.errors %}
+            <div class="error-message">{{ form.title.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <div class="single-field">
+      <div class="form-group">
+        <label for="{{ form.has_card_reader.id_for_label }}" style="display: flex; align-items: center; gap: 8px;">
+          {{ form.has_card_reader }}
+          <span>دارای کارت‌خوان</span>
+        </label>
+        {% if form.has_card_reader.errors %}
+          <div class="error-message">{{ form.has_card_reader.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div id="card-reader-section" style="display: none;">
+      <div class="form-row">
+        <div class="form-col">
+          <div class="form-group">
+            <label for="{{ form.card_reader_device_1.id_for_label }}">دستگاه کارت‌خوان 1</label>
+            {{ form.card_reader_device_1 }}
+            {% if form.card_reader_device_1.errors %}
+              <div class="error-message">{{ form.card_reader_device_1.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="form-col">
+          <div class="form-group">
+            <label for="{{ form.card_reader_device_2.id_for_label }}">دستگاه کارت‌خوان 2</label>
+            {{ form.card_reader_device_2 }}
+            {% if form.card_reader_device_2.errors %}
+              <div class="error-message">{{ form.card_reader_device_2.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-col">
+          <div class="form-group">
+            <label for="{{ form.card_reader_device_3.id_for_label }}">دستگاه کارت‌خوان 3</label>
+            {{ form.card_reader_device_3 }}
+            {% if form.card_reader_device_3.errors %}
+              <div class="error-message">{{ form.card_reader_device_3.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+        <div class="form-col">
+          <div class="form-group">
+            <label for="{{ form.card_reader_device_4.id_for_label }}">دستگاه کارت‌خوان 4</label>
+            {{ form.card_reader_device_4 }}
+            {% if form.card_reader_device_4.errors %}
+              <div class="error-message">{{ form.card_reader_device_4.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="single-field">
+      <div class="form-group">
+        <label for="{{ form.initial_balance.id_for_label }}">موجودی اولیه</label>
+        {{ form.initial_balance }}
+        {% if form.initial_balance.errors %}
+          <div class="error-message">{{ form.initial_balance.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <div class="single-field">
+      <div class="form-group">
+        <label for="{{ form.description.id_for_label }}">توضیحات</label>
+        {{ form.description }}
+        {% if form.description.errors %}
+          <div class="error-message">{{ form.description.errors.0 }}</div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <button type="submit" class="submit-btn">ثبت حساب بانکی</button>
+  </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('bankAccountForm');
+    const shebaField = document.getElementById('{{ form.sheba.id_for_label }}');
+    const cardNumberField = document.getElementById('{{ form.card_number.id_for_label }}');
+    
+    // Format sheba number
+    shebaField.addEventListener('input', function(e) {
+        let value = e.target.value.toUpperCase();
+        // Remove all non-alphanumeric characters
+        value = value.replace(/[^A-Z0-9]/g, '');
+        // Ensure it starts with IR
+        if (!value.startsWith('IR')) {
+            value = 'IR' + value.replace(/^IR/, '');
+        }
+        // Limit to 26 characters
+        value = value.substring(0, 26);
+        e.target.value = value;
+    });
+    
+    // Format card number
+    cardNumberField.addEventListener('input', function(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        console.log('Original value:', value);
+        console.log('Value length:', value.length);
+        
+        // Limit to 16 digits
+        value = value.substring(0, 16);
+        console.log('After limit:', value);
+        
+        if (value.length > 0) {
+            // Format as 4 groups of 4 digits from left to right
+            let formatted = '';
+            let groups = [];
+            
+            // Split into groups of 4 from right to left
+            for (let i = value.length - 1; i >= 0; i -= 4) {
+                let group = value.substring(Math.max(0, i - 3), i + 1);
+                groups.unshift(group);
+            }
+            
+            // Join groups with spaces
+            formatted = groups.join(' ');
+            console.log('Formatted:', formatted);
+            e.target.value = formatted;
+        } else {
+            e.target.value = '';
+        }
+    });
+    
+    // Remove maxlength restriction from the field
+    cardNumberField.removeAttribute('maxlength');
+    
+    // Set text direction to LTR for card number field
+    cardNumberField.style.direction = 'ltr';
+    cardNumberField.style.textAlign = 'left';
+    cardNumberField.style.fontFamily = 'Courier New, monospace';
+    cardNumberField.style.letterSpacing = '1px';
+    
+    // Card reader checkbox functionality
+    const hasCardReaderCheckbox = document.getElementById('{{ form.has_card_reader.id_for_label }}');
+    const cardReaderSection = document.getElementById('card-reader-section');
+    
+    function toggleCardReaderSection() {
+        if (hasCardReaderCheckbox.checked) {
+            cardReaderSection.style.display = 'block';
+        } else {
+            cardReaderSection.style.display = 'none';
+            // Clear all card reader fields when unchecked
+            const cardReaderFields = [
+                '{{ form.card_reader_device_1.id_for_label }}',
+                '{{ form.card_reader_device_2.id_for_label }}',
+                '{{ form.card_reader_device_3.id_for_label }}',
+                '{{ form.card_reader_device_4.id_for_label }}'
+            ];
+            cardReaderFields.forEach(fieldId => {
+                const field = document.getElementById(fieldId);
+                if (field) field.value = '';
+            });
+        }
+    }
+    
+    hasCardReaderCheckbox.addEventListener('change', toggleCardReaderSection);
+    
+    // Initialize on page load
+    toggleCardReaderSection();
+    
+    // Form validation
+    form.addEventListener('submit', function(e) {
+        const requiredFields = [
+            '{{ form.bank.id_for_label }}',
+            '{{ form.account_number.id_for_label }}',
+            '{{ form.sheba.id_for_label }}',
+            '{{ form.account_type.id_for_label }}',
+            '{{ form.title.id_for_label }}'
+        ];
+        
+        let isValid = true;
+        
+        requiredFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (!field.value.trim()) {
+                field.classList.add('error');
+                isValid = false;
+            } else {
+                field.classList.remove('error');
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('لطفاً تمام فیلدهای اجباری را پر کنید.');
+        }
+    });
+});
+</script>
+{% endblock %} 

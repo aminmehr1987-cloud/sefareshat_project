@@ -1,0 +1,1723 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block title %}تایید نهایی سفارش{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Custom header for order confirmation page */
+.dk-header-main {
+    justify-content: space-between !important;
+}
+
+.dk-header-icons {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: auto !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+    justify-content: flex-end !important;
+    order: 3 !important;
+    flex-shrink: 0 !important;
+}
+
+/* Hide customer elements and cart elements in order confirmation */
+.customer-input-group,
+#customerModal,
+#cart-icon-container {
+    display: none !important;
+}
+
+/* Hide cart icon and popup in this page */
+#cart-icon-container,
+#cart-popup {
+    display: none !important;
+}
+
+/* Keep only profile and home icons */
+.dk-header-icon-btn {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    cursor: pointer !important;
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.dk-header-icons svg,
+.dk-header-icons i {
+    width: 32px !important;
+    height: 32px !important;
+    color: #444 !important;
+    transition: color 0.2s !important;
+}
+
+.dk-header-icon-btn:hover svg,
+.dk-header-icon-btn:hover i {
+    color: #e53935 !important;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{% load static %}
+{% load humanize %}
+
+{% block customer_elements %}
+{% endblock %}
+
+{% block cart_elements %}
+{% endblock %}
+
+<div class="user-dashboard">
+    <div class="order-confirmation-container">
+        <div class="confirmation-header">
+            <h2>تایید نهایی سفارش</h2>
+            <p class="confirmation-subtitle">لطفاً اطلاعات سفارش را بررسی کرده و در صورت صحت، تایید نهایی را انجام دهید</p>
+        </div>
+
+        {% if messages %}
+            <div class="messages-container">
+                {% for message in messages %}
+                    <div class="message {% if message.tags == 'success' %}success{% elif message.tags == 'error' %}error{% else %}info{% endif %}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if customer and order %}
+            <div class="order-details-grid">
+                <div class="detail-card customer-info">
+                    <h3>اطلاعات مشتری</h3>
+                    <div class="info-row">
+                        <span class="label">نام و نام خانوادگی:</span>
+                        <span class="value customer-name">{{ customer.get_full_name }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">نام فروشگاه:</span>
+                        <span class="value">{{ customer.store_name|default:"-" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">شماره موبایل:</span>
+                        <span class="value customer-phone">{{ customer.mobile|default:"-" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">آدرس:</span>
+                        <span class="value customer-address">{{ customer.address|default:"-" }}</span>
+                    </div>
+                </div>
+
+                <div class="detail-card order-info">
+                    <h3>اطلاعات سفارش</h3>
+                    <div class="info-row">
+                        <span class="label">شماره سفارش:</span>
+                        <span class="value order-number">{{ order.order_number|default:order.id }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">تاریخ سفارش:</span>
+                        <span class="value">{{ order.created_at|jformat:"%H:%M - %Y/%m/%d" }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="label">وضعیت:</span>
+                        <span class="value status-badge">{{ order.get_status_display }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="order-items-section">
+                <h3>آیتم‌های سفارش</h3>
+                <div class="table-container">
+                    <table class="order-items-table">
+                        <thead>
+                            <tr>
+                                <th>ردیف</th>
+                                <th>کد کالا</th>
+                                <th>نام کالا</th>
+                                <th>گروه خودرو</th>
+                                <th>برند</th>
+                                <th>قیمت واحد (ریال)</th>
+                                <th>تعداد</th>
+                                <th>مهلت تسویه</th>
+                                <th>جمع (ریال)</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in order_items %}
+                                <tr data-item-id="{{ item.order_item_id }}">
+                                    <td>{{ forloop.counter }}</td>
+                                    <td>{{ item.product.code }}</td>
+                                    <td>{{ item.product.name }}</td>
+                                    <td>{{ item.product.car_group }}</td>
+                                    <td>{{ item.product.brand }}</td>
+                                    <td>{{ item.price|floatformat:0|intcomma }}</td>
+                                    <td>
+                                        <input type="number" 
+                                               name="quantity_{{ item.order_item_id }}" 
+                                               value="{{ item.quantity }}" 
+                                               min="1" 
+                                               class="quantity-input"
+                                               onchange="updateItemTotal(this, '{{ item.price }}', '{{ item.order_item_id }}')"
+                                               style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 4px; -webkit-appearance: none; -moz-appearance: textfield; touch-action: manipulation;">
+                                    </td>
+                                    <td>
+                                        <select name="payment_term_{{ item.order_item_id }}" 
+                                                class="payment-term-select"
+                                                onchange="updatePaymentTerm(this, '{{ item.order_item_id }}')">
+                                            {% for term in item.product.get_available_payment_terms %}
+                                                <option value="{{ term }}" 
+                                                        {% if item.payment_term == term %}selected{% endif %}>
+                                                    {% if term == 'cash' %}نقدی
+                                                    {% elif term == '1m' %}1 ماهه
+                                                    {% elif term == '2m' %}2 ماهه
+                                                    {% elif term == '3m' %}3 ماهه
+                                                    {% elif term == '4m' %}4 ماهه
+                                                    {% endif %}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </td>
+                                    <td>{{ item.total|floatformat:0|intcomma }}</td>
+                                    <td>
+                                        <button type="button" class="btn-delete-item" onclick="deleteOrderItem('{{ item.order_item_id }}')" title="حذف آیتم">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="10" class="empty-message">هیچ آیتمی در سفارش یافت نشد</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="total-section">
+                <div class="total-card">
+                    <div class="total-row">
+                        <span class="total-label">جمع کل سفارش:</span>
+                        <span class="total-value">{{ total_amount|floatformat:0|intcomma }} ریال</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <button type="button" class="btn-save-changes" id="save-changes-btn">ذخیره تغییرات</button>
+                <button type="button" class="btn-print" onclick="printOrder()">چاپ سفارش</button>
+                <form method="post" action="{% url 'products:confirm_order' %}" class="confirm-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="order_id" value="{{ order.id }}">
+                    <button type="submit" class="btn-confirm">تایید نهایی سفارش</button>
+                </form>
+                <a href="{% url 'products:product_list' %}" class="btn-cancel">بازگشت به لیست محصولات</a>
+            </div>
+        {% else %}
+            <div class="error-message">
+                <h3>خطا در بارگذاری اطلاعات سفارش</h3>
+                <p>متأسفانه اطلاعات سفارش یافت نشد. لطفاً دوباره تلاش کنید.</p>
+                <a href="{% url 'products:product_list' %}" class="btn-back">بازگشت به لیست محصولات</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+/* Import Google Fonts if needed */
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+body {
+    font-family: 'BHoma', sans-serif;
+    background-color: transparent;
+    direction: rtl;
+    margin: 0;
+}
+
+.user-dashboard {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    box-sizing: border-box;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.order-confirmation-container {
+    background: rgba(255, 255, 255, 0.35);
+    padding: 2rem;
+    border-radius: 24px;
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.14);
+}
+
+.confirmation-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.confirmation-header h2 {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+}
+
+.confirmation-subtitle {
+    color: #7f8c8d;
+    font-size: 1rem;
+    margin: 0;
+}
+
+.messages-container {
+    margin-bottom: 2rem;
+}
+
+.message {
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.message.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.message.info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.order-details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.detail-card {
+    background: rgba(255, 255, 255, 0.7);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.detail-card h3 {
+    color: #2c3e50;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 0.5rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.info-row:last-child {
+    border-bottom: none;
+}
+
+.label {
+    font-weight: 600;
+    color: #34495e;
+}
+
+.value {
+    color: #2c3e50;
+}
+
+.status-badge {
+    background: #3498db;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.order-items-section {
+    margin-bottom: 2rem;
+}
+
+.order-items-section h3 {
+    color: #2c3e50;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .order-items-section {
+        margin-bottom: 1.5rem;
+    }
+    
+    .order-items-section h3 {
+        font-size: 1.3rem;
+        margin: 0 0 0.75rem 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .order-items-section {
+        margin-bottom: 1rem;
+    }
+    
+    .order-items-section h3 {
+        font-size: 1.1rem;
+        margin: 0 0 0.5rem 0;
+    }
+}
+
+.table-container {
+    overflow-x: auto;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: #3498db #f0f0f0;
+}
+
+.table-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #3498db;
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #2980b9;
+}
+
+.order-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+}
+
+.order-items-table th {
+    background: #3498db;
+    color: white;
+    padding: 1rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.order-items-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    font-size: 0.9rem;
+}
+
+.order-items-table tr:hover {
+    background: rgba(52, 152, 219, 0.1);
+}
+
+.empty-message {
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+.total-section {
+    margin-bottom: 2rem;
+}
+
+.total-card {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 16px;
+    text-align: center;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.total-label {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.total-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+/* Original button styling with added uniform sizing */
+.btn-save-changes, .btn-print, .btn-confirm, .btn-cancel, .btn-back {
+    min-width: 180px; /* Set a fixed minimum width */
+    height: 50px;    /* Set a fixed height */
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex; /* Use flexbox for centering content inside button */
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'BHoma', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    color: white; /* Ensure text color is white for all of them */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); /* Default shadow for consistency */
+}
+
+/* Individual button colors - restored to original definitions */
+.btn-save-changes {
+    background: linear-gradient(135deg, #3dcccc, #64a6dd);
+    box-shadow: 0 4px 15px rgba(61, 204, 204, 0.3);
+}
+
+.btn-save-changes:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(61, 204, 204, 0.4);
+}
+
+.btn-print {
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    box-shadow: 0 4px 15px rgba(155, 89, 182, 0.3);
+}
+
+.btn-print:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(155, 89, 182, 0.4);
+}
+
+.btn-confirm {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+}
+
+.btn-confirm:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+}
+
+.btn-cancel { /* Restored original class name */
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+}
+
+.btn-cancel:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+}
+
+/* Specific styling for the error message 'back' button */
+.btn-back {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'BHoma', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    min-width: 180px; /* Ensure consistency with other buttons */
+    height: 50px; /* Ensure consistency with other buttons */
+    box-sizing: border-box;
+    box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+}
+
+.btn-back:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+}
+
+/* Action buttons container */
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap; /* Allows buttons to wrap to next line on smaller screens */
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+/* Delete button styling */
+.btn-delete-item {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 36px;
+}
+
+.btn-delete-item:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
+.btn-delete-item i {
+    font-size: 14px;
+}
+
+/* Quantity input styling */
+.quantity-input {
+    width: 30px !important;
+    text-align: center !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    padding: 4px !important;
+    font-size: 10px !important;
+    background: white !important;
+    transition: border-color 0.3s ease !important;
+}
+
+.quantity-input:focus {
+    outline: none !important;
+    border-color: #3498db !important;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2) !important;
+}
+
+.quantity-input:hover {
+    border-color: #3498db !important;
+}
+
+/* Payment term select styling */
+.payment-term-select {
+    width: 55px !important;
+    text-align: center !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    padding: 4px !important;
+    font-size: 10px !important;
+    background: white !important;
+    transition: border-color 0.3s ease !important;
+    cursor: pointer !important;
+}
+
+.payment-term-select:focus {
+    outline: none !important;
+    border-color: #3498db !important;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2) !important;
+}
+
+.payment-term-select:hover {
+    border-color: #3498db !important;
+}
+
+.error-message {
+    text-align: center;
+    padding: 3rem;
+    background: rgba(231, 76, 60, 0.1);
+    border-radius: 16px;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.error-message h3 {
+    color: #c0392b;
+    margin-bottom: 1rem;
+}
+
+.error-message p {
+    color: #7f8c8d;
+    margin-bottom: 2rem;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .user-dashboard {
+        max-width: 95%;
+        padding: 1.5rem;
+    }
+    
+    .order-confirmation-container {
+        padding: 1.5rem;
+    }
+}
+
+@media (max-width: 1024px) {
+    .user-dashboard {
+        max-width: 98%;
+        padding: 1rem;
+    }
+    
+    .order-confirmation-container {
+        padding: 1.5rem;
+    }
+    
+    .order-details-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .confirmation-header h2 {
+        font-size: 1.8rem;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+        font-size: 0.9rem;
+    }
+    
+    .order-items-table {
+        min-width: 800px;
+    }
+}
+
+@media (max-width: 768px) {
+    .user-dashboard {
+        padding: 0.5rem;
+    }
+    
+    .order-confirmation-container {
+        padding: 1rem;
+        border-radius: 16px;
+    }
+    
+    .confirmation-header h2 {
+        font-size: 1.6rem;
+    }
+    
+    .confirmation-subtitle {
+        font-size: 0.9rem;
+    }
+    
+    .detail-card {
+        padding: 1rem;
+    }
+    
+    .detail-card h3 {
+        font-size: 1.1rem;
+    }
+    
+    .info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .label, .value {
+        font-size: 0.9rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column; /* Stack buttons vertically on small screens */
+        align-items: center; /* Center them horizontally */
+        gap: 0.75rem;
+    }
+    
+    /* Apply size consistency to specific buttons and their form wrapper in responsive views */
+    .btn-save-changes, .btn-print, .btn-cancel, .btn-back, .confirm-form {
+        width: 100%; /* Make them full width */
+        max-width: 280px; /* Limit max width for readability */
+        height: 48px; /* Maintain consistent height */
+        box-sizing: border-box; /* Ensure padding and border are included in width/height */
+    }
+
+    .confirm-form {
+        padding: 0; /* Remove padding from form itself if applied from common selector */
+        font-size: initial; /* Reset font-size if applied from common selector */
+        display: flex; /* Make form a flex container to control its child button */
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-confirm { /* Re-apply button-specific styles */
+        width: 100%; /* Ensure button fills its form parent */
+        height: 100%; /* Ensure button fills its form parent */
+        padding: 0.75rem 1.5rem; /* Apply padding specific to the button */
+        font-size: 0.9rem; /* Apply font-size specific to the button */
+    }
+    
+    .table-container {
+        font-size: 0.75rem;
+        margin: 0 -0.5rem;
+        border-radius: 12px;
+        padding: 0.5rem;
+    }
+    
+    .order-items-table {
+        min-width: 600px;
+    }
+    
+    .order-items-table th,
+    .order-items-table td {
+        padding: 0.4rem 0.2rem;
+        font-size: 0.65rem;
+    }
+    
+    .order-items-table th {
+        padding: 0.5rem 0.2rem;
+        font-size: 0.7rem;
+    }
+    
+    .quantity-input {
+        width: 30px !important;
+        height: 17px;
+        font-size: 0.65rem;
+        padding: 1px !important;
+        border-radius: 3px;
+    }
+    
+    .payment-term-select {
+        font-size: 0.65rem;
+        padding: 1px 1px 1px 1px; /* Uniform padding, small */
+        min-width: 50px; /* Reduced from 55px */
+        border-radius: 3px;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 4px center; /* Adjusted arrow position */
+        background-size: 10px; /* Slightly smaller arrow */
+        padding-right: 18px; /* Adjust as needed for arrow */
+        touch-action: manipulation;
+    }
+    
+    .btn-delete-item {
+        padding: 0.2rem;
+        font-size: 0.65rem;
+        min-width: 24px;
+        min-height: 24px;
+    }
+    
+    .total-card {
+        padding: 1rem;
+    }
+    
+    .total-row {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    
+    .total-label, .total-value {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .user-dashboard {
+        padding: 0.25rem;
+    }
+    
+    .order-confirmation-container {
+        padding: 0.75rem;
+        border-radius: 12px;
+    }
+    
+    .confirmation-header h2 {
+        font-size: 1.4rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .confirmation-subtitle {
+        font-size: 0.8rem;
+    }
+    
+    .detail-card {
+        padding: 0.75rem;
+        border-radius: 12px;
+    }
+    
+    .detail-card h3 {
+        font-size: 1.0rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .info-row {
+        margin-bottom: 0.5rem;
+    }
+    
+    .label, .value {
+        font-size: 0.8rem;
+    }
+    
+    /* Apply size consistency to specific buttons and their form wrapper in responsive views */
+    .btn-save-changes, .btn-print, .btn-cancel, .btn-back, .confirm-form {
+        max-width: 250px;
+        height: 44px; /* Maintain consistent height */
+        box-sizing: border-box;
+    }
+    .confirm-form {
+        padding: 0;
+        font-size: initial;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .btn-confirm {
+        width: 100%;
+        height: 100%;
+        padding: 0.6rem 1.2rem;
+        font-size: 0.8rem;
+    }
+    
+    .table-container {
+        font-size: 0.65rem;
+        margin: 0 -0.75rem;
+        border-radius: 10px;
+        padding: 0.4rem;
+    }
+    
+    .order-items-table {
+        min-width: 500px;
+    }
+    
+    .order-items-table th,
+    .order-items-table td {
+        padding: 0.2rem 0.08rem;
+        font-size: 0.55rem;
+    }
+    
+    .order-items-table th {
+        padding: 0.3rem 0.08rem;
+        font-size: 0.6rem;
+    }
+    
+    .quantity-input {
+        width: 40px !important;
+        height: 17px;
+        font-size: 0.6rem;
+        padding: 1px !important;
+    }
+    
+    .payment-term-select {
+        font-size: 0.6rem;
+        padding: 0px 1px 0px 1px; /* Reduced padding */
+        min-width: 45px; /* Reduced from 50px */
+        border-radius: 2px;
+        background-position: right 2px center;
+        background-size: 8px;
+        padding-right: 15px;
+    }
+    
+    .btn-delete-item {
+        padding: 0.15rem;
+        font-size: 0.55rem;
+        min-width: 20px;
+        min-height: 20px;
+    }
+    
+    .total-card {
+        padding: 0.75rem;
+    }
+    
+    .total-label, .total-value {
+        font-size: 0.9rem;
+    }
+    
+    .order-items-section h3 {
+        font-size: 1.2rem;
+        margin-bottom: 0.75rem;
+    }
+}
+
+@media (max-width: 360px) {
+    .user-dashboard {
+        padding: 0.1rem;
+    }
+    
+    .order-confirmation-container {
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+    
+    .confirmation-header h2 {
+        font-size: 1.2rem;
+    }
+    
+    .confirmation-subtitle {
+        font-size: 0.75rem;
+    }
+    
+    .detail-card {
+        padding: 0.5rem;
+    }
+    
+    .detail-card h3 {
+        font-size: 0.9rem;
+    }
+    
+    .label, .value {
+        font-size: 0.75rem;
+    }
+    
+    /* Apply size consistency to specific buttons and their form wrapper in responsive views */
+    .btn-save-changes, .btn-print, .btn-cancel, .btn-back, .confirm-form {
+        max-width: 220px;
+        height: 40px; /* Maintain consistent height */
+        box-sizing: border-box;
+    }
+    .confirm-form {
+        padding: 0;
+        font-size: initial;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .btn-confirm {
+        width: 100%;
+        height: 100%;
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+    }
+    
+    .table-container {
+        font-size: 0.6rem;
+        padding: 0.3rem;
+        margin: 0 -0.5rem;
+    }
+    
+    .order-items-table {
+        min-width: 450px;
+    }
+    
+    .order-items-table th,
+    .order-items-table td {
+        padding: 0.2rem 0.05rem;
+        font-size: 0.55rem;
+    }
+    
+    .quantity-input {
+        width: 32px !important;
+        height: 17px;
+        font-size: 0.5rem;
+        padding: 0px !important;
+        border-radius: 2px;
+    }
+    
+    .payment-term-select {
+        font-size: 0.5rem;
+        min-width: 35px; /* Reduced from 40px */
+        padding: 0px 0px 0px 0px; /* Minimal padding */
+        border-radius: 2px;
+        background-position: right 1px center;
+        background-size: 6px; /* Very small arrow */
+        padding-right: 10px; /* Adjusted for arrow */
+    }
+    
+    .total-label, .total-value {
+        font-size: 0.8rem;
+    }
+}
+
+/* Landscape orientation for mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .user-dashboard {
+        padding: 0.5rem;
+    }
+    
+    .order-confirmation-container {
+        padding: 1rem;
+    }
+    
+    .order-details-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+    
+    .action-buttons {
+        flex-direction: row; /* Go back to row layout in landscape */
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    /* Apply size consistency to specific buttons and their form wrapper in responsive views */
+    .btn-save-changes, .btn-print, .btn-cancel, .btn-back, .confirm-form {
+        width: auto; /* Revert to auto width for better spacing */
+        max-width: 200px; /* Adjust max-width if needed */
+        height: 48px;
+        box-sizing: border-box;
+    }
+    .confirm-form {
+        padding: 0;
+        font-size: initial;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .btn-confirm {
+        width: 100%;
+        height: 100%;
+        padding: 0.75rem 1.5rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .order-confirmation-container {
+        border-width: 0.5px;
+    }
+    
+    .detail-card {
+        border-width: 0.5px;
+    }
+}
+
+/* Print styles */
+@media print {
+    .user-dashboard {
+        padding: 0;
+        max-width: none;
+    }
+    
+    .order-confirmation-container {
+        background: white;
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+    
+    .action-buttons {
+        display: none;
+    }
+    
+    .table-container {
+        overflow: visible;
+    }
+    
+    .order-items-table {
+        min-width: auto;
+    }
+}
+</style>
+
+<script>
+console.log('Order confirmation script loaded'); // Debug log
+
+// Profile popup functionality is now handled by base.html
+document.addEventListener('DOMContentLoaded', function() {
+    // Profile popup is now handled by base.html, so this section is removed
+    
+    // Add event listener for save changes button
+    const saveChangesBtn = document.getElementById('save-changes-btn');
+    if (saveChangesBtn) {
+        console.log('Save changes button found'); // Debug log
+        // Use a single event listener with a flag
+        let isProcessing = false;
+        saveChangesBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (isProcessing) {
+                console.log('Already processing, skipping...'); // Debug log
+                return;
+            }
+            isProcessing = true;
+            console.log('Save changes button clicked'); // Debug log
+            saveQuantityChanges();
+            // Reset flag after a short delay
+            setTimeout(() => {
+                isProcessing = false;
+            }, 1000);
+        });
+    } else {
+        console.log('Save changes button not found'); // Debug log
+    }
+});
+
+// Update item total when quantity changes
+function updateItemTotal(input, price, itemId) {
+    const quantity = parseInt(input.value) || 0;
+    const priceValue = parseFloat(price);
+    const total = quantity * priceValue;
+    
+    // Find the total cell in the same row (now 9th column due to payment term column)
+    const row = input.closest('tr');
+    const totalCell = row.querySelector('td:nth-child(9)'); // 9th column is total (after payment term column)
+    if (totalCell) {
+        totalCell.textContent = total.toLocaleString() + ' ریال';
+    }
+    
+    // Update grand total
+    updateGrandTotal();
+}
+
+// Update grand total
+function updateGrandTotal() {
+    const totalCells = document.querySelectorAll('.order-items-table tbody tr td:nth-child(9)'); // 9th column is total
+    let grandTotal = 0;
+    
+    totalCells.forEach(cell => {
+        // Remove all non-digit characters except decimal point
+        const totalText = cell.textContent.replace(/[^\d.]/g, '');
+        if (totalText) {
+            const amount = parseFloat(totalText);
+            if (!isNaN(amount)) {
+                grandTotal += amount;
+            }
+        }
+    });
+    
+    const grandTotalElement = document.querySelector('.total-value');
+    if (grandTotalElement) {
+        // Use regular toLocaleString() instead of fa-IR
+        grandTotalElement.textContent = grandTotal.toLocaleString() + ' ریال';
+    }
+}
+
+// Flag to prevent multiple API calls
+let isUpdating = false;
+
+// Save quantity changes
+function saveQuantityChanges() {
+    if (isUpdating) {
+        console.log('Already updating, skipping...'); // Debug log
+        return;
+    }
+    
+    console.log('saveQuantityChanges function called'); // Debug log
+    isUpdating = true;
+    
+    const quantityInputs = document.querySelectorAll('.quantity-input');
+    console.log('Found quantity inputs:', quantityInputs.length); // Debug log
+    
+    const updates = [];
+    
+    // Get customer ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const customerId = urlParams.get('customer_id');
+    console.log('Customer ID from URL:', customerId); // Debug log
+    
+    quantityInputs.forEach(input => {
+        const itemId = input.name.replace('quantity_', '');
+        const quantity = parseInt(input.value) || 0;
+        console.log('Processing input:', itemId, quantity); // Debug log
+        
+        // Get payment term for this item
+        const paymentTermSelect = document.querySelector(`select[name="payment_term_${itemId}"]`);
+        const paymentTerm = paymentTermSelect ? paymentTermSelect.value : 'cash';
+        
+        updates.push({
+            item_id: itemId,
+            quantity: quantity,
+            payment_term: paymentTerm,
+            customer_id: customerId
+        });
+    });
+    
+    console.log('Sending updates:', updates); // Debug log
+    
+    // Get CSRF token from meta tag or cookie
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || getCookie('csrftoken');
+    console.log('CSRF Token:', csrfToken); // Debug log
+    
+    // Send update request
+    console.log('Sending fetch request to /api/cart/update_quantities/'); // Debug log
+    const updateUrl = '{% url "products:api_cart_update_quantities" %}';
+    fetch(updateUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            updates: updates
+        })
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            showMessage('تعداد و مهلت تسویه آیتم‌ها با موفقیت به‌روزرسانی شد', 'success');
+        } else {
+            showMessage(`خطا در به‌روزرسانی آیتم‌ها: ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showMessage('خطا در به‌روزرسانی تعداد آیتم‌ها', 'error');
+    })
+    .finally(() => {
+        isUpdating = false; // Reset flag
+    });
+}
+
+// Get CSRF token from cookies
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Show message function
+function showMessage(message, type = 'info') {
+    console.log('Showing message:', message, type); // Debug log
+    
+    // Clear existing messages first
+    const existingMessages = document.querySelectorAll('.message');
+    existingMessages.forEach(msg => msg.remove());
+    
+    const messagesContainer = document.querySelector('.messages-container');
+    if (!messagesContainer) {
+        // Create messages container if it doesn't exist
+        const container = document.createElement('div');
+        container.className = 'messages-container';
+        document.querySelector('.order-confirmation-container').insertBefore(container, document.querySelector('.order-details-grid'));
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = message;
+    
+    document.querySelector('.messages-container').appendChild(messageDiv);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 5000);
+}
+
+// Update payment term function
+function updatePaymentTerm(select, itemId) {
+    console.log('Payment term updated for item:', itemId, 'to:', select.value);
+    // This function can be used to track payment term changes
+    // The actual update will be handled when saving changes
+}
+
+// Print order function
+function printOrder() {
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank', 'width=800,height=600,scrollbars=yes,resizable=yes');
+    
+    // Get current date and time
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('fa-IR');
+    const timeStr = now.toLocaleTimeString('fa-IR');
+    
+    // Get customer and order data
+    const customerName = document.querySelector('.customer-name')?.textContent || 'نامشخص';
+    const customerPhone = document.querySelector('.customer-phone')?.textContent || 'نامشخص';
+    const customerAddress = document.querySelector('.customer-address')?.textContent || 'نامشخص';
+    const orderNumber = document.querySelector('.order-number')?.textContent || 'نامشخص';
+    const totalValue = document.querySelector('.total-value')?.textContent || '0 ریال';
+    
+    // Get store name from customer info - specifically the second info-row in customer-info
+    const customerInfoSection = document.querySelector('.customer-info');
+    const storeNameElement = customerInfoSection ? customerInfoSection.querySelectorAll('.info-row')[1]?.querySelector('.value') : null;
+    let storeName = storeNameElement ? storeNameElement.textContent.trim() : '';
+    
+    // Clean up store name - remove any "اکبرزاده" to avoid duplication
+    if (storeName && storeName !== '-') {
+        // Remove "اکبرزاده" and any extra spaces
+        storeName = storeName.replace(/اکبرزاده/g, '').replace(/\s+/g, ' ').trim();
+    } else {
+        storeName = '';
+    }
+    
+    // Debug log to see what store name we have
+    console.log('Store name for print:', storeName);
+    
+    // Generate table rows with proper data extraction
+    const tableRows = Array.from(document.querySelectorAll('.order-items-table tbody tr')).map((row, index) => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 9) {
+            // Extract data from cells with proper fallbacks
+            const productCode = cells[1]?.textContent?.trim() || '';
+            const productName = cells[2]?.textContent?.trim() || '';
+            const carGroup = cells[3]?.textContent?.trim() || '';
+            const brand = cells[4]?.textContent?.trim() || '';
+            const unitPrice = cells[5]?.textContent?.trim() || '';
+            
+            // Get quantity from input field
+            const quantityInput = cells[6]?.querySelector('input[type="number"]');
+            const quantity = quantityInput ? quantityInput.value : (cells[6]?.textContent?.trim() || '');
+            
+            // Get payment term from select field
+            const paymentSelect = cells[7]?.querySelector('select');
+            const paymentTerm = paymentSelect ? paymentSelect.options[paymentSelect.selectedIndex]?.textContent : (cells[7]?.textContent?.trim() || '');
+            
+            // Get total from the last cell
+            const total = cells[8]?.textContent?.trim() || '';
+            
+            return '<tr>' +
+                '<td>' + (index + 1) + '</td>' +
+                '<td>' + productCode + '</td>' +
+                '<td>' + productName + '</td>' +
+                '<td>' + carGroup + '</td>' +
+                '<td>' + brand + '</td>' +
+                '<td>' + unitPrice + '</td>' +
+                '<td>' + quantity + '</td>' +
+                '<td>' + paymentTerm + '</td>' +
+                '<td>' + total + '</td>' +
+                '</tr>';
+        }
+        return '';
+    }).join('');
+    
+    // Create optimized print content with better styling
+    const printContent = `
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+        @font-face {
+            font-family: 'BHoma';
+            src: url('/static/fonts/BHoma.ttf') format('truetype');
+        }
+        
+        body {
+            font-family: 'BHoma', Arial, sans-serif;
+            direction: rtl;
+            margin: 20px;
+            background: white;
+            color: #333;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 20px;
+        }
+        
+        .store-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .invoice-title {
+            font-size: 18px;
+            color: #e74c3c;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        
+        .customer-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .customer-info h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+        
+        .info-row {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+        
+        .info-label {
+            font-weight: bold;
+            color: #34495e;
+            display: inline;
+        }
+        
+        .info-value {
+            color: #2c3e50;
+            display: inline;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 12px;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        
+        th {
+            background: #3498db;
+            color: white;
+            font-weight: bold;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        .total-section {
+            text-align: left;
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4fd;
+            border-radius: 8px;
+            border: 1px solid #3498db;
+        }
+        
+        .total-row {
+            font-size: 16px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="store-name">${storeName ? storeName + ' ' : ''}فروشگاه اکبرزاده</div>
+        <div class="invoice-title">پیش فاکتور سفارش</div>
+    </div>
+    
+    <div class="customer-info">
+        <h3>اطلاعات مشتری</h3>
+        <div class="info-row">
+            <span class="info-label">نام و نام خانوادگی: </span><span class="info-value">${customerName}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">شماره موبایل: </span><span class="info-value">${customerPhone}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">آدرس: </span><span class="info-value">${customerAddress}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">شماره سفارش: </span><span class="info-value">${orderNumber}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">تاریخ: </span><span class="info-value">${dateStr} ${timeStr}</span>
+        </div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>ردیف</th>
+                <th>کد کالا</th>
+                <th>نام کالا</th>
+                <th>گروه خودرو</th>
+                <th>برند</th>
+                <th>قیمت واحد (ریال)</th>
+                <th>تعداد</th>
+                <th>مهلت تسویه</th>
+                <th>جمع (ریال)</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${tableRows}
+        </tbody>
+    </table>
+    
+    <div class="total-section">
+        <div class="total-row">
+            <span>جمع کل سفارش: ${totalValue}</span>
+        </div>
+    </div>
+    
+    <div class="footer">
+        <p>این پیش فاکتور برای بررسی و تایید نهایی صادر شده است .</p>
+        <p>هیچگونه ارزش قانونی ندارد .</p>
+        <p>تاریخ صدور: ${dateStr} ${timeStr}</p>
+    </div>
+</body>
+</html>`;
+    
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+    
+    // Wait for content to load before printing
+    setTimeout(() => {
+        printWindow.print();
+    }, 500);
+}
+
+// Delete order item functionality
+function deleteOrderItem(itemId) {
+    if (confirm('آیا از حذف این آیتم اطمینان دارید؟')) {
+        // Get customer ID from URL or hidden input
+        const urlParams = new URLSearchParams(window.location.search);
+        const customerId = urlParams.get('customer_id');
+        
+        // Send delete request
+        fetch('/api/cart/remove_item/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                item_id: itemId,
+                customer_id: customerId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the row from the table
+                const row = document.querySelector(`tr[data-item-id="${itemId}"]`);
+                if (row) {
+                    row.remove();
+                    
+                    // Update row numbers
+                    updateRowNumbers();
+                    
+                    // Update total amount
+                    updateTotalAmount();
+                    
+                    // Show success message
+                    showMessage('آیتم با موفقیت حذف شد', 'success');
+                }
+            } else {
+                showMessage(data.message || 'خطا در حذف آیتم', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showMessage('خطا در ارتباط با سرور', 'error');
+        });
+    }
+}
+
+// Update row numbers after deletion
+function updateRowNumbers() {
+    const rows = document.querySelectorAll('.order-items-table tbody tr:not(.empty-message)');
+    rows.forEach((row, index) => {
+        const firstCell = row.querySelector('td:first-child');
+        if (firstCell) {
+            firstCell.textContent = index + 1;
+        }
+    });
+}
+
+// Update total amount after deletion
+function updateTotalAmount() {
+    const totalCells = document.querySelectorAll('.order-items-table tbody tr td:nth-child(9)'); // 9th column is total
+    let newTotal = 0;
+    
+    totalCells.forEach(cell => {
+        const totalText = cell.textContent.replace(/[^\d.]/g, '');
+        if (totalText) {
+            const amount = parseFloat(totalText);
+            if (!isNaN(amount)) {
+                newTotal += amount;
+            }
+        }
+    });
+    
+    const totalElement = document.querySelector('.total-value');
+    if (totalElement) {
+        totalElement.textContent = newTotal.toLocaleString() + ' ریال';
+    }
+}
+
+// Show message function
+function showMessage(message, type) {
+    const messageContainer = document.querySelector('.messages-container');
+    if (!messageContainer) {
+        // Create message container if it doesn't exist
+        const container = document.createElement('div');
+        container.className = 'messages-container';
+        document.querySelector('.confirmation-header').after(container);
+    }
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = message;
+    
+    document.querySelector('.messages-container').appendChild(messageDiv);
+    
+    // Remove message after 3 seconds
+    setTimeout(() => {
+        messageDiv.remove();
+    }, 3000);
+}
+
+// Get CSRF token function
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock content %}

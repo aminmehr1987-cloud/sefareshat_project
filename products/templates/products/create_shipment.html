@@ -1,0 +1,135 @@
+{% extends 'products/base.html' %}
+{% load static %}
+
+{% block content %}
+<style>
+/* Responsive styles */
+@media (max-width: 900px) {
+    .container {
+        max-width: 98%;
+        padding: 10px;
+    }
+    .card {
+        margin: 10px 0;
+    }
+    .card-body {
+        padding: 15px;
+    }
+}
+
+@media (max-width: 600px) {
+    .container {
+        max-width: 100%;
+        padding: 5px;
+    }
+    .card-body {
+        padding: 10px;
+    }
+    h2, h5 {
+        font-size: 18px;
+    }
+    .form-control {
+        font-size: 14px;
+        padding: 8px;
+    }
+    .btn {
+        font-size: 14px;
+        padding: 8px 12px;
+    }
+    .d-flex {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .btn {
+        width: 100%;
+    }
+}
+</style>
+
+<div class="container mt-4">
+    <h2>ایجاد ارسال جدید</h2>
+    
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                {% csrf_token %}
+                
+                <!-- اطلاعات سفارش اصلی -->
+                <div class="mb-4">
+                    <h5>اطلاعات سفارش اصلی</h5>
+                    <p>شماره سفارش: {{ order.order_number }}</p>
+                </div>
+
+                <!-- انتخاب زیرسفارش‌ها -->
+                <div class="mb-4">
+                    <h5>انتخاب سفارش‌ها برای ارسال</h5>
+                    {% for sub_order in available_sub_orders %}
+                    <div class="form-check">
+                        <input type="checkbox" 
+                               class="form-check-input" 
+                               name="selected_sub_orders" 
+                               value="{{ sub_order.id }}"
+                               id="order_{{ sub_order.id }}">
+                        <label class="form-check-label" for="order_{{ sub_order.id }}">
+                            {{ sub_order.order_number }}
+                            {% if sub_order.warehouse %}
+                                - انبار: {{ sub_order.warehouse.name }}
+                            {% endif %}
+                            - تعداد اقلام آماده: {{ sub_order.items.filter.warehouse_status='ready'|length }}
+                        </label>
+                    </div>
+                    {% empty %}
+                    <p class="text-muted">هیچ سفارش آماده ارسالی وجود ندارد.</p>
+                    {% endfor %}
+                </div>
+
+                <!-- اطلاعات ارسال -->
+                <div class="mb-4">
+                    <h5>اطلاعات ارسال</h5>
+                    <div class="mb-3">
+                        <label for="courier_name" class="form-label">نام پیک *</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="courier_name" 
+                               name="courier_name" 
+                               required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">توضیحات</label>
+                        <textarea class="form-control" 
+                                  id="description" 
+                                  name="description" 
+                                  rows="3"></textarea>
+                    </div>
+                </div>
+
+                <!-- دکمه‌های عملیات -->
+                <div class="d-flex justify-content-between">
+                    <button type="submit" class="btn btn-primary">
+                        ثبت ارسال
+                    </button>
+                    <a href="{% url 'products:order_detail_view' pk=order.id %}" 
+                       class="btn btn-secondary">
+                        انصراف
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- اضافه کردن اسکریپت JavaScript برای کنترل‌های فرم -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // بررسی انتخاب حداقل یک سفارش قبل از ارسال فرم
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const selectedOrders = document.querySelectorAll('input[name="selected_sub_orders"]:checked');
+        if (selectedOrders.length === 0) {
+            e.preventDefault();
+            alert('لطفاً حداقل یک سفارش را برای ارسال انتخاب کنید.');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,203 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}جزئیات حساب مشتری{% endblock %}
+
+{% block content %}
+<div class="customer-detail-container">
+    <div class="detail-header">
+        <h1><i class="bi bi-person-circle"></i> جزئیات حساب مشتری</h1>
+        <div class="header-actions">
+            <a href="{% url 'products:customer_balance_list' %}" class="btn btn-secondary">بازگشت</a>
+        </div>
+    </div>
+
+    <div class="customer-info">
+        <h2>{{ customer.get_full_name }}</h2>
+        {% if customer.store_name %}
+        <p>{{ customer.store_name }}</p>
+        {% endif %}
+    </div>
+
+    <div class="balance-summary">
+        <div class="balance-card">
+            <h3>مانده حساب</h3>
+            <p class="amount {% if customer_balance.current_balance >= 0 %}positive{% else %}negative{% endif %}">
+                {{ customer_balance.current_balance|persian_number_format }} ریال
+            </p>
+        </div>
+        <div class="balance-card">
+            <h3>مجموع دریافتی</h3>
+            <p class="received">{{ customer_balance.total_received|persian_number_format }} ریال</p>
+        </div>
+        <div class="balance-card">
+            <h3>مجموع پرداختی</h3>
+            <p class="paid">{{ customer_balance.total_paid|persian_number_format }} ریال</p>
+        </div>
+    </div>
+
+    <div class="transactions-section">
+        <h3>تاریخچه تراکنش‌ها</h3>
+        {% if operations %}
+        <table class="transactions-table">
+            <thead>
+                <tr>
+                    <th>تاریخ</th>
+                    <th>شماره سند</th>
+                    <th>نوع عملیات</th>
+                    <th>مبلغ</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for operation in operations %}
+                <tr>
+                    <td>{{ operation.date|jalali_date }}</td>
+                    <td>{{ operation.operation_number }}</td>
+                    <td>
+                        <span class="operation-type {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}received{% else %}paid{% endif %}">
+                            {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}
+                                <i class="bi bi-arrow-down-circle"></i> {{ operation.get_operation_type_display }}
+                            {% else %}
+                                <i class="bi bi-arrow-up-circle"></i> {{ operation.get_operation_type_display }}
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td class="{% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}received{% else %}paid{% endif %}">
+                        {{ operation.amount|persian_number_format }} ریال
+                    </td>
+                    <td>
+                        <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-primary">مشاهده</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>هیچ تراکنشی یافت نشد.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.customer-detail-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.balance-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.balance-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 1px solid #e5e7eb;
+}
+
+.balance-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 35px rgba(0,0,0,0.15);
+}
+
+.amount {
+    font-size: 1.75rem;
+    font-weight: bold;
+    margin-top: 0.5rem;
+}
+
+.received { color: #059669; }
+.paid { color: #dc2626; }
+.positive { color: #059669; }
+.negative { color: #dc2626; }
+
+.operation-type {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 80px;
+}
+
+.operation-type.received {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.operation-type.paid {
+    background: #fef2f2;
+    color: #991b1b;
+}
+
+.transactions-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+    border: 1px solid #e5e7eb;
+}
+
+.transactions-table th,
+.transactions-table td {
+    padding: 1rem;
+    text-align: right;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.transactions-table th {
+    background: #f9fafb;
+    font-weight: 600;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    text-decoration: none;
+    display: inline-block;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+</style>
+{% endblock %} 

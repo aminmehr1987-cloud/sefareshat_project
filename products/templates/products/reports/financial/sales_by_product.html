@@ -1,0 +1,591 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<!-- فیلترهای پیشرفته -->
+<div class="filters-section mb-4">
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="bi bi-funnel"></i>
+                فیلترهای گزارش
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">تاریخ شروع</label>
+                    <input type="text" name="start_date" class="form-control persian-datepicker" value="{{ start_date }}" placeholder="۱۴۰۴/۰۵/۱۵" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">تاریخ پایان</label>
+                    <input type="text" name="end_date" class="form-control persian-datepicker" value="{{ end_date }}" placeholder="۱۴۰۴/۰۵/۱۵" readonly>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">دسته‌بندی</label>
+                    <input type="text" name="category" class="form-control" value="{{ filters.category }}" placeholder="مثل: عمومی">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">حداقل مبلغ</label>
+                    <input type="number" name="min_amount" class="form-control" value="{{ filters.min_amount }}" placeholder="0">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">حداکثر مبلغ</label>
+                    <input type="number" name="max_amount" class="form-control" value="{{ filters.max_amount }}" placeholder="999999999">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">مرتب‌سازی بر اساس</label>
+                    <select name="sort_by" class="form-select">
+                        <option value="total_amount" {% if filters.sort_by == 'total_amount' %}selected{% endif %}>مبلغ کل فروش</option>
+                        <option value="total_quantity" {% if filters.sort_by == 'total_quantity' %}selected{% endif %}>تعداد فروخته شده</option>
+                        <option value="profit" {% if filters.sort_by == 'profit' %}selected{% endif %}>سود</option>
+                        <option value="profit_margin" {% if filters.sort_by == 'profit_margin' %}selected{% endif %}>درصد سود</option>
+                        <option value="invoice_count" {% if filters.sort_by == 'invoice_count' %}selected{% endif %}>تعداد فاکتور</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">ترتیب</label>
+                    <select name="sort_order" class="form-select">
+                        <option value="desc" {% if filters.sort_order == 'desc' %}selected{% endif %}>نزولی</option>
+                        <option value="asc" {% if filters.sort_order == 'asc' %}selected{% endif %}>صعودی</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i>
+                        اعمال فیلتر
+                    </button>
+                    <a href="?start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        پاک کردن فیلترها
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- کارت‌های خلاصه آمار -->
+<div class="summary-cards mb-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="summary-card positive">
+                <div class="card-icon">
+                    <i class="bi bi-box-seam"></i>
+                </div>
+                <div class="card-content">
+                    <h3>تعداد محصولات</h3>
+                    <div class="amount">{{ additional_stats.total_products }}</div>
+                    <small>محصول مختلف فروخته شده</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="summary-card positive">
+                <div class="card-icon">
+                    <i class="bi bi-currency-dollar"></i>
+                </div>
+                <div class="card-content">
+                    <h3>کل فروش</h3>
+                    <div class="amount">{{ total_stats.total_sales_amount|format_number }} ریال</div>
+                    <small>مجموع فروش همه محصولات</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="summary-card success">
+                <div class="card-icon">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+                <div class="card-content">
+                    <h3>کل سود</h3>
+                    <div class="amount">{{ additional_stats.total_profit|format_number }} ریال</div>
+                    <small>سود کل از فروش محصولات</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3">
+            <div class="summary-card info">
+                <div class="card-icon">
+                    <i class="bi bi-percent"></i>
+                </div>
+                <div class="card-content">
+                    <h3>میانگین سود</h3>
+                    <div class="amount">{{ additional_stats.avg_profit_margin|floatformat:1 }}%</div>
+                    <small>میانگین درصد سود</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-3">
+        <div class="col-md-4">
+            <div class="summary-card neutral">
+                <div class="card-icon">
+                    <i class="bi bi-cart-check"></i>
+                </div>
+                <div class="card-content">
+                    <h3>تعداد کل</h3>
+                    <div class="amount">{{ total_stats.total_quantity|format_number }}</div>
+                    <small>تعداد کل محصولات فروخته شده</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="summary-card neutral">
+                <div class="card-icon">
+                    <i class="bi bi-receipt"></i>
+                </div>
+                <div class="card-content">
+                    <h3>تعداد فاکتور</h3>
+                    <div class="amount">{{ total_stats.total_invoices|format_number }}</div>
+                    <small>تعداد کل فاکتورهای فروش</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="summary-card neutral">
+                <div class="card-icon">
+                    <i class="bi bi-calculator"></i>
+                </div>
+                <div class="card-content">
+                    <h3>میانگین فاکتور</h3>
+                    <div class="amount">{{ total_stats.avg_amount_per_invoice|format_number }} ریال</div>
+                    <small>میانگین مبلغ هر فاکتور</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- جدول اصلی -->
+<div class="report-details">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="bi bi-table"></i>
+                فروش به تفکیک محصول
+            </h3>
+            <div class="btn-group">
+                <button class="btn btn-outline-primary btn-sm" onclick="exportToExcel()">
+                    <i class="bi bi-file-earmark-excel"></i>
+                    خروجی اکسل
+                </button>
+                <button class="btn btn-outline-success btn-sm" onclick="printReport()">
+                    <i class="bi bi-printer"></i>
+                    چاپ
+                </button>
+            </div>
+        </div>
+        
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover" id="salesTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>رتبه</th>
+                            <th>نام محصول</th>
+                            <th>کد محصول</th>
+                            <th>دسته‌بندی</th>
+                            <th>تعداد فروخته شده</th>
+                            <th>مبلغ کل فروش</th>
+                            <th>تعداد فاکتور</th>
+                            <th>میانگین فروش</th>
+                            <th>سود</th>
+                            <th>درصد سود</th>
+                            <th>درصد از کل</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in sales_by_product %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-{% if item.rank <= 3 %}success{% elif item.rank <= 10 %}warning{% else %}secondary{% endif %}">
+                                    {{ item.rank }}
+                                </span>
+                            </td>
+                            <td>
+                                <strong>{{ item.product__name }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ item.product__code }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ item.product__car_group }}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">{{ item.total_quantity|format_number }}</span>
+                            </td>
+                            <td>
+                                <span class="text-success fw-bold">{{ item.total_amount|format_number }} ریال</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ item.invoice_count }}</span>
+                            </td>
+                            <td>
+                                {{ item.avg_amount_per_invoice|format_number }} ریال
+                            </td>
+                            <td>
+                                <span class="text-{% if item.profit >= 0 %}success{% else %}danger{% endif %} fw-bold">
+                                    {{ item.profit|format_number }} ریال
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-{% if item.profit_margin >= 20 %}success{% elif item.profit_margin >= 10 %}warning{% else %}danger{% endif %}">
+                                    {{ item.profit_margin|floatformat:1 }}%
+                                </span>
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-success" style="width: '{{ item.percentage_of_total }}%'">
+                                        {{ item.percentage_of_total|floatformat:1 }}%
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">
+                                <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                                <p class="mt-2">هیچ فروشی در این دوره یافت نشد</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- نمودارها و آمار تکمیلی -->
+{% if sales_by_product %}
+<div class="charts-section mt-4">
+    <div class="row">
+        <!-- نمودار فروش محصولات -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>نمودار فروش محصولات (10 محصول برتر)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="salesChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- آمار محصولات برتر -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5>محصولات پرفروش</h5>
+                </div>
+                <div class="card-body">
+                    {% for item in sales_by_product|slice:":5" %}
+                    <div class="product-item mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="product-name fw-bold">{{ item.product__name }}</div>
+                                <small class="text-muted">{{ item.product__code }}</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="product-sales text-success fw-bold">{{ item.total_amount|format_number }} ریال</div>
+                                <small class="text-muted">{{ item.total_quantity }} عدد</small>
+                            </div>
+                        </div>
+                        <div class="progress mt-2" style="height: 6px;">
+                            <div class="progress-bar bg-success" style="width: '{{ item.percentage_of_total }}%'"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- نمودار دسته‌بندی محصولات -->
+    {% if category_stats %}
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>فروش بر اساس دسته‌بندی</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5>آمار دسته‌بندی‌ها</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>دسته‌بندی</th>
+                                    <th>مبلغ فروش</th>
+                                    <th>تعداد</th>
+                                    <th>فاکتور</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category in category_stats %}
+                                <tr>
+                                    <td><span class="badge bg-primary">{{ category.product__car_group }}</span></td>
+                                    <td class="text-success fw-bold">{{ category.category_total|format_number }} ریال</td>
+                                    <td>{{ category.category_quantity|format_number }}</td>
+                                    <td>{{ category.category_invoices }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<style>
+.filters-section .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.summary-cards .summary-card {
+    background: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    border-left: 4px solid;
+    display: flex;
+    align-items: center;
+}
+
+.summary-card.positive { border-left-color: #28a745; }
+.summary-card.success { border-left-color: #20c997; }
+.summary-card.info { border-left-color: #17a2b8; }
+.summary-card.neutral { border-left-color: #6c757d; }
+
+.summary-card .card-icon {
+    font-size: 2rem;
+    margin-left: 15px;
+    color: #6c757d;
+}
+
+.summary-card .card-content h3 {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.summary-card .card-content .amount {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.summary-card .card-content small {
+    color: #6c757d;
+    font-size: 0.8rem;
+}
+
+.table th {
+    background-color: #343a40;
+    color: white;
+    border: none;
+    font-size: 0.9rem;
+}
+
+.table td {
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+.badge {
+    font-size: 0.8rem;
+}
+
+.progress {
+    height: 6px;
+    background-color: #e9ecef;
+    border-radius: 3px;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #28a745, #20c997);
+    border-radius: 3px;
+}
+
+.product-item {
+    padding: 10px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.product-item:last-child {
+    border-bottom: none;
+}
+
+.product-name {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.product-sales {
+    color: #28a745;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.charts-section .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+@media print {
+    .filters-section,
+    .btn-group,
+    .charts-section {
+        display: none !important;
+    }
+    
+    .summary-cards {
+        page-break-after: always;
+    }
+}
+</style>
+
+{% if sales_by_product %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script type="application/json" id="chart-data">
+{
+    "salesLabels": [
+        {% for item in sales_by_product|slice:":10" %}
+        "{{ item.product__name|truncatechars:20 }}"{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    "salesData": [
+        {% for item in sales_by_product|slice:":10" %}
+        {{ item.total_amount }}{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+    {% if category_stats %},
+    "categoryLabels": [
+        {% for category in category_stats %}
+        "{{ category.product__car_group }}"{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ],
+    "categoryData": [
+        {% for category in category_stats %}
+        {{ category.category_total }}{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ]
+    {% endif %}
+}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = JSON.parse(document.getElementById('chart-data').textContent);
+    
+    // نمودار فروش محصولات
+    const salesCtx = document.getElementById('salesChart').getContext('2d');
+    
+    new Chart(salesCtx, {
+        type: 'bar',
+        data: {
+            labels: chartData.salesLabels,
+            datasets: [{
+                label: 'فروش (ریال)',
+                data: chartData.salesData,
+                backgroundColor: 'rgba(40, 167, 69, 0.8)',
+                borderColor: 'rgba(40, 167, 69, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString() + ' ریال';
+                        }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    
+    if (chartData.categoryLabels && chartData.categoryData) {
+        // نمودار دسته‌بندی محصولات
+        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+        
+        new Chart(categoryCtx, {
+            type: 'doughnut',
+            data: {
+                labels: chartData.categoryLabels,
+                datasets: [{
+                    data: chartData.categoryData,
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(54, 162, 235, 0.8)',
+                        'rgba(255, 206, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(153, 102, 255, 0.8)',
+                        'rgba(255, 159, 64, 0.8)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+});
+
+// تابع خروجی اکسل
+function exportToExcel() {
+    const table = document.getElementById('salesTable');
+    const ws = XLSX.utils.table_to_sheet(table);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "فروش محصولات");
+    XLSX.writeFile(wb, "sales_by_product.xlsx");
+}
+
+// تابع چاپ گزارش
+function printReport() {
+    window.print();
+}
+</script>
+
+<!-- کتابخانه XLSX برای خروجی اکسل -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+{% endif %}
+{% endblock %} 

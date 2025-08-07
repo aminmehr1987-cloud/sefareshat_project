@@ -1,0 +1,77 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card positive">
+        <h3>کل سفارشات</h3>
+        <div class="amount">{{ orders|length }}</div>
+        <small>تعداد کل سفارشات</small>
+    </div>
+    
+    <div class="summary-card success">
+        <h3>سفارشات تکمیل شده</h3>
+        <div class="amount">{{ completed_orders|length }}</div>
+        <small>سفارشات نهایی شده</small>
+    </div>
+    
+    <div class="summary-card warning">
+        <h3>سفارشات در انتظار</h3>
+        <div class="amount">{{ pending_orders|length }}</div>
+        <small>سفارشات در انتظار</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>گزارش وضعیت سفارشات</h3>
+    
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ردیف</th>
+                    <th>شماره سفارش</th>
+                    <th>مشتری</th>
+                    <th>تاریخ سفارش</th>
+                    <th>مبلغ کل</th>
+                    <th>وضعیت</th>
+                    <th>عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in orders %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <strong>{{ item.order_number }}</strong>
+                    </td>
+                    <td>
+                        {{ item.customer_name }}
+                    </td>
+                    <td>
+                        {{ item.created_at|jalali_date }}
+                    </td>
+                    <td>
+                        <span class="text-success fw-bold">{{ item.total_price|format_number }} ریال</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-{{ item.status_color }}">{{ item.status_display }}</span>
+                    </td>
+                    <td>
+                        <a href="{% url 'products:order_detail_view' item.id %}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-eye"></i> مشاهده
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <p class="mt-2">هیچ سفارشی یافت نشد</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %} 

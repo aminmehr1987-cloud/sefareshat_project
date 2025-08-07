@@ -1,0 +1,685 @@
+{% extends "products/base.html" %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}حواله بانکی{% endblock %}
+
+{% block content %}
+<!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment-jalaali@0.10.4/build/moment-jalaali.js"></script>
+<script>
+    // اطمینان از بارگذاری صحیح moment
+    window.addEventListener('load', function() {
+        if (typeof moment === 'undefined') {
+            console.error('Moment.js failed to load');
+        } else {
+            console.log('Moment.js loaded successfully');
+        }
+    });
+</script>
+
+<div class="financial-operation-container">
+    <div class="operation-header">
+        <h2><i class="bi bi-arrow-left-right"></i> حواله بانکی</h2>
+    </div>
+    
+    <div class="form-card">
+        <!-- نمایش خطاهای فرم -->
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                <h5>خطاهای فرم:</h5>
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                        <p><strong>{{ field }}:</strong> {{ error }}</p>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <!-- نمایش پیام‌های Django -->
+        {% if messages %}
+            <div class="alert alert-info">
+                {% for message in messages %}
+                    <p>{{ message }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <form method="post" class="operation-form">
+            {% csrf_token %}
+            <input type="hidden" name="operation_type" value="BANK_TRANSFER">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_from_bank_account"><i class="bi bi-building"></i> حساب بانکی مبدا</label>
+                    {{ form.from_bank_account }}
+                    {% if form.from_bank_account.errors %}
+                        <div class="text-danger">{{ form.from_bank_account.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_amount"><i class="bi bi-currency-dollar"></i> مبلغ</label>
+                    {{ form.amount }}
+                    {% if form.amount.errors %}
+                        <div class="text-danger">{{ form.amount.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="recipient_display"><i class="bi bi-person"></i> گیرنده حواله</label>
+                    <div class="customer-input-group">
+                        <input type="text" id="recipient_display" class="form-control" placeholder="برای انتخاب گیرنده کلیک کنید" readonly value="{% if form.recipient.value %}{% for customer in customers %}{% if customer.id == form.recipient.value %}{{ customer.get_full_name }}{% endif %}{% endfor %}{% endif %}">
+                        <input type="hidden" id="id_recipient" name="recipient" value="{{ form.recipient.value|default:'' }}">
+                        <button type="button" class="btn btn-outline-primary customer-select-btn" onclick="openRecipientModal()">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                    {% if form.recipient.errors %}
+                        <div class="text-danger">{{ form.recipient.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_to_bank"><i class="bi bi-building"></i> بانک مقصد</label>
+                    {{ form.to_bank }}
+                    {% if form.to_bank.errors %}
+                        <div class="text-danger">{{ form.to_bank.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_to_account"><i class="bi bi-credit-card"></i> شماره حساب مقصد</label>
+                    {{ form.to_account }}
+                    {% if form.to_account.errors %}
+                        <div class="text-danger">{{ form.to_account.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_date_shamsi"><i class="bi bi-calendar"></i> تاریخ</label>
+                    {{ form.date_shamsi }}
+                    {% if form.date_shamsi.errors %}
+                        <div class="text-danger">{{ form.date_shamsi.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-group full-width">
+                <label for="id_description"><i class="bi bi-text-paragraph"></i> توضیحات</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                    <div class="text-danger">{{ form.description.errors }}</div>
+                {% endif %}
+            </div>
+            
+
+            
+
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> ثبت حواله
+                </button>
+                <a href="{% url 'products:accounting_panel' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-right"></i> بازگشت
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Recipient Selection Modal -->
+<div id="recipientModal" class="customer-modal">
+    <div class="customer-modal-content">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">انتخاب گیرنده حواله</span>
+            <span class="close-modal" onclick="closeRecipientModal()">×</span>
+        </div>
+        <input type="text" id="recipientSearch" class="customer-search-box" placeholder="جستجوی گیرنده بر اساس نام..." onkeyup="searchRecipients()">
+        <table class="customers-table">
+            <thead>
+                <tr>
+                    <th>نام</th>
+                    <th>نام خانوادگی</th>
+                    <th>فروشگاه</th>
+                    <th>موبایل</th>
+                    <th>تلفن</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="recipientList">
+                <!-- Recipient rows will be populated here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.financial-operation-container {
+    width: 99%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.operation-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.operation-header h2 {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.operation-header h2 i {
+    color: #8b5cf6;
+}
+
+.form-card {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.operation-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+}
+
+.form-group label i {
+    color: #3b82f6;
+}
+
+.form-control {
+    padding: 0.75rem 1rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background-color: #f9fafb;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-control::placeholder {
+    color: #9ca3af;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(139, 92, 246, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(107, 114, 128, 0.4);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .financial-operation-container {
+        padding: 1rem;
+        width: 100%;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .form-card {
+        padding: 1.5rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .financial-operation-container {
+        padding: 0.5rem;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.3rem;
+    }
+    
+    .form-card {
+        padding: 1rem;
+    }
+    
+    .form-control {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Customer Input Group - طبق نمونه purchase_invoice */
+.customer-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.customer-input-group .form-control {
+    flex: 1;
+}
+
+.customer-select-btn {
+    padding: 0.375rem 0.75rem;
+    height: 38px;
+    border: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    color: #6b7280;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.customer-select-btn:hover {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+/* Customer Modal Styles */
+.customer-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.customer-modal-content {
+    background-color: #fafafa;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 800px;
+    border-radius: 15px;
+    position: relative;
+    direction: rtl;
+}
+
+.customer-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.customer-modal-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.close-modal {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-modal:hover {
+    color: #000;
+}
+
+.customer-search-box {
+    width: 80%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-right: 20px;
+    float: right;
+}
+
+.customers-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.customers-table th,
+.customers-table td {
+    padding: 12px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+}
+
+.customers-table th {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    color: #333;
+}
+
+.customer-item:hover {
+    background-color: #f8f9fa;
+}
+
+.select-customer-btn {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background-color 0.3s ease;
+}
+
+.select-customer-btn:hover {
+    background-color: #2563eb;
+}
+
+/* استایل‌های Persian Datepicker */
+#id_date_shamsi {
+    padding: 0.375rem 1rem !important;
+    height: 30px !important;
+    line-height: 1.5 !important;
+    cursor: pointer;
+}
+
+.datepicker-plot-area {
+    font-family: 'Vazirmatn Local', sans-serif !important;
+    border-radius: 16px;
+    overflow: hidden;
+    z-index: 10000;
+}
+
+.datepicker-plot-area .datepicker-navigator,
+.datepicker-plot-area .datepicker-days-name span,
+.datepicker-plot-area .datepicker-day-view span,
+.datepicker-plot-area .datepicker-month-view span,
+.datepicker-plot-area .datepicker-year-view span {
+    font-family: 'Vazirmatn Local', sans-serif !important;
+}
+
+.datepicker-plot-area input {
+    font-family: 'BHoma', sans-serif !important;
+    font-size: 1rem !important;
+    padding: 0.375rem 1rem !important;
+    height: 38px !important;
+    line-height: 1.5 !important;
+    box-sizing: border-box !important;
+}
+
+.datepicker-plot-area .datepicker-navigator {
+    border-radius: 16px 16px 0 0;
+}
+
+.datepicker-plot-area .datepicker-day-view span {
+    border-radius: 10px;
+}
+
+.datepicker-plot-area .datepicker-month-view span,
+.datepicker-plot-area .datepicker-year-view span {
+    border-radius: 10px;
+}
+</style>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<!-- Persian Datepicker Script -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Persian Datepicker initialization
+    $("#id_date_shamsi").pDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValueType: 'persian',
+        autoClose: true,
+        persianDigit: true,
+        observer: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        onSelect: function(unix) {
+            var m = moment(unix);
+            var shamsiDate = m.format('jYYYY/jMM/jDD');
+            var gregorianDate = m.format('YYYY-MM-DD');
+            
+            console.log('Date selected:', {
+                unix: unix,
+                shamsi: shamsiDate,
+                gregorian: gregorianDate
+            });
+            
+            // Update the input value with properly formatted shamsi date
+            $(this).val(shamsiDate);
+        },
+        toolbox: {
+            calendarSwitch: {
+                enabled: false
+            }
+        },
+        initialValue: true,
+        altField: '#date-alt',
+        altFormat: 'YYYY-MM-DD'
+    });
+    
+    // Initialize recipient modal
+    initializeRecipientModal();
+});
+
+// Recipient Modal Functions
+let recipients = [];
+let selectedRecipient = null;
+
+function initializeRecipientModal() {
+    // Load recipients data from Django context
+    recipients = [
+        {% for customer in customers %}
+        {
+            id: {{ customer.id }},
+            name: '{{ customer.first_name|escapejs }}',
+            last_name: '{{ customer.last_name|escapejs }}',
+            phone: '{{ customer.phone|default:""|escapejs }}',
+            mobile: '{{ customer.mobile|default:""|escapejs }}',
+            email: '{{ customer.user.email|default:""|escapejs }}',
+            store_name: '{{ customer.store_name|default:""|escapejs }}',
+            address: '{{ customer.address|default:""|escapejs }}'
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    
+    renderRecipientList(recipients);
+}
+
+function renderRecipientList(recipientsToRender) {
+    const recipientList = document.getElementById('recipientList');
+    recipientList.innerHTML = '';
+    
+    if (recipientsToRender.length === 0) {
+        recipientList.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">گیرنده‌ای یافت نشد</td></tr>';
+        return;
+    }
+    
+    recipientsToRender.forEach(recipient => {
+        const recipientRow = document.createElement('tr');
+        recipientRow.className = 'customer-item';
+        
+        recipientRow.innerHTML = `
+            <td>${recipient.name}</td>
+            <td>${recipient.last_name}</td>
+            <td>${recipient.store_name || ''}</td>
+            <td>${recipient.mobile || ''}</td>
+            <td>${recipient.phone || ''}</td>
+            <td style="text-align: center;">
+                <button type="button" class="select-customer-btn" onclick="selectRecipientById(${recipient.id})">
+                    انتخاب
+                </button>
+            </td>
+        `;
+        
+        recipientList.appendChild(recipientRow);
+    });
+}
+
+function searchRecipients() {
+    const searchTerm = document.getElementById('recipientSearch').value.toLowerCase();
+    const filteredRecipients = recipients.filter(recipient => 
+        recipient.name.toLowerCase().includes(searchTerm) ||
+        recipient.last_name.toLowerCase().includes(searchTerm) ||
+        (recipient.store_name && recipient.store_name.toLowerCase().includes(searchTerm)) ||
+        recipient.phone.includes(searchTerm) ||
+        (recipient.email && recipient.email.toLowerCase().includes(searchTerm))
+    );
+    renderRecipientList(filteredRecipients);
+}
+
+function selectRecipientById(recipientId) {
+    const recipient = recipients.find(r => r.id === recipientId);
+    if (recipient) {
+        selectRecipient(recipient);
+    }
+}
+
+function selectRecipient(recipient) {
+    selectedRecipient = recipient;
+    
+    // Update the display input with full name and store name if available
+    let displayName = `${recipient.name} ${recipient.last_name}`;
+    if (recipient.store_name) {
+        displayName += ` (${recipient.store_name})`;
+    }
+    document.getElementById('recipient_display').value = displayName;
+    
+    // Update the hidden input
+    document.getElementById('id_recipient').value = recipient.id;
+    
+    // Close the modal
+    closeRecipientModal();
+    
+    // Clear search
+    document.getElementById('recipientSearch').value = '';
+    renderRecipientList(recipients);
+}
+
+function openRecipientModal() {
+    document.getElementById('recipientModal').style.display = 'block';
+    document.getElementById('recipientSearch').focus();
+}
+
+function closeRecipientModal() {
+    document.getElementById('recipientModal').style.display = 'none';
+}
+</script>
+{% endblock %} 

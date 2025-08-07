@@ -1,0 +1,1157 @@
+{% extends 'products/base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+
+
+<style>
+  /* Base Styles */
+  body {
+    font-family: "Vazir", Tahoma, sans-serif;
+    background-color: #f3f7fc;
+    margin: 0;
+    padding: 20px;
+    color: #333;
+  }
+  
+  h1, h2 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Top Header Styles */
+  .top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 25px;
+    background-color: #4e9af1;
+    color: white;
+    margin-bottom: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+
+  .user-info {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .warehouse-info {
+    font-size: 14px;
+    margin-top: 5px;
+    opacity: 0.9;
+  }
+
+  .logout-button {
+    background-color: #ec9e38;
+    color: white;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+  }
+
+  .logout-button:hover {
+    background-color: #be6806;
+    transform: translateY(-1px);
+  }
+
+  /* Tiles Container Styles */
+  .tiles-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin: 30px 0;
+    direction: rtl;
+    flex-wrap: wrap;
+  }
+
+  .tile-card {
+    flex: 1 1 auto;
+    padding: 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    min-width: 220px;
+    max-width: calc(33.33% - 20px);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .tile-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.1);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  .tile-card:hover::after {
+    opacity: 1;
+  }
+
+  .tile-card.tile-all {
+    background: linear-gradient(135deg, #a892ee, #8e6cd8);
+    color: white;
+  }
+
+  .tile-card.tile-new {
+    background: linear-gradient(135deg, #ffd700, #ffeb3b);
+    color: #333;
+  }
+
+  .tile-card.tile-ready {
+    background: linear-gradient(135deg, #4caf50, #66bb6a);
+    color: white;
+  }
+
+  .tile-card.tile-backorder {
+    background: linear-gradient(135deg, #ff9800, #ff5722);
+    color: white;
+  }
+
+  .tile-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+  }
+
+  .tile-card.active {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    color: white;
+    transform: translateY(-3px);
+  }
+
+  .tile-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  }
+
+  .tile-title {
+    font-size: 17px;
+    font-weight: 600;
+    flex-grow: 1;
+  }
+
+  .tile-count {
+    background: rgba(255, 255, 255, 0.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Tab Content Styles */
+  .tabcontent {
+    display: none;
+    opacity: 0;
+    background: rgba(255, 255, 255, 0.445);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin-top: 25px;
+    transition: opacity 0.3s ease-in-out;
+  }
+
+  .tabcontent.active {
+    display: block;
+    opacity: 1;
+  }
+
+  /* Table Styles */
+  .orders-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 20px;
+    background: rgba(255, 255, 255, 0.349);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  }
+
+  .orders-table th,
+  .orders-table td {
+    padding: 15px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+  }
+
+  .orders-table th {
+    background-color: #4e9af1;
+    color: white;
+    font-weight: 600;
+    position: relative;
+  }
+
+  .orders-table th:after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .orders-table tr:hover {
+    background-color: #f5f8ff;
+  }
+
+  .orders-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Detail Row Styles */
+  .details-row {
+    display: none;
+}
+
+.details-row.active {
+    display: table-row;
+}
+
+.details-row > td {
+    padding: 0 !important;
+}
+
+/* استایل جدول جزئیات */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    box-sizing: border-box;
+    min-width: 600px;
+}
+
+.items-table th {
+    background-color: #4e9af1;
+    color: white;
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #ddd;
+    box-sizing: border-box;
+    min-width: 120px;
+}
+
+.items-table td {
+    padding: 12px;
+    text-align: center;
+    border: 1px solid #ddd;
+    background-color: white;
+    box-sizing: border-box;
+    min-width: 120px;
+}
+
+/* استایل ورودی‌ها در جدول جزئیات */
+.quantity-input {
+    width: 80px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* استایل دکمه‌ها و فیلدهای ورودی در فرم تخصیص */
+.document-number {
+    width: 120px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* استایل فوتر فرم تخصیص */
+.allocation-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-top: 1px solid #ddd;
+}
+
+.ready-button {
+    background-color: #5cb85c;
+    color: white;
+    padding: 6px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ready-button:hover {
+    background-color: #4cae4c;
+}
+
+  /* Search Box Styles */
+  .search-box {
+    width: 100%;
+    max-width: 300px;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    direction: rtl;
+    transition: all 0.3s ease;
+  }
+  
+  .search-box:focus {
+    outline: none;
+    border-color: #4e9af1;
+    box-shadow: 0 0 0 3px rgba(78, 154, 241, 0.1);
+  }
+
+  /* Status Badge Styles */
+  .status-badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    min-width: 100px;
+  }
+
+  .status-pending {
+    background-color: #FFF3E0;
+    color: #E65100;
+  }
+
+  .status-processing {
+    background-color: #E3F2FD;
+    color: #1565C0;
+  }
+
+  .status-completed {
+    background-color: #E8F5E9;
+    color: #2E7D32;
+  }
+
+  /* Responsive Styles */
+  @media (max-width: 900px) {
+    body {
+      padding: 10px;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    .top-header {
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tiles-container {
+      flex-direction: column;
+      gap: 10px;
+      margin: 15px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tile-card {
+      min-width: 180px;
+      max-width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tabcontent {
+      padding: 10px;
+      margin-top: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      overflow-x: hidden;
+    }
+    .orders-table {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .orders-table th, .orders-table td {
+      font-size: 13px;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    .items-table {
+      font-size: 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .items-table th, .items-table td {
+      padding: 8px 6px;
+      font-size: 12px;
+      box-sizing: border-box;
+      min-width: 100px;
+    }
+    .table-responsive {
+      width: 100%;
+      box-sizing: border-box;
+      overflow-x: auto;
+    }
+    .items-table {
+      min-width: 500px;
+    }
+    .user-info {
+      font-size: 14px;
+      word-wrap: break-word;
+    }
+    .warehouse-info {
+      font-size: 12px;
+      word-wrap: break-word;
+    }
+  }
+  
+  @media (max-width: 600px) {
+    body {
+      padding: 5px;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    .top-header {
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .tiles-container {
+      gap: 5px;
+      margin: 10px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tile-card {
+      min-width: 120px;
+      font-size: 12px;
+      padding: 8px;
+      border-radius: 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tile-title {
+      font-size: 14px;
+      word-wrap: break-word;
+    }
+    .tile-count {
+      font-size: 12px;
+      padding: 2px 8px;
+    }
+    .tabcontent {
+      padding: 5px;
+      margin-top: 5px;
+      border-radius: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      overflow-x: hidden;
+    }
+    .orders-table {
+      display: block;
+      overflow-x: auto;
+      width: 100%;
+      font-size: 11px;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    .orders-table th, .orders-table td {
+      white-space: nowrap;
+      font-size: 11px;
+      padding: 4px 4px;
+      box-sizing: border-box;
+    }
+    .logout-button {
+      font-size: 12px;
+      padding: 6px 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .user-info {
+      font-size: 12px;
+      word-wrap: break-word;
+    }
+    .warehouse-info {
+      font-size: 10px;
+      word-wrap: break-word;
+    }
+    h1, h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      word-wrap: break-word;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    body {
+      padding: 2px;
+      overflow-x: hidden;
+      box-sizing: border-box;
+    }
+    .top-header {
+      padding: 6px 8px;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tiles-container {
+      gap: 4px;
+      margin: 8px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tile-card {
+      min-width: 100px;
+      font-size: 11px;
+      padding: 6px;
+      border-radius: 6px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .tile-title {
+      font-size: 12px;
+      word-wrap: break-word;
+    }
+    .tile-count {
+      font-size: 11px;
+      padding: 1px 6px;
+    }
+    .tabcontent {
+      padding: 4px;
+      margin-top: 4px;
+      border-radius: 6px;
+      width: 100%;
+      box-sizing: border-box;
+      overflow-x: hidden;
+    }
+    .orders-table {
+      font-size: 10px;
+      border-radius: 4px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .orders-table th, .orders-table td {
+      font-size: 10px;
+      padding: 3px 2px;
+      box-sizing: border-box;
+    }
+    .logout-button {
+      font-size: 11px;
+      padding: 4px 8px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .user-info {
+      font-size: 11px;
+      word-wrap: break-word;
+    }
+    .warehouse-info {
+      font-size: 9px;
+      word-wrap: break-word;
+    }
+    h1, h2 {
+      font-size: 16px;
+      margin-bottom: 8px;
+      word-wrap: break-word;
+    }
+  }
+</style>
+
+
+
+
+<div class="tiles-container">
+  <div class="tile-card tile-all" onclick="openTab('AllOrders')">
+    <svg class="tile-icon" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <path d="M3 13h2v-2H3v2zm2 4h2v-2H5v2zm0-8h2V7H5v2zm4 8h12v-2H9v2zm0-4h12v-2H9v2zm0-6v2h12V7H9z"/>
+    </svg>
+    <span class="tile-title">خلاصه سفارشات</span>
+    <span class="tile-count">{{ all_orders.count }}</span>
+  </div>
+  <div class="tile-card tile-new" onclick="openTab('NewOrders')">
+    <svg class="tile-icon" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <path d="M3 13h2v-2H3v2zm2 4h2v-2H5v2zm0-8h2V7H5v2zm4 8h12v-2H9v2zm0-4h12v-2H9v2zm0-6v2h12V7H9z"/>
+    </svg>
+    <span class="tile-title">درخواست‌های جدید</span>
+    <span class="tile-count">{{ new_orders.count }}</span>
+  </div>
+  <div class="tile-card tile-ready" onclick="openTab('ReadyOrders')">
+    <svg class="tile-icon" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+      <path d="M9 16.2l-3.5-3.5 1.41-1.41L9 13.38l7.09-7.09L17.5 8.8z"/>
+    </svg>
+    <span class="tile-title">آماده ارسال</span>
+    <span class="tile-count">{{ ready_orders.count }}</span>
+  </div>
+  <div class="tile-card tile-backorder" onclick="openTab('WaitingForConfirmationOrders')">
+    <svg class="tile-icon" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+    </svg>
+    <span class="tile-title"> بک اوردرها </span>
+    <span class="tile-count">{{ waiting_for_confirmation_orders.count }}</span>
+  </div>
+</div>
+
+
+<div id="AllOrders" class="tabcontent">
+  <h2>خلاصه سفارشات</h2>
+  <input type="text" class="search-box" placeholder="جستجو بر اساس نام مشتری..." onkeyup="searchOrders(this.value, 'all-orders')">
+  <table class="orders-table" id="all-orders">
+    <thead>
+      <tr>
+        <th>تاریخ</th>
+        <th>شماره سفارش</th>
+        <th>نام مشتری</th>
+        <th>وضعیت</th>
+        <th>شماره سند</th>
+        <th>جزئیات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in all_orders %}
+      <tr class="order-row">
+        <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
+        <td>{{ order.order_number }}</td>
+        <td class="customer-name">{{ order.customer_name }}</td>
+        <td><span class="order-status status-{{ order.status }}">{{ order.get_status_display }}</span></td>
+        <td>{{ order.document_number|default:"بدون شماره سند" }}</td>
+        <td>
+          <button class="action-button details-button" onclick="toggleDetails('all-details-{{ order.id }}')">جزئیات</button>
+        </td>
+      </tr>
+      <tr id="all-details-{{ order.id }}" class="details-row">
+        <td colspan="6">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>کد کالا</th>
+                <th>نام محصول</th>
+                <th>تعداد درخواستی</th>
+                <th>تعداد تخصیص یافته</th>
+                <th>توضیحات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in order.filtered_items %}
+              <tr>
+                <td>{{ item.product.code }}</td>
+                <td>{{ item.product.name }}</td>
+                <td>{{ item.requested_quantity }}</td>
+                <td>{{ item.allocated_quantity }}</td>
+                <td>{{ item.warehouse_note|default:'-' }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5">هیچ کالایی یافت نشد.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6">هیچ سفارشی یافت نشد.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="NewOrders" class="tabcontent">
+  <h2>درخواست‌های جدید</h2>
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>تاریخ</th>
+        <th>شماره سفارش</th>
+        <th>نام مشتری</th>
+        <th>وضعیت</th>
+        <th>شماره سند</th>
+        <th>تعداد بسته</th>
+        <th>جزئیات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in new_orders %}
+      <tr>
+        <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
+        <td>{{ order.order_number }}</td>
+        <td>{{ order.customer_name }}</td>
+        <td><span class="order-status status-{{ order.status }}">{{ order.get_status_display }}</span></td>
+        <td>
+          <input type="text" 
+                 class="document-number" 
+                 id="doc_{{ order.id }}" 
+                 required 
+                 pattern="\S+">
+        </td>
+        <td>
+          <input type="number" 
+                 class="document-number" 
+                 id="package_count_{{ order.id }}" 
+                 required 
+                 min="1" 
+                 placeholder="تعداد بسته">
+        </td>
+        <td>
+          <button class="action-button details-button" onclick="toggleDetails('details-{{ order.id }}')">جزئیات</button>
+        </td>
+      </tr>
+      <tr id="details-{{ order.id }}" class="details-row">
+        <td colspan="7">
+          <form id="allocation-form-{{ order.id }}" onsubmit="submitAllocation(event, '{{ order.id }}')">
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>کد کالا</th>
+                  <th>نام محصول</th>
+                  <th>تعداد درخواستی</th>
+                  <th>تعداد تخصیص</th>
+                  <th>توضیحات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in order.filtered_items %}
+                <tr>
+                  <td>{{ item.product.code }}</td>
+                  <td>{{ item.product.name }}</td>
+                  <td>{{ item.requested_quantity }}</td>
+                  <td>
+                    <input type="number" 
+                           class="quantity-input" 
+                           name="allocation_{{ item.id }}" 
+                           min="0" 
+                           max="{{ item.requested_quantity }}" 
+                           value="0">
+                  </td>
+                  <td>
+                    <input type="text" 
+                           name="note_{{ item.id }}" 
+                           placeholder="توضیحات...">
+                  </td>
+                </tr>
+                {% empty %}
+                <tr>
+                  <td colspan="5">هیچ کالایی یافت نشد.</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <button type="submit" class="action-button ready-button">ثبت تخصیص و آماده‌سازی</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7">هیچ سفارشی یافت نشد.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="ReadyOrders" class="tabcontent">
+  <h2>سفارش‌های آماده ارسال</h2>
+  <table class="orders-table">
+    <thead>
+      <tr>
+        <th>تاریخ</th>
+        <th>شماره سفارش</th>
+        <th>نام مشتری</th>
+        <th>شماره سند</th>
+        <th>جزئیات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in ready_orders %}
+      <tr>
+        <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
+        <td>{{ order.order_number }}</td>
+        <td>{{ order.customer_name }}</td>
+        <td>{{ order.document_number|default:"بدون شماره سند" }}</td>
+        <td>
+          <button class="action-button details-button" onclick="toggleDetails('ready-details-{{ order.id }}')">جزئیات</button>
+        </td>
+      </tr>
+      <tr id="ready-details-{{ order.id }}" class="details-row">
+        <td colspan="5">
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>کد کالا</th>
+                <th>نام محصول</th>
+                <th>تعداد درخواستی</th>
+                <th>تعداد تخصیص یافته</th>
+                <th>توضیحات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in order.filtered_items %}
+              <tr>
+                <td>{{ item.product.code }}</td>
+                <td>{{ item.product.name }}</td>
+                <td>{{ item.requested_quantity }}</td>
+                <td>{{ item.allocated_quantity }}</td>
+                <td>{{ item.warehouse_note|default:'-' }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="5">هیچ کالایی یافت نشد.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5">هیچ سفارشی یافت نشد.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div id="WaitingForConfirmationOrders" class="tabcontent">
+  <h2> بک اوردرها   </h2>
+  <input type="text" class="search-box" placeholder="جستجو بر اساس نام مشتری..." onkeyup="searchOrders(this.value, 'waiting-for-confirmation-orders-table')">
+  <table id="waiting-for-confirmation-orders-table" class="orders-table">
+    <thead>
+      <tr>
+        <th>شماره سفارش</th>
+        <th>نام مشتری</th>
+        <th>وضعیت انبار</th>
+        <th>جزئیات</th> 
+      </tr>
+    </thead>
+    <tbody>
+      {% for order in waiting_for_confirmation_orders %}
+        {% for order_item in order.filtered_items %}
+          <tr class="order-row">
+            <td>{{ order.order_number }}</td>
+            <td class="customer-name">{{ order.customer_name }}</td>
+            <td>{{ order_item.get_warehouse_status_display }}</td>
+            <td>
+              <button class="action-button details-button" onclick="toggleDetails('confirmation-details-{{ order_item.id }}')">جزئیات و تخصیص</button>
+            </td>
+          </tr>
+          <tr id="confirmation-details-{{ order_item.id }}" class="details-row">
+            <td colspan="4">
+              <form id="confirmation-allocation-form-{{ order_item.id }}" onsubmit="submitSingleItemAllocation(event, '{{ order_item.id }}', '{{ order.id }}')">
+                <table class="items-table">
+                  <thead>
+                    <tr>
+                      <th>کد کالا</th>
+                      <th>نام محصول</th>
+                      <th>تعداد درخواستی</th>
+                      <th>تعداد تخصیص</th>
+                      <th>توضیحات</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{{ order_item.product.code }}</td>
+                      <td>{{ order_item.product.name }}</td>
+                      <td>{{ order_item.requested_quantity }}</td>
+                      <td>
+                        <input type="number" 
+                               class="quantity-input" 
+                               name="allocation_{{ order_item.id }}" 
+                               min="0" 
+                               max="{{ order_item.requested_quantity }}" 
+                               value="{{ order_item.allocated_quantity|default:0 }}">
+                      </td>
+                      <td>
+                        <input type="text" 
+                               name="note_{{ order_item.id }}" 
+                               placeholder="توضیحات..." 
+                               value="{{ order_item.warehouse_note|default:'' }}">
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                
+                <div style="display: flex; align-items: center; justify-content: flex-end; margin-top: 10px; gap: 10px;">
+                  <input type="text" 
+                         class="document-number" 
+                         id="conf_doc_{{ order.id }}" 
+                         placeholder="شماره سند"
+                         value="{{ order.document_number|default:'' }}">
+
+                  <input type="number" 
+                         class="document-number" 
+                         id="conf_package_count_{{ order.id }}" 
+                         min="1" 
+                         placeholder="تعداد بسته"
+                         value="{{ order.package_count|default:'' }}">
+
+                  <button type="submit" class="action-button ready-button">تایید و آماده‌سازی آیتم</button>
+                </div>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      {% empty %}
+        <tr><td colspan="4">هیچ سفارشی در انتظار تأیید انباردار نیست.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+<script>
+function openTab(tabName) {
+    // مخفی کردن همه تب‌ها
+    const tabContents = document.getElementsByClassName('tabcontent');
+    for (let content of tabContents) {
+        content.classList.remove('active');
+    }
+
+    // حذف کلاس active از همه تایل‌ها
+    const tiles = document.getElementsByClassName('tile-card');
+    for (let tile of tiles) {
+        tile.classList.remove('active');
+    }
+
+    // نمایش تب انتخاب شده
+    const selectedTab = document.getElementById(tabName);
+    if (selectedTab) {
+        selectedTab.classList.add('active');
+    }
+
+    // فعال کردن تایل مربوطه
+    const clickedTile = document.querySelector(`[onclick="openTab('${tabName}')"]`);
+    if (clickedTile) {
+        clickedTile.classList.add('active');
+    }
+
+    // ذخیره تب فعال در localStorage
+    localStorage.setItem('activeTabId', tabName);
+  }
+
+  // اجرای این کد در هنگام بارگذاری صفحه
+  document.addEventListener('DOMContentLoaded', function() {
+    const activeTabId = localStorage.getItem('activeTabId') || 'AllOrders';
+    openTab(activeTabId);
+  });
+
+function toggleDetails(id) {
+  var detailRow = document.getElementById(id);
+  if (detailRow) {
+    detailRow.classList.toggle("active");
+  }
+}
+
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+function submitAllocation(event, orderId) {
+  event.preventDefault();
+  
+  const docNumber = document.getElementById(`doc_${orderId}`).value;
+  if (!docNumber) {
+    alert('لطفاً شماره سند را وارد کنید');
+    return;
+  }
+
+  const packageCount = document.getElementById(`package_count_${orderId}`).value;
+  if (!packageCount || packageCount < 1) {
+    alert('لطفاً تعداد بسته را وارد کنید');
+    return;
+  }
+  
+  const form = document.getElementById(`allocation-form-${orderId}`);
+  const allocationInputs = form.querySelectorAll('input[name^="allocation_"]');
+  const allocations = {};
+  
+  if (allocationInputs.length === 0) {
+      alert('هیچ کالایی برای پردازش یافت نشد.');
+      return;
+  }
+
+  allocationInputs.forEach(input => {
+      const itemId = input.name.split('_')[1];
+      const quantity = parseInt(input.value) || 0;
+      const noteInput = form.querySelector(`input[name="note_${itemId}"]`);
+      const note = noteInput ? noteInput.value : '';
+
+      allocations[itemId] = {
+          'quantity': quantity,
+          'note': note
+      };
+  });
+
+  fetch('/products/api/allocate-items/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      order_id: orderId,
+      allocations: allocations,
+      document_number: docNumber,
+      package_count: parseInt(packageCount)
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('تخصیص با موفقیت انجام شد.');
+      location.reload();
+    } else {
+      alert('خطا: ' + data.message);
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('خطا در ارتباط با سرور');
+  });
+}
+
+function searchOrders(query, tableId) {
+  query = query.toLowerCase();
+  const table = document.getElementById(tableId);
+  const rows = table.getElementsByClassName('order-row');
+  
+  for (let row of rows) {
+    const customerName = row.querySelector('.customer-name').textContent.toLowerCase();
+    const detailsId = row.nextElementSibling.id;
+    
+    if (customerName.includes(query)) {
+      row.style.display = '';
+      // اگر ردیف جزئیات قبلاً باز بوده، باز بماند
+      if (document.getElementById(detailsId).classList.contains('active')) {
+        document.getElementById(detailsId).style.display = 'table-row';
+      }
+    } else {
+      row.style.display = 'none';
+      document.getElementById(detailsId).style.display = 'none';
+    }
+  }
+}
+
+function markReadyForCustomer(itemId) {
+  if (!confirm('آیا مطمئن هستید که این کالا آماده ارسال به مشتری است؟')) return;
+  const allocInput = document.getElementById('alloc_' + itemId);
+  const allocated = allocInput ? parseInt(allocInput.value) : 0;
+  fetch('/products/api/warehouse-item-ready/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({ item_id: itemId, allocated_quantity: allocated })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('کالا آماده ارسال شد.');
+      location.reload();
+    } else {
+      alert('خطا: ' + (data.message || 'خطای نامشخص'));
+    }
+  })
+  .catch(error => {
+    alert('خطا در ارتباط با سرور.');
+  });
+}
+
+function submitSingleItemAllocation(event, itemId, orderId) {
+    event.preventDefault();
+
+    const docNumberInput = document.getElementById(`conf_doc_${orderId}`);
+    const packageCountInput = document.getElementById(`conf_package_count_${orderId}`);
+    const allocationInput = document.querySelector(`#confirmation-allocation-form-${itemId} input[name="allocation_${itemId}"]`);
+    const noteInput = document.querySelector(`#confirmation-allocation-form-${itemId} input[name="note_${itemId}"]`);
+
+    const docNumber = docNumberInput ? docNumberInput.value : '';
+    const packageCount = packageCountInput ? parseInt(packageCountInput.value) : 0;
+    const allocatedQuantity = allocationInput ? parseInt(allocationInput.value) : 0;
+    const note = noteInput ? noteInput.value : '';
+
+    if (!docNumber) {
+        alert('لطفاً شماره سند را وارد کنید.');
+        docNumberInput.focus();
+        return;
+    }
+    if (!packageCount || parseInt(packageCount) < 1) {
+        alert('لطفاً تعداد بسته را به درستی وارد کنید.');
+        packageCountInput.focus();
+        return;
+    }
+
+    const payload = {
+        order_id: orderId,
+        document_number: docNumber,
+        package_count: packageCount,
+        allocations: {
+            [itemId]: {
+                quantity: allocatedQuantity,
+                note: note
+            }
+        }
+    };
+
+    fetch('/products/api/allocate-items/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message || 'عملیات با موفقیت انجام شد.');
+            localStorage.setItem("activeTabId", "ReadyOrders");
+            location.reload();
+        } else {
+            alert('خطا: ' + (data.message || 'خطای نامشخص در سرور'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('خطا در ارتباط با سرور.');
+    });
+}
+
+</script>
+
+{% endblock %}

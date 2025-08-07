@@ -1,0 +1,248 @@
+{% extends 'products/base.html' %}
+{% load custom_filters %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block customer_elements %}{% endblock customer_elements %}{% block cart_elements %}{% endblock cart_elements %}
+
+{% block content %}
+<style>
+  .voucher-detail-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    background: rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 24px 24px 18px 24px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(23, 162, 184, 0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    font-family: 'b homa', Tahoma, sans-serif;
+    box-sizing: border-box;
+    transition: all 0.25s;
+  }
+  
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+  }
+  
+  h3 {
+    color: #000;
+    text-align: center;
+    margin: 0;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .back-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #6c757d;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+  
+  .back-btn:hover {
+    background: #5a6268;
+    color: #fff;
+    text-decoration: none;
+  }
+  
+  .voucher-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+  }
+  
+  .info-item {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .info-label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 5px;
+  }
+  
+  .info-value {
+    font-size: 16px;
+    font-weight: bold;
+    color: #000;
+  }
+  
+  .voucher-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  
+  .voucher-items-table th {
+    background: rgba(23, 162, 184, 0.2);
+    color: #000;
+    padding: 15px 12px;
+    text-align: center;
+    font-weight: bold;
+    border-bottom: 2px solid rgba(23, 162, 184, 0.3);
+  }
+  
+  .voucher-items-table td {
+    padding: 12px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    color: #000;
+  }
+  
+  .voucher-items-table tr:hover {
+    background: rgba(23, 162, 184, 0.1);
+  }
+  
+  .account-name {
+    font-weight: bold;
+    color: #17a2b8;
+  }
+  
+  .debit-amount {
+    color: #dc3545;
+    font-weight: bold;
+  }
+  
+  .credit-amount {
+    color: #28a745;
+    font-weight: bold;
+  }
+  
+  .total-row {
+    background: rgba(23, 162, 184, 0.1) !important;
+    font-weight: bold;
+  }
+  
+  .voucher-status {
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+  
+  .status-confirmed {
+    background: #d4edda;
+    color: #155724;
+  }
+  
+  .status-draft {
+    background: #fff3cd;
+    color: #856404;
+  }
+  
+  .empty-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+</style>
+
+<div class="voucher-detail-container">
+  <div class="page-header">
+    <h3>{{ title }}</h3>
+    <a href="{% url 'products:voucher_list' %}" class="back-btn">
+      بازگشت به لیست
+    </a>
+  </div>
+  
+  <div class="voucher-info">
+    <div class="info-item">
+      <span class="info-label">شماره سند:</span>
+      <span class="info-value">{{ voucher.number }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">تاریخ سند:</span>
+      <span class="info-value">{{ voucher.date|jalali_date }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">نوع سند:</span>
+      <span class="info-value">{{ voucher.get_type_display }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">وضعیت:</span>
+      <span class="voucher-status {% if voucher.is_confirmed %}status-confirmed{% else %}status-draft{% endif %}">
+        {% if voucher.is_confirmed %}تأیید شده{% else %}تأیید نشده{% endif %}
+      </span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">ایجاد کننده:</span>
+      <span class="info-value">{{ voucher.created_by.get_full_name|default:voucher.created_by.username }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">تاریخ ایجاد:</span>
+      <span class="info-value">{{ voucher.created_at|jalali_date }}</span>
+    </div>
+    {% if voucher.confirmed_by %}
+    <div class="info-item">
+      <span class="info-label">تأیید کننده:</span>
+      <span class="info-value">{{ voucher.confirmed_by.get_full_name|default:voucher.confirmed_by.username }}</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">تاریخ تأیید:</span>
+      <span class="info-value">{{ voucher.confirmed_at|jalali_date }}</span>
+    </div>
+    {% endif %}
+  </div>
+  
+  <div class="info-item" style="grid-column: 1 / -1;">
+    <span class="info-label">شرح سند:</span>
+    <span class="info-value">{{ voucher.description }}</span>
+  </div>
+  
+  {% if voucher.items.all %}
+    <table class="voucher-items-table">
+      <thead>
+        <tr>
+          <th>حساب</th>
+          <th>شرح</th>
+          <th>بدهکار</th>
+          <th>بستانکار</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in voucher.items.all %}
+        <tr>
+          <td class="account-name">{{ item.account.name }}</td>
+          <td>{{ item.description }}</td>
+          <td class="debit-amount">
+            {% if item.debit > 0 %}{{ item.debit|floatformat:0 }}{% else %}-{% endif %}
+          </td>
+          <td class="credit-amount">
+            {% if item.credit > 0 %}{{ item.credit|floatformat:0 }}{% else %}-{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="total-row">
+          <td colspan="2"><strong>جمع کل:</strong></td>
+          <td class="debit-amount">
+            <strong>{{ total_debit|floatformat:0 }}</strong>
+          </td>
+          <td class="credit-amount">
+            <strong>{{ total_credit|floatformat:0 }}</strong>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-message">
+      <p>هیچ آرتیکل سندی یافت نشد.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %} 

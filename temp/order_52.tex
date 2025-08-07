@@ -1,0 +1,44 @@
+
+        \documentclass[a4paper,12pt]{article}
+        \usepackage{geometry}
+        \geometry{a4paper, margin=1in}
+        \usepackage{longtable}
+        \usepackage{setspace}
+        \setstretch{1.4}
+        \usepackage{xcolor} % اضافه کردن رنگ
+        \definecolor{headerblue}{RGB}{0,51,102} % رنگ آبی تیره
+        \usepackage{xepersian}
+        \settextfont{Vazirmatn}
+        \begin{document}
+        \begin{center}
+            \textbf{\Large پیش فاکتور}
+        \end{center}
+        \vspace{0.5cm}
+        \noindent
+        \begin{flushleft}
+            \textbf{ویزیتور:} AlirezaAbasnezhad \\
+            \textbf{مشتری:} تست \\
+        \end{flushleft}
+        \begin{flushright}
+            \textbf{تاریخ:} 1404/03/08 03:35 \\
+            \textbf{نحوه تسویه:} نقدی
+        \end{flushright}
+        \vspace{0.5cm}
+        \begin{longtable}{|r|r|p{5cm}|r|r|r|}
+            \hline
+            \rowcolor{headerblue} \color{white} % رنگ سرستون
+            \textbf{ردیف} & \textbf{کد کالا} & \textbf{نام کالا} & \textbf{تعداد} & \textbf{قیمت واحد (ریال)} & \textbf{جمع (ریال)} \\
+            \hline
+            \endhead
+                    1 & 0020200944 & نيم موتور 405 & 4 & 1 & 4 \\
+            \hline
+            2 & 0021300082 & سرسيلندر ال90 کونکس & 2 & 1 & 2 \\
+            \hline
+
+            \hline
+            
+            \multicolumn{5}{|r|}{\textbf{جمع کل (ریال):}} & \textbf{ 6 } \\
+            \hline
+        \end{longtable}
+        \end{document}
+        

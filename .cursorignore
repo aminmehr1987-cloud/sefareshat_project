@@ -1,0 +1,6 @@
+env/
+__pycache__/
+*.log
+*.pyc
+*.sqlite3
+site-packages/

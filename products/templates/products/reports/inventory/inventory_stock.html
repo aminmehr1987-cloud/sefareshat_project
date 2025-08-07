@@ -1,0 +1,87 @@
+{% extends "products/reports/financial/base_report.html" %}
+
+{% block report_content %}
+<div class="summary-cards">
+    <div class="summary-card positive">
+        <h3>تعداد محصولات</h3>
+        <div class="amount">{{ inventory_items|length }}</div>
+        <small>محصول مختلف</small>
+    </div>
+    
+    <div class="summary-card info">
+        <h3>کل موجودی</h3>
+        <div class="amount">{{ total_quantity|format_number }}</div>
+        <small>تعداد کل موجودی</small>
+    </div>
+    
+    <div class="summary-card warning">
+        <h3>ارزش موجودی</h3>
+        <div class="amount">{{ total_value|format_number }} ریال</div>
+        <small>ارزش کل موجودی</small>
+    </div>
+</div>
+
+<div class="report-details">
+    <h3>گزارش موجودی کالا</h3>
+    
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ردیف</th>
+                    <th>نام محصول</th>
+                    <th>کد محصول</th>
+                    <th>دسته‌بندی</th>
+                    <th>موجودی</th>
+                    <th>قیمت واحد</th>
+                    <th>ارزش موجودی</th>
+                    <th>وضعیت</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in inventory_items %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>
+                        <strong>{{ item.name }}</strong>
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">{{ item.code }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-info">{{ item.car_group }}</span>
+                    </td>
+                    <td>
+                        <span class="badge bg-{% if item.quantity > 10 %}success{% elif item.quantity > 0 %}warning{% else %}danger{% endif %}">
+                            {{ item.quantity|format_number }}
+                        </span>
+                    </td>
+                    <td>
+                        {{ item.price|format_number }} ریال
+                    </td>
+                    <td>
+                        <span class="text-success fw-bold">{{ item.total_value|format_number }} ریال</span>
+                    </td>
+                    <td>
+                        {% if item.quantity > 10 %}
+                            <span class="badge bg-success">موجود</span>
+                        {% elif item.quantity > 0 %}
+                            <span class="badge bg-warning">کم موجود</span>
+                        {% else %}
+                            <span class="badge bg-danger">ناموجود</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                        <p class="mt-2">هیچ محصولی یافت نشد</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %} 

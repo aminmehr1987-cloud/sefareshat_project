@@ -1,0 +1,1136 @@
+{% extends 'products/base.html' %}
+{% load static %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block title %}لیست سفارش‌ها{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+    @font-face {
+        font-family: 'BHoma';
+        src: url('{% static "fonts/BHoma.ttf" %}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+    }
+    body, html, input, button, select, textarea, .modern-table, .stat-card, .search-section, .btn {
+        font-family: 'BHoma', Tahoma, Arial, sans-serif !important;
+    }
+    
+    .header-section {
+        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        border-radius: 20px;
+        padding: 2rem;
+        color: white;
+        margin: 2rem auto;
+        max-width: 1200px;
+    }
+    
+    .header-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .header-icon {
+        width: 60px;
+        height: 60px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .btn {
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        border-radius: 10px;
+        padding: 0.75rem 1.5rem;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .btn-primary {
+        background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+        color: white;
+    }
+    
+    .btn-success {
+        background: linear-gradient(45deg, #10b981, #059669);
+        color: white;
+    }
+    
+    .stats-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        padding: 0 2rem;
+        margin: 2rem auto;
+        max-width: 1200px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 0.8rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        border: 1px solid #070707;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        height: 70px;
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .stat-card.active {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        border-width: 3px;
+        border-color: white;
+    }
+    
+    .stat-content {
+        display: flex;
+        flex-direction: column; /* تغییر به ستون برای قرار دادن عنوان و عدد جداگانه */
+        align-items: flex-end; /* تراز به راست برای کل محتوا */
+        justify-content: space-between;
+        position: relative;
+        z-index: 2;
+        height: 100%; /* برای اینکه فلکس آیتم‌ها فضای کامل را اشغال کنند */
+    }
+    
+    .stat-info {
+        text-align: right; /* تراز متن داخل stat-info به راست */
+        width: 100%; /* تا فضای موجود را اشغال کند */
+    }
+
+    .stat-info h3 {
+        margin: 0;
+        color: #64748b;
+        font-weight: 600;
+        font-size: 0.9rem !important; /* اندازه فونت اصلی برای عنوان */
+        white-space: nowrap; /* جلوگیری از شکستن متن عنوان */
+        overflow: hidden; /* پنهان کردن محتوای اضافی */
+        text-overflow: ellipsis; /* نمایش سه نقطه برای محتوای اضافی */
+    }
+
+    .stat-info p {
+        margin: 0.1rem 0 0 0; /* مارجین برای فاصله از عنوان */
+        font-size: 1.2rem; /* اندازه فونت اصلی برای عدد */
+        font-weight: 700;
+        white-space: nowrap; /* عدد در یک خط است */
+        position: absolute; /* موقعیت مطلق برای عدد */
+        bottom: 0px; /* پایین باکس */
+        right: 5px; /* کمی فاصله از لبه راست */
+        color: black; /* رنگ عدد */
+    }
+    
+    .stat-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        position: absolute;
+        bottom: 0px;
+        left: 1px;
+    }
+    
+    /* Status-specific colors with diverse, eye-catching gradients */
+    .stat-cart {
+        background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-cart .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-cart .stat-info p { color: rgb(0, 0, 0); }
+    .stat-cart .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-cart.active { border-color: #ff0000d2;  }
+    
+    .stat-pending {
+       background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-pending .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-pending .stat-info p { color: rgb(0, 0, 0); }
+    .stat-pending .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-pending.active { border-color: #ff0000d2;  }
+    
+    .stat-warehouse {
+        background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-warehouse .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-warehouse .stat-info p { color: rgb(0, 0, 0); }
+    .stat-warehouse .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-warehouse.active { border-color: #ff0000d2;  }
+    
+    .stat-ready {
+       background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-ready .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-ready .stat-info p { color: rgb(0, 0, 0); }
+    .stat-ready .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-ready.active { border-color: #ff0000d2;  }
+    
+    .stat-delivered {
+        background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-delivered .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-delivered .stat-info p { color: rgb(0, 0, 0); }
+    .stat-delivered .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-delivered.active { border-color: #ff0000d2;  }
+    
+    .stat-parent {
+       background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-parent .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-parent .stat-info p { color: rgb(0, 0, 0); }
+    .stat-parent .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-parent.active { border-color: #ff0000d2;  }
+    
+    .stat-completed {
+       background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(20, 20, 20);
+    }
+    .stat-completed .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-completed .stat-info p { color: rgb(0, 0, 0); }
+    .stat-completed .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-completed.active { border-color: #ff0000d2;  }
+    
+    .stat-backorder {
+        background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(0, 0, 0);
+    }
+    .stat-backorder .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-backorder .stat-info p { color: rgb(0, 0, 0); }
+    .stat-backorder .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-backorder.active { border-color: #ff0000d2;  }
+    
+    .stat-waiting_for_customer_shipment {
+        background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(0, 0, 0);
+    }
+    .stat-waiting_for_customer_shipment .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-waiting_for_customer_shipment .stat-info p { color: rgb(0, 0, 0); }
+    .stat-waiting_for_customer_shipment .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-waiting_for_customer_shipment.active { border-color: #ff0000d2;  }
+    
+    .stat-sent_to_warehouse {
+        background:linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: #000000;
+    }
+    .stat-sent_to_warehouse .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-sent_to_warehouse .stat-info p { color: rgb(0, 0, 0); }
+    .stat-sent_to_warehouse .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-sent_to_warehouse.active { border-color: #ff0000d2;  }
+    
+    .stat-waiting_for_warehouse_confirmation {
+        background: linear-gradient(135deg, #ffd600 0%, #ece7a2 100%);
+        color: #000000;
+    }
+    .stat-waiting_for_warehouse_confirmation .stat-info h3 { color: rgba(0, 0, 0, 0.9); }
+    .stat-waiting_for_warehouse_confirmation .stat-info p { color: rgb(0, 0, 0); }
+    .stat-waiting_for_warehouse_confirmation .stat-icon { background: rgba(95, 92, 92, 0.562); color: rgb(0, 0, 0); }
+    .stat-waiting_for_warehouse_confirmation.active { border-color: #ff0000d2;  }
+    
+    .search-section {
+        background: rgba(255, 255, 255, 0.418);
+        padding: 1.5rem 2rem;
+        margin: 2rem auto;
+        max-width: 1100px;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.274);
+    }
+    
+    .search-input {
+        width: 98%;
+        padding: 1rem;
+        border: 2px solid #0000008f;
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .table-container {
+        background: white;
+        border-radius: 15px;
+        margin: 2rem auto;
+        max-width: 1200px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    .table-header {
+        background: #f8fafc;
+        padding: 1rem 2rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+    }
+    
+    .modern-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .modern-table th {
+        background: #f8fafc;
+        color: #374151;
+        font-weight: 600;
+        text-align: right;
+        padding: 1.5rem 1rem;
+        font-size: 0.9rem;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .modern-table td {
+        padding: 1.5rem 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+    }
+    
+    .modern-table tbody tr {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    
+    .modern-table tbody tr:hover {
+        background: #f8fafc;
+        transform: translateX(5px);
+    }
+    
+    .status-badge {
+        padding: 0.4rem 0.8rem;
+        border-radius: 15px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.3s ease;
+    }
+    
+    .status-badge:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Status badge colors */
+    .status-cart {
+    background: #8b5cf6;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-pending {
+    background: #f59e0b;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-warehouse {
+    background: #3b82f6;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-ready {
+    background: #10b981;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-delivered {
+    background: #057496;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-parent {
+    background: #ec4899;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-completed {
+    background: #c86be4;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-backorder {
+    background: #ef4444;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-waiting_for_customer_shipment {
+    background: #06b6d4;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-sent_to_warehouse {
+    background: #6366f1;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+.status-waiting_for_warehouse_confirmation {
+    background: #84cc16;
+    color: white;
+    border: 1px solid black; /* بوردر مشکی */
+}
+    
+    .order-number {
+        font-weight: 700;
+        color: #1e293b;
+        font-size: 1.1rem;
+    }
+    
+    .customer-name {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.25rem;
+    }
+    
+    .date-time {
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+    
+    .price-amount {
+        font-weight: 700;
+        color: #059669;
+        font-size: 1.1rem;
+    }
+    
+    .action-btn {
+        background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+        text-decoration: none;
+        color: white;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: #6b7280;
+    }
+    
+    .empty-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .filter-controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .filter-btn {
+        padding: 0.5rem 1rem;
+        border: 2px solid #e2e8f0;
+        background: white;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+    
+    .filter-btn.active {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+    
+    @media (max-width: 768px) {
+        .header-section {
+            padding: 1rem;
+            margin: 1rem;
+        }
+        
+        .stats-section {
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.8rem;
+            padding: 0 1rem;
+        }
+        
+        .search-section,
+        .table-container {
+            margin: 1rem;
+        }
+        
+        .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        
+        .modern-table th,
+        .modern-table td {
+            padding: 1rem 0.5rem;
+        }
+    }
+
+    .table-container {
+        background: rgba(255, 255, 255, 0.25);
+        border-radius: 15px;
+        margin: 2rem auto;
+        max-width: 1200px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(238, 215, 85, 0.938);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(4px);
+        border: 1.5px solid rgba(2, 2, 2, 0.973);
+    }
+
+    .btn-return {
+        background: linear-gradient(45deg, #ffd600, #fffffe); /* رنگ پس‌زمینه دکمه */
+        color: rgb(0, 0, 0); /* رنگ متن دکمه */
+        border: 2px solid #000000; /* حاشیه جدید: ضخامت 2 پیکسل، حالت خطی، رنگ مشکی */
+    }
+
+    .filter-btn.active[data-filter="all"] {
+        background:  #ffd600; /* <-- رنگ پس‌زمینه دلخواه */
+        color: rgb(0, 0, 0); /* <-- رنگ متن دلخواه */
+        border: 2px solid #000000; /* <-- ضخامت، نوع و رنگ حاشیه دلخواه */
+    }
+
+    .action-btn {
+        background: linear-gradient(45deg, #ffd600 0%, #ece7a2 100%);
+        color: rgb(0, 0, 0);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 0.9rem; /* این فونت سایز اولیه است و با JS تغییر میکند */
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center; /* برای وسط چین کردن محتوا */
+        gap: 0.5rem;
+        border: 2px solid #000000;
+        
+        /* اضافه کردن این ویژگی‌ها */
+        width: 130px; /* یک عرض ثابت برای دکمه عملیات */
+        height: 40px; /* یک ارتفاع ثابت برای دکمه عملیات */
+        overflow: hidden; /* محتوای اضافی از باکس بیرون نزند */
+        box-sizing: border-box; /* padding و border در عرض و ارتفاع محاسبه شوند */
+        flex-shrink: 0; /* جلوگیری از کوچک شدن دکمه در flex container */
+        
+        white-space: nowrap; /* اضافه کردن این خط برای جلوگیری از شکستن متن */
+    }
+
+</style>
+{% endblock %}
+
+{% block customer_elements %}{% endblock %}
+{% block cart_elements %}{% endblock %}
+
+{% block content %}
+    
+    
+
+    <div class="stats-section">
+        <div class="stat-card stat-cart" data-status="cart">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>سبد خرید</h3>
+                    <p id="cart-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-pending" data-status="pending">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>در انتظار تأیید</h3>
+                    <p id="pending-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-warehouse" data-status="warehouse">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>ارسال شده به انبار</h3>
+                    <p id="warehouse-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-warehouse"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-ready" data-status="ready">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>آماده تحویل</h3>
+                    <p id="ready-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-box"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-delivered" data-status="delivered">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>تحویل داده شده</h3>
+                    <p id="delivered-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-truck"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-parent" data-status="parent">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>تفکیک شده به انبارها</h3>
+                    <p id="parent-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-sitemap"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-completed" data-status="completed">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>نهایی شده</h3>
+                    <p id="completed-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-backorder" data-status="backorder">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>در انتظار موجودی</h3>
+                    <p id="backorder-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-waiting_for_customer_shipment" data-status="waiting_for_customer_shipment">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>در انتظار ارسال به مشتری</h3>
+                    <p id="waiting_for_customer_shipment-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-shipping-fast"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-sent_to_warehouse" data-status="sent_to_warehouse">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>ارسال شده به انبار از بک اوردر</h3>
+                    <p id="sent_to_warehouse-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card stat-waiting_for_warehouse_confirmation" data-status="waiting_for_warehouse_confirmation">
+            <div class="stat-content">
+                <div class="stat-info">
+                    <h3>در انتظار تایید انباردار</h3>
+                    <p id="waiting_for_warehouse_confirmation-count">0</p>
+                </div>
+                <div class="stat-icon">
+                    <i class="fas fa-user-check"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="search-section">
+        <div class="filter-controls">
+            <button class="filter-btn active" data-filter="all">
+                <i class="fas fa-list"></i>
+                همه سفارشات
+            </button>
+            <button class="filter-btn" id="clear-filter">
+                <i class="fas fa-times"></i>
+                پاک کردن فیلتر
+            </button>
+        </div>
+        <div style="position: relative;">
+            <input type="text" class="search-input" placeholder="جستجو در سفارشات..." id="searchInput">
+            <i class="fas fa-search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #9ca3af;"></i>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div class="table-header">
+            <h3 style="margin: 0; font-size: 1.2rem; font-weight: 600; color: #374151;">
+                <i class="fas fa-list-ul" style="margin-left: 0.5rem;"></i>
+                 
+            </h3>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>
+                            <i class="fas fa-hashtag" style="margin-left: 0.5rem;"></i>
+                            شماره سفارش
+                        </th>
+                        <th>
+                            <i class="fas fa-calendar-alt" style="margin-left: 0.5rem;"></i>
+                            تاریخ ثبت
+                        </th>
+                        <th>
+                            <i class="fas fa-user" style="margin-left: 0.5rem;"></i>
+                            نام مشتری
+                        </th>
+                        <th>
+                            <i class="fas fa-info-circle" style="margin-left: 0.5rem;"></i>
+                            وضعیت
+                        </th>
+                        <th>
+                            <i class="fas fa-money-bill-wave" style="margin-left: 0.5rem;"></i>
+                            مبلغ کل (ریال)
+                        </th>
+                        <th>
+                            <i class="fas fa-cogs" style="margin-left: 0.5rem;"></i>
+                            عملیات
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr data-status="{{ order.status }}">
+                        <td>
+                            <div class="order-number">
+                                {{ order.order_number|default:order.id }}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="date-time">
+                                <i class="fas fa-clock" style="margin-left: 0.5rem;"></i>
+                                {{ order.created_at|jformat:"%H:%M - %Y/%m/%d" }}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="customer-name">
+                                {{ order.customer.first_name }} {{ order.customer.last_name }}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ order.status }}">
+                                {% if order.status == 'cart' %}
+                                    <i class="fas fa-shopping-cart"></i>
+                                {% elif order.status == 'pending' %}
+                                    <i class="fas fa-clock"></i>
+                                {% elif order.status == 'warehouse' %}
+                                    <i class="fas fa-warehouse"></i>
+                                {% elif order.status == 'ready' %}
+                                    <i class="fas fa-box"></i>
+                                {% elif order.status == 'delivered' %}
+                                    <i class="fas fa-truck"></i>
+                                {% elif order.status == 'parent' %}
+                                    <i class="fas fa-sitemap"></i>
+                                {% elif order.status == 'completed' %}
+                                    <i class="fas fa-check-circle"></i>
+                                {% elif order.status == 'backorder' %}
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                {% elif order.status == 'waiting_for_customer_shipment' %}
+                                    <i class="fas fa-shipping-fast"></i>
+                                {% elif order.status == 'sent_to_warehouse' %}
+                                    <i class="fas fa-arrow-right"></i>
+                                {% elif order.status == 'waiting_for_warehouse_confirmation' %}
+                                    <i class="fas fa-user-check"></i>
+                                {% else %}
+                                    <i class="fas fa-question"></i>
+                                {% endif %}
+                                {{ order.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="price-amount">
+                                <i class="fas fa-coins" style="margin-left: 0.5rem;"></i>
+                                {{ order.total_price|intcomma }} ریال
+                            </div>
+                        </td>
+                        <td>
+                            <a href="{% url 'products:order_detail_view' order.id %}" class="action-btn">
+                                <i class="fas fa-eye"></i>
+                                مشاهده جزئیات
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                            
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// Status counts mapping
+const statusCounts = {
+    'cart': 0,
+    'pending': 0,
+    'warehouse': 0,
+    'ready': 0,
+    'delivered': 0,
+    'parent': 0,
+    'completed': 0,
+    'backorder': 0,
+    'waiting_for_customer_shipment': 0,
+    'sent_to_warehouse': 0,
+    'waiting_for_warehouse_confirmation': 0
+};
+
+// Current filter state
+let currentFilter = 'all';
+
+// Calculate status counts
+document.addEventListener('DOMContentLoaded', function() {
+    const rows = document.querySelectorAll('.modern-table tbody tr[data-status]');
+    
+    rows.forEach(row => {
+        const status = row.getAttribute('data-status');
+        if (statusCounts.hasOwnProperty(status)) {
+            statusCounts[status]++;
+        }
+    });
+    
+    // Update counts in UI
+    Object.keys(statusCounts).forEach(status => {
+        const countElement = document.getElementById(status + '-count');
+        if (countElement) {
+            countElement.textContent = statusCounts[status];
+        }
+    });
+    
+    // Add click event listeners to stat cards
+    document.querySelectorAll('.stat-card').forEach(card => {
+        card.addEventListener('click', function() {
+            const status = this.getAttribute('data-status');
+            filterOrdersByStatus(status);
+            
+            // Update active state
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
+    // Add click event listener to "همه سفارشات" button
+    const allOrdersBtn = document.querySelector('.filter-btn[data-filter="all"]');
+    if (allOrdersBtn) {
+        allOrdersBtn.addEventListener('click', function() {
+            filterOrdersByStatus('all');
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+        });
+    }
+    
+    // Add click event listener to "پاک کردن فیلتر" button
+    const clearFilterBtn = document.getElementById('clear-filter');
+    if (clearFilterBtn) {
+        clearFilterBtn.addEventListener('click', function() {
+            filterOrdersByStatus('all');
+            document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+        });
+    }
+});
+
+// Function to filter orders by status
+function filterOrdersByStatus(status) {
+    const rows = document.querySelectorAll('.modern-table tbody tr[data-status]');
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    
+    rows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        const text = row.textContent.toLowerCase();
+        
+        // Check if row matches both status filter and search term
+        const matchesStatus = status === 'all' || rowStatus === status;
+        const matchesSearch = text.includes(searchTerm);
+        
+        if (matchesStatus && matchesSearch) {
+            row.style.display = '';
+            row.classList.add('animate-fade-in');
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    currentFilter = status;
+    
+    // Update filter button states
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    if (status === 'all') {
+        document.querySelector('.filter-btn[data-filter="all"]').classList.add('active');
+    }
+}
+
+// Update search functionality to work with current filter
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('.modern-table tbody tr[data-status]');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const status = row.getAttribute('data-status');
+                
+                // Check if row matches search term and current filter
+                const matchesSearch = text.includes(searchTerm);
+                const matchesFilter = currentFilter === 'all' || status === currentFilter;
+                
+                if (matchesSearch && matchesFilter) {
+                    row.style.display = '';
+                    row.classList.add('animate-fade-in');
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+});
+
+// تابع برای تنظیم اندازه فونت دکمه‌ها (از پاسخ قبلی)
+function adjustButtonFontSize() {
+    document.querySelectorAll('.action-btn').forEach(button => {
+        const originalText = button.textContent.trim();
+        const icon = button.querySelector('i');
+        
+        if (originalText.includes('مشاهده جزئیات')) {
+            button.style.fontSize = '0.9rem';
+            return; 
+        }
+
+        let currentFontSize = parseFloat(getComputedStyle(button).fontSize);
+        const initialFontSize = 0.9 * 16; 
+        button.style.fontSize = initialFontSize + 'px'; 
+
+        const tempSpan = document.createElement('span');
+        tempSpan.style.visibility = 'hidden';
+        tempSpan.style.position = 'absolute';
+        tempSpan.style.whiteSpace = 'nowrap';
+        tempSpan.style.fontFamily = getComputedStyle(button).fontFamily;
+        tempSpan.style.fontWeight = getComputedStyle(button).fontWeight;
+        document.body.appendChild(tempSpan);
+
+        let iconWidth = 0;
+        if (icon) {
+            iconWidth = icon.offsetWidth + parseFloat(getComputedStyle(button).gap);
+        }
+        
+        let availableWidth = button.clientWidth - parseFloat(getComputedStyle(button).paddingLeft) - parseFloat(getComputedStyle(button).paddingRight) - iconWidth;
+
+        while (true) {
+            tempSpan.style.fontSize = currentFontSize + 'px';
+            tempSpan.textContent = originalText;
+            
+            if (tempSpan.offsetWidth <= availableWidth) {
+                break;
+            }
+            
+            currentFontSize -= 0.5;
+            if (currentFontSize < 8) {
+                currentFontSize = 8;
+                break;
+            }
+        }
+        button.style.fontSize = currentFontSize + 'px';
+        document.body.removeChild(tempSpan);
+    });
+}
+
+
+// تابع جدید برای تنظیم اندازه فونت در stat-card ها
+function adjustStatCardTextSize() {
+    document.querySelectorAll('.stat-card').forEach(card => {
+        const h3 = card.querySelector('.stat-info h3');
+        const p = card.querySelector('.stat-info p');
+        const statIcon = card.querySelector('.stat-icon');
+
+        // Adjust h3 (title) font size
+        if (h3) {
+            let initialH3FontSize = parseFloat(getComputedStyle(h3).fontSize);
+            let currentH3FontSize = initialH3FontSize;
+            h3.style.whiteSpace = 'nowrap'; // Ensure it's single line for width calculation
+            h3.style.overflow = 'hidden';
+
+            // Use a temporary element to measure text width accurately
+            const tempSpan = document.createElement('span');
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'nowrap';
+            tempSpan.style.fontFamily = getComputedStyle(h3).fontFamily;
+            tempSpan.style.fontWeight = getComputedStyle(h3).fontWeight;
+            document.body.appendChild(tempSpan);
+
+            const availableWidthForH3 = card.clientWidth - 
+                                       parseFloat(getComputedStyle(card).paddingLeft) - 
+                                       parseFloat(getComputedStyle(card).paddingRight);
+            
+            while (true) {
+                tempSpan.style.fontSize = currentH3FontSize + 'px';
+                tempSpan.textContent = h3.textContent;
+                
+                if (tempSpan.offsetWidth <= availableWidthForH3) {
+                    break;
+                }
+                currentH3FontSize -= 0.5;
+                if (currentH3FontSize < 8) { // Minimum font size
+                    currentH3FontSize = 8;
+                    break;
+                }
+            }
+            h3.style.fontSize = currentH3FontSize + 'px';
+            document.body.removeChild(tempSpan);
+        }
+
+        // Adjust p (number) font size
+        if (p) {
+            let initialPFontSize = parseFloat(getComputedStyle(p).fontSize);
+            let currentPFontSize = initialPFontSize;
+            p.style.whiteSpace = 'nowrap'; // Ensure it's single line
+            p.style.overflow = 'hidden'; // Hide overflow
+
+            const tempSpan = document.createElement('span');
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'nowrap';
+            tempSpan.style.fontFamily = getComputedStyle(p).fontFamily;
+            tempSpan.style.fontWeight = getComputedStyle(p).fontWeight;
+            document.body.appendChild(tempSpan);
+
+            // Calculate available width for the number, considering the icon position
+            let statIconWidth = 0;
+            if (statIcon) {
+                statIconWidth = statIcon.offsetWidth + parseFloat(getComputedStyle(statIcon).marginLeft || '0') + parseFloat(getComputedStyle(statIcon).marginRight || '0');
+            }
+
+            const availableWidthForP = card.clientWidth - 
+                                       parseFloat(getComputedStyle(card).paddingLeft) - 
+                                       parseFloat(getComputedStyle(card).paddingRight) -
+                                       (p.offsetLeft - card.offsetLeft) - statIconWidth; // Space from right to icon
+
+            // If the icon is positioned absolutely on the left, we need to ensure the number (on the right) doesn't overlap it.
+            // The 'right' property of 'p' already positions it from the right edge.
+            // We need to make sure 'p' doesn't go beyond the left edge of the card or overlap the icon.
+            const iconRightEdge = statIcon ? statIcon.offsetLeft + statIcon.offsetWidth : 0;
+            const pLeftConstraint = statIcon ? iconRightEdge + 5 : 0; // 5px buffer from icon
+
+            while (true) {
+                tempSpan.style.fontSize = currentPFontSize + 'px';
+                tempSpan.textContent = p.textContent;
+                
+                // Check if the text width plus its right positioning exceeds the card's width or overlaps the icon
+                // This is a simplified check. A more robust check might involve actual element positioning.
+                if (tempSpan.offsetWidth + parseFloat(getComputedStyle(p).right) <= card.clientWidth &&
+                    (p.getBoundingClientRect().left >= pLeftConstraint || statIcon === null)) { // Ensure it doesn't overlap icon
+                    break;
+                }
+                currentPFontSize -= 0.5;
+                if (currentPFontSize < 8) { // Minimum font size
+                    currentPFontSize = 8;
+                    break;
+                }
+            }
+            p.style.fontSize = currentPFontSize + 'px';
+            document.body.removeChild(tempSpan);
+        }
+    });
+}
+
+
+document.addEventListener('DOMContentLoaded', function() {
+    // ... کدهای موجود شما ...
+
+    // فراخوانی تابع تنظیم فونت برای دکمه ها
+    adjustButtonFontSize();
+    // فراخوانی تابع تنظیم فونت برای stat-card ها
+    adjustStatCardTextSize();
+
+    // همچنین اگر محتوای دکمه ها یا stat-card ها پویا تغییر میکند، باید این توابع دوباره فراخوانی شوند
+    // مثلاً بعد از فیلتر کردن یا بارگذاری مجدد اطلاعات
+});
+
+</script>
+{% endblock content %}

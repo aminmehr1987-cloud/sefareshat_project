@@ -1,0 +1,1449 @@
+{% extends 'products/base.html' %}
+{% block title %}لیست محصولات{% endblock %}
+
+{% block content %}
+{% load static %}
+{% load custom_filters %}
+{% load humanize %} {# Assuming you need humanize filter for intcomma #}
+
+
+<div class="user-dashboard">
+
+
+    
+    <div class="menu-and-cart-wrapper" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: rem;">
+       
+        <div class="menu-container">
+            <div class="menu-tile products-tile" title="کلیه محصولات" onclick="showTab('all')">
+                <div class="tile-content">
+                    <i class="bi bi-box-seam"></i>
+                    <span>کلیه محصولات</span>
+                </div>
+            </div>
+            <div class="menu-tile price-tile" title="آخرین تغییرات قیمت" onclick="showTab('price')">
+                <div class="tile-content">
+                    <i class="bi bi-cash-coin"></i>
+                    <span>آخرین تغییرات قیمت</span>
+                </div>
+            </div>
+            <div class="menu-tile new-tile" title="کالای جدید" onclick="showTab('new')">
+                <div class="tile-content">
+                    <i class="bi bi-stars"></i>
+                    <span>کالای جدید</span>
+                </div>
+            </div>
+        </div>
+
+        
+    </div>
+    
+    
+
+    <div id="tab-all" class="tab-pane" style="display:block">
+    <h3></h3>
+    
+    <form method="get" style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+        <input type="hidden" name="tab" value="all">
+        <input type="text" name="q" value="{{ q_all|default_if_none:'' }}" placeholder="جستجوی کد یا نام کالا"
+            style="padding: 0.4rem 1rem; border-radius: 8px; width: 220px; border: 1.2px solid #bbb;">
+        <select name="brand" style="padding: 0.4rem 1rem; border-radius: 8px;">
+            <option value="all">همه برندها</option>
+            {% for b in brands %}
+                <option value="{{ b }}" {% if b == selected_brand_all %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+        </select>
+        <select name="car_group" style="padding: 0.4rem 1rem; border-radius: 8px;">
+            <option value="all">همه گروه‌های خودرو</option>
+            {% for g in car_groups %}
+                <option value="{{ g }}" {% if g == selected_car_group_all %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" style="padding:0.4rem 1.5rem; border-radius:8px; background:#2563eb; color:#fff;">فیلتر</button>
+        <a href="?excel_output=all&q={{ q_all|default_if_none:'' }}&brand={{ selected_brand_all|default_if_none:'' }}&car_group={{ selected_car_group_all|default_if_none:'' }}" class="btn btn-green" > خروجی اکسل</a>
+    </form>
+
+    <div style="overflow-x: auto;" class="printable">
+        <table class="price-table"> <!-- **کلاس price-table اضافه شد** -->
+            <thead>
+                <tr>
+                    <th>ردیف</th>
+                    <th>کد کالا</th>
+                    <th>نام کالا</th>
+                    <th class="hide-on-mobile">گروه خودرو</th>
+                    <th class="hide-on-tablet">برند</th>
+                    <th>قیمت (ریال)</th>
+                    <th>تصویر</th>
+                    <th class="hide-on-tablet">حداکثر تسویه</th>
+                    <th>سبد خرید</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in page_obj %}
+                    <tr>
+                        <td>{{ page_obj.start_index|add:forloop.counter0 }}</td>
+                        <td>{{ product.code }}</td>
+                        <td>{{ product.name }}</td>
+                        <td class="hide-on-mobile">{{ product.car_group }}</td>
+                        <td class="hide-on-tablet">{{ product.brand }}</td>
+                        <td>{{ product.price|floatformat:0|intcomma }}</td>
+                        <td>
+                            {% if product.image %}
+                                <img src="{{ product.image.url }}" width="70" alt="{{ product.name }}"
+                                     style="cursor:pointer; border-radius:8px; display:block; margin:auto"
+                                     onclick="showBigImage('{{ product.image.url }}', '{{ product.name }}')">
+                            {% else %}
+                                <span>ندارد</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-on-tablet">
+                            {% if product.max_payment_term == '1m' %}1 ماهه
+                            {% elif product.max_payment_term == '2m' %}2 ماهه
+                            {% elif product.max_payment_term == '3m' %}3 ماهه
+                            {% elif product.max_payment_term == '4m' %}4 ماهه
+                            {% else %}{{ product.get_max_payment_term_display }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <img src="/static/images/add-to-cart-green-3d.png"
+                                    alt="افزودن به سبد خرید"
+                                    style="width:32px;cursor:pointer;"
+                                    onclick="addToCart('{{ product.id }}')">
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9">محصولی موجود نیست.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination-wrapper">
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?tab=all&q={{ q_all|default:'' }}&brand={{ selected_brand_all|default:'' }}&car_group={{ selected_car_group_all|default:'' }}&page_all=1" class="page-link nav-link">&laquo; اول</a>
+                <a href="?tab=all&q={{ q_all|default:'' }}&brand={{ selected_brand_all|default:'' }}&car_group={{ selected_car_group_all|default:'' }}&page_all={{ page_obj.previous_page_number }}" class="page-link nav-link">قبلی</a>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if num == page_obj.number %}
+                    <span class="page-link page-active">{{ num }}</span>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <a href="?tab=all&q={{ q_all|default:'' }}&brand={{ selected_brand_all|default:'' }}&car_group={{ selected_car_group_all|default:'' }}&page_all={{ num }}" class="page-link">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <a href="?tab=all&q={{ q_all|default:'' }}&brand={{ selected_brand_all|default:'' }}&car_group={{ selected_car_group_all|default:'' }}&page_all={{ page_obj.next_page_number }}" class="page-link nav-link">بعدی</a>
+                <a href="?tab=all&q={{ q_all|default:'' }}&brand={{ selected_brand_all|default:'' }}&car_group={{ selected_car_group_all|default:'' }}&page_all={{ page_obj.paginator.num_pages }}" class="page-link nav-link">آخر &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+   <div id="tab-price" class="tab-pane" style="display:none">
+    <h3>  </h3>
+    <form method="get" style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+        <input type="hidden" name="tab" value="price">
+        
+        <input type="text" name="q_price" value="{{ q_price|default_if_none:'' }}" placeholder="جستجوی کد یا نام کالا"
+            style="padding: 0.4rem 1rem; border-radius: 8px; width: 220px; border: 1.2px solid #bbb;">
+        <select name="brand_price" style="padding: 0.4rem 1rem; border-radius: 8px;">
+            <option value="all">همه برندها</option>
+            {% for b in brands %}
+                <option value="{{ b }}" {% if b == selected_brand_price %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+        </select>
+        <select name="car_group_price" style="padding: 0.4rem 1rem; border-radius: 8px;">
+            <option value="all">همه گروه‌های خودرو</option>
+            {% for g in car_groups %}
+                <option value="{{ g }}" {% if g == selected_car_group_price %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" style="padding:0.4rem 1.5rem; border-radius:8px; background:#be185d; color:#fff;">فیلتر</button>
+        <a href="?excel_output=price&q_price={{ q_price|default_if_none:'' }}&brand_price={{ selected_brand_price|default_if_none:'' }}&car_group_price={{ selected_car_group_price|default_if_none:'' }}" class="btn btn-green">خروجی اکسل</a>
+    </form>
+    <div style="overflow-x: auto;" class="printable">
+        <table class="price-table">
+            <thead>
+                <tr>
+                    <th>کد</th>
+                    <th>نام کالا</th>
+                    <th class="hide-on-mobile">ق. قدیم</th>
+                    <th>ق. جدید</th>
+                    <th>درصد</th>
+                    <th class="hide-on-mobile">روند</th>
+                    <th class="hide-on-tablet">تاریخ</th>
+                    <th class="hide-on-tablet">تسویه</th>
+                    <th>تصویر </th>
+                    <th>سبد</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for change in price_changes_page_obj %}  <!-- **تغییر اول اینجاست** -->
+                    <tr>
+                        <td>{{ change.product.code }}</td>
+                        <td>{{ change.product.name }}</td>
+                        <td class="hide-on-mobile">{{ change.old_price|floatformat:0|intcomma }}</td>
+                        <td>{{ change.new_price|floatformat:0|intcomma }}</td>
+                        {% with percentage=change.percentage_change %}
+                            <td class="{% if percentage > 0 %}price-increase{% elif percentage < 0 %}price-decrease{% else %}price-no-change{% endif %}">
+                                {{ percentage|floatformat:1 }}%
+                            </td>
+                            <td class="hide-on-mobile">
+                                {% if percentage > 0 %}
+                                    <i class='bx bx-trending-up bx-sm' style='color: #28a745;'></i>
+                                {% elif percentage < 0 %}
+                                    <i class='bx bx-trending-down bx-sm' style='color: #dc3545;'></i>
+                                {% else %}
+                                    <i class='bx bx-minus bx-sm' style='color: #6c757d;'></i>
+                                {% endif %}
+                            </td>
+                        {% endwith %}
+                        <td class="hide-on-tablet">{{ change.change_date|jformat:"%y/%m/%d" }}</td>
+                        <td class="hide-on-tablet">
+                            {% if change.product.max_payment_term == '1m' %}1 ماهه
+                            {% elif change.product.max_payment_term == '2m' %}2 ماهه
+                            {% elif change.product.max_payment_term == '3m' %}3 ماهه
+                            {% elif change.product.max_payment_term == '4m' %}4 ماهه
+                            {% else %}{{ change.product.get_max_payment_term_display }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if change.product.image %}
+                                <img src="{{ change.product.image.url }}" width="70" alt="{{ change.product.name }}"
+                                     style="cursor:pointer; border-radius:8px; display:block; margin:auto"
+                                     onclick="showBigImage('{{ change.product.image.url }}', '{{ change.product.name }}')">
+                            {% else %}
+                                <span>ندارد</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <img src="/static/images/add-to-cart-green-3d.png" alt="افزودن" style="width:28px;cursor:pointer;" onclick="addToCart('{{ change.product.id }}')">
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="10">تغییر قیمتی ثبت نشده است.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- **تغییر دوم اینجاست: اضافه کردن بلوک صفحه‌بندی** -->
+    {% if price_changes_page_obj.has_other_pages %}
+    <div class="pagination-wrapper">
+        <div class="pagination">
+            {% if price_changes_page_obj.has_previous %}
+                <a href="?tab=price&q_price={{ q_price|default:'' }}&brand_price={{ selected_brand_price|default:'' }}&car_group_price={{ selected_car_group_price|default:'' }}&page_price=1" class="page-link nav-link">&laquo; اول</a>
+                <a href="?tab=price&q_price={{ q_price|default:'' }}&brand_price={{ selected_brand_price|default:'' }}&car_group_price={{ selected_car_group_price|default:'' }}&page_price={{ price_changes_page_obj.previous_page_number }}" class="page-link nav-link">قبلی</a>
+            {% endif %}
+
+            {% for num in price_changes_page_obj.paginator.page_range %}
+                {% if num == price_changes_page_obj.number %}
+                    <span class="page-link page-active">{{ num }}</span>
+                {% elif num > price_changes_page_obj.number|add:'-3' and num < price_changes_page_obj.number|add:'3' %}
+                    <a href="?tab=price&q_price={{ q_price|default:'' }}&brand_price={{ selected_brand_price|default:'' }}&car_group_price={{ selected_car_group_price|default:'' }}&page_price={{ num }}" class="page-link">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if price_changes_page_obj.has_next %}
+                <a href="?tab=price&q_price={{ q_price|default:'' }}&brand_price={{ selected_brand_price|default:'' }}&car_group_price={{ selected_car_group_price|default:'' }}&page_price={{ price_changes_page_obj.next_page_number }}" class="page-link nav-link">بعدی</a>
+                <a href="?tab=price&q_price={{ q_price|default:'' }}&brand_price={{ selected_brand_price|default:'' }}&car_group_price={{ selected_car_group_price|default:'' }}&page_price={{ price_changes_page_obj.paginator.num_pages }}" class="page-link nav-link">آخر &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+    <div id="tab-new" class="tab-pane" style="display:none">
+    <h3>    </h3>
+    
+    <form method="get" style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+        
+        <input type="hidden" name="tab" value="new">
+        <input type="text" name="q_new" value="{{ q_new|default_if_none:'' }}" placeholder="جستجوی کد یا نام کالا"
+            style="padding: 0.4rem 1rem; border-radius: 8px; width: 220px; border: 1.2px solid #bbb;">
+        <select name="brand_new" style="padding: 0.4rem 1rem; border-radius: 8px;">
+            <option value="all">همه برندها</option>
+            {% for b in brands %}
+                <option value="{{ b }}" {% if b == selected_brand_new %}selected{% endif %}>{{ b }}</option>
+            {% endfor %}
+        </select>
+        <select name="car_group_new" style="padding: 0.4rem 1rem; border-radius: 8px;">
+            <option value="all">همه گروه‌های خودرو</option>
+            {% for g in car_groups %}
+                <option value="{{ g }}" {% if g == selected_car_group_new %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" style="padding:0.4rem 1.5rem; border-radius:8px; background:#d97706; color:#fff;">فیلتر</button>
+        <a href="?excel_output=new" class="btn btn-green" > خروجی اکسل</a>
+    </form>
+    
+    <div style="overflow-x: auto;" class="printable">
+        <table class="price-table"> <!-- از همان استایل قبلی استفاده می‌کنیم -->
+            <thead>
+                <tr>
+                    <th>ردیف</th>
+                    <th>کد کالا</th>
+                    <th>نام کالا</th>
+                    <th class="hide-on-mobile">گروه خودرو</th>
+                    <th class="hide-on-tablet">برند</th>
+                    <th>قیمت (ریال)</th>
+                    <th>تصویر</th>
+                    <th class="hide-on-tablet">حداکثر تسویه</th>
+                    <th>سبد خرید</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in new_products_page_obj %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ product.code }}</td>
+                        <td>{{ product.name }}</td>
+                        <td class="hide-on-mobile">{{ product.car_group }}</td>
+                        <td class="hide-on-tablet">{{ product.brand }}</td>
+                        <td>{{ product.price|floatformat:0|intcomma }}</td>
+                        <td>
+                            {% if product.image %}
+                                <img src="{{ product.image.url }}" width="70" alt="{{ product.name }}"
+                                     style="cursor:pointer; border-radius:8px; display:block; margin:auto"
+                                     onclick="showBigImage('{{ product.image.url }}', '{{ product.name }}')">
+                            {% else %}
+                                <span>ندارد</span>
+                            {% endif %}
+                        </td>
+                        <td class="hide-on-tablet">
+                            {% if product.max_payment_term == '1m' %}1 ماهه
+                            {% elif product.max_payment_term == '2m' %}2 ماهه
+                            {% elif product.max_payment_term == '3m' %}3 ماهه
+                            {% elif product.max_payment_term == '4m' %}4 ماهه
+                            {% else %}{{ product.get_max_payment_term_display }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            <img src="/static/images/add-to-cart-green-3d.png"
+                                    alt="افزودن به سبد خرید"
+                                    style="width:32px;cursor:pointer;"
+                                    onclick="addToCart('{{ product.id }}')">
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9">کالای جدیدی در یک هفته اخیر اضافه نشده است.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- کد صفحه‌بندی برای تب کالاهای جدید -->
+    {% if new_products_page_obj.has_other_pages %}
+    <div class="pagination-wrapper">
+        <div class="pagination">
+            {% if new_products_page_obj.has_previous %}
+                <a href="?tab=new&page_new=1" class="page-link nav-link">&laquo; اول</a>
+                <a href="?tab=new&page_new={{ new_products_page_obj.previous_page_number }}" class="page-link nav-link">قبلی</a>
+            {% endif %}
+
+            {% for num in new_products_page_obj.paginator.page_range %}
+                {% if num == new_products_page_obj.number %}
+                    <span class="page-link page-active">{{ num }}</span>
+                {% elif num > new_products_page_obj.number|add:'-3' and num < new_products_page_obj.number|add:'3' %}
+                    <a href="?tab=new&page_new={{ num }}" class="page-link">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if new_products_page_obj.has_next %}
+                <a href="?tab=new&page_new={{ new_products_page_obj.next_page_number }}" class="page-link nav-link">بعدی</a>
+                <a href="?tab=new&page_new={{ new_products_page_obj.paginator.num_pages }}" class="page-link nav-link">آخر &raquo;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div id="imgModal" style="display:none;position:fixed;z-index:9999;left:0;top:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <span style="position:absolute;top:30px;right:40px;font-size:36px;color:#fff;cursor:pointer;" onclick="hideBigImage()">&times;</span>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <img id="modalImg" src="" alt="" style="max-width:60vw;max-height:70vh;display:block;margin:auto;box-shadow:0 0 24px #222;border-radius:15px;">
+        <div id="modalImgCaption" style="color:#fff;text-align:center;font-size:20px;font-weight:bold;margin-top:1rem;"></div>
+    </div>
+</div>
+
+<style>
+/* General table styling */
+.price-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.price-table th, .price-table td {
+    padding: 8px;
+    text-align: center;
+    border: 1px solid #ddd;
+}
+
+/* Media queries for hiding columns */
+@media (max-width: 992px) {
+    .hide-on-tablet { display: none; }
+}
+
+@media (max-width: 768px) {
+    .hide-on-mobile { display: none; }
+    .price-table { font-size: 0.85rem; }
+}
+/* Container for responsive table with horizontal scroll */
+.price-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+/* The table itself */
+.price-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap; /* Prevents text from wrapping */
+}
+
+.price-table th, .price-table td {
+    padding: 10px 12px;
+    text-align: center;
+    border-bottom: 1px solid #eee;
+}
+
+.price-table thead th {
+    background-color: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+}
+
+.price-table tbody tr:hover {
+    background-color: #f5f5f5;
+}
+
+/* Font size adjustments for smaller screens */
+@media (max-width: 992px) {
+    .price-table {
+        font-size: 0.9rem;
+    }
+}
+@media (max-width: 768px) {
+    .price-table {
+        font-size: 0.85rem;
+    }
+}
+
+/* Import Google Fonts if needed, otherwise use local or system fonts */
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+body {
+    font-family: 'BHoma', sans-serif;
+    background-color: transparent;
+    direction: rtl;
+    margin: 0;
+}
+.user-dashboard {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+.header {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+.title {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+}
+.menu-and-cart-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1rem;
+    gap: 1rem;
+    width: 100%;
+}
+
+@media (min-width: 901px) {
+    .menu-and-cart-wrapper {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+}
+.menu-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    padding: 1rem;
+    justify-items: center;
+    flex-grow: 1;
+    width: 100%;
+}
+
+@media (max-width: 900px) {
+    .menu-container {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        padding: 0.75rem;
+    }
+    .menu-tile {
+        height: 90px;
+        max-width: none;
+        min-width: 0;
+    }
+    .menu-tile i {
+        font-size: 1.5rem;
+        margin-bottom: 0.3rem;
+    }
+    .menu-tile span {
+        font-size: 0.9rem;
+    }
+    .user-dashboard {
+        padding: 1rem 0.5rem;
+    }
+}
+
+.menu-tile {
+    cursor: pointer;
+    height: 110px;
+    border-radius: 15px;
+    overflow: hidden;
+    text-decoration: none;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    transition: all 0.3s;
+    display: flex;
+    align-items: stretch;
+    width: 100%;
+    max-width: 290px;
+    min-width: 120px;
+    border: 2px solid transparent;
+}
+.menu-tile:hover, .menu-tile.active {
+    border: 2px solid #fff;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+    transform: translateY(-7px) scale(1.04);
+}
+.tile-content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1.1rem 0.3rem;
+    color: white;
+    text-align: center;
+}
+.menu-tile i {
+    font-size: 1.8rem;
+    margin-bottom: 0.5rem;
+}
+.menu-tile span {
+    font-size: 1rem;
+    font-weight: 700;
+}
+.products-tile { background: linear-gradient(135deg, #36b98e, #2563eb); }
+.price-tile    { background: linear-gradient(135deg, #e67487, #be185d); }
+.new-tile      { background: linear-gradient(135deg, #e6bf7c, #d97706); }
+.tab-pane, .wide-tab-pane {
+    background: rgba(255, 255, 255, 0.35);
+    padding: 2rem 0.5rem;
+    min-height: 200px;
+    margin: 0;
+    border-radius: 24px;
+    width: 91.5vw;
+    max-width: calc(100% - 1rem);
+    position: relative;
+    left: 50%;
+    transform: translate(-50%, 0%);
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    border: 1.5px solid rgba(255,255,255,0.45);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.14);
+}
+
+/* Specific styling for cart icon and popup */
+#cart-icon-container {
+    position: relative;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+.cart-3d-icon {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  display: inline-block;
+  transition: transform 0.2s cubic-bezier(.4,2.3,.3,1), box-shadow 0.2s;
+}
+.cart-3d-icon:hover {
+  transform: scale(1.18) rotate(-6deg);
+  box-shadow: 0 8px 22px #1fa74b44;
+  background: transparent !important;
+}
+
+.pagination-wrapper {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.pagination {
+    display: inline-flex;
+    gap: 0.25rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.page-link {
+    display: inline-block;
+    min-width: 28px;
+    padding: 4px 8px;
+    margin: 0 1.5px;
+    background: #ffffff;
+    color: #000000;
+    border: 1.5px solid #000000;
+    border-radius: 7px;
+    font-weight: bold;
+    text-decoration: none;
+    font-size: 0.98rem;
+    transition: 0.2s;
+    cursor: pointer;
+    box-shadow: 0 2px 10px 0 rgba(31, 38, 135, 0.08);
+}
+
+.page-link:hover, .page-link:focus {
+    background: #ffd600;
+    color: #000000;
+    text-decoration: none;
+}
+
+.page-link.page-active {
+    background: #ffd600;
+    color: #000000;
+    pointer-events: none;
+    box-shadow: 0 4px 18px 0 rgba(31, 38, 135, 0.16);
+}
+
+.page-link.nav-link {
+    background: #f3f4f6;
+    color: #444;
+    border: 1.5px solid #bbb;
+}
+
+@media (max-width: 600px) {
+    .pagination { gap: 0.12rem; }
+    .page-link { min-width: 20px; padding: 2px 5px; font-size: 0.83rem; }
+}
+
+/* Responsive adjustments for overall layout */
+@media (max-width: 900px) {
+    .user-dashboard {
+        padding: 1rem;
+    }
+
+    .menu-and-cart-wrapper {
+        margin-bottom: 2rem; /* ← فاصله کافی از تب‌ها */
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.5rem;
+        position: relative;
+        z-index: 10;
+    }
+    .tab-pane, .wide-tab-pane {
+    margin-top: 0 !important;  /* جلوگیری از فشار رو به بالا */
+    padding-top: 1rem;         /* اطمینان از فضای داخلی */
+    z-index: 1;
+    position: relative;
+  }
+
+
+    .menu-container {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: center;
+        align-items: stretch;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0;
+        position: relative;
+        z-index: 10;
+        box-sizing: border-box;
+    }
+
+    .menu-tile {
+        flex: 1 1 130px;
+        max-width: 45%;
+        min-width: 120px;
+        height: 90px;
+    }
+
+    #cart-icon-container {
+        margin-left: 0;
+        align-self: flex-end;
+    }
+
+    .tile-content {
+        padding: 0.7rem 0.2rem;
+    }
+
+    .menu-tile i {
+        font-size: 1.3rem;
+    }
+
+    .menu-tile span {
+        font-size: 0.85rem;
+    }
+    
+
+    .tab-pane,
+    .wide-tab-pane {
+        padding: 1.5rem 0.5rem;
+        width: 95vw;
+        max-width: calc(100% - 1rem);
+        position: relative;
+        z-index: 1;
+        margin-top: 1rem;
+    }
+}
+@media (max-width: 600px) {
+    .user-dashboard { padding: 0.5rem; }
+    .menu-and-cart-wrapper {
+        gap: 1rem;
+    }
+    .menu-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        padding: 1rem;
+        justify-items: center;
+        flex-grow: 1;
+        width: 100%;
+    }
+    .menu-tile {
+        height: 70px;
+        width: 95%;
+        min-width: 120px;
+        max-width: 290px;
+    }
+    .tile-content { padding: 0.3rem 0.1rem;}
+    .menu-tile i { font-size: 1rem; }
+    .tile-desc { font-size: 0.9rem; }
+    .tab-pane, .wide-tab-pane {
+        padding: 1rem 0.5rem;
+        width: 98vw; /* Adjusted for very small screens */
+        max-width: calc(100% - 0.5rem);
+    }
+}
+
+/* Modal Styles */
+  .customer-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+  }
+  
+  .customer-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 800px;
+    border-radius: 15px;
+    position: relative;
+    direction: rtl;
+  }
+  
+  .customer-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .customer-modal-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+  }
+  
+  .close-modal {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  
+  .close-modal:hover {
+    color: #000;
+  }
+  
+  .customer-search-box {
+    width: 80%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-right: 20px;
+    float: right;
+  }
+  
+  .customers-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .customers-table th,
+  .customers-table td {
+    padding: 12px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .customers-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+  }
+  
+  .customers-table tr:hover {
+    background-color: #f9f9f9;
+    cursor: pointer;
+  }
+  
+  .select-customer-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+
+  .customer-actions {
+    display: flex;
+    margin-bottom: 20px;
+    justify-content: flex-start;
+  }
+  
+  .customer-input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .customer-input-group input {
+    width: 300px;
+    padding: 8px 15px;
+    border: 1px solid #000;
+    border-radius: 14px;
+    font-size: 13px;
+    font-family: 'b homa', Tahoma, sans-serif;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+  }
+
+
+  .add-customer-btn {
+    background: #10b981;
+    color: #000;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: 'b homa', Tahoma, sans-serif;
+    text-decoration: none;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  
+  .add-customer-btn:hover {
+    background: #059669;
+    color: #000;
+  }
+
+
+@media (max-width: 900px) {
+    form[method="get"] {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.5rem !important;
+    }
+    form[method="get"] input,
+    form[method="get"] select,
+    form[method="get"] button {
+        width: 100% !important; /* اضافه شده: عرض 100% برای همه عناصر فرم */
+        box-sizing: border-box; /* اضافه شده: برای اطمینان از اینکه padding و border در عرض حساب شوند */
+    }
+
+    table {
+        font-size: 0.85rem;
+    }
+    table thead {
+        font-size: 0.9rem;
+    }
+}
+
+
+@media (max-width: 500px) {
+    .tab-pane, .wide-tab-pane {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        left: 25px!important;
+        transform: none !important;
+        border-radius: 0 !important;
+        padding: 1rem 0.5rem !important;
+        box-sizing: border-box !important;
+    }
+
+    .user-dashboard {
+        padding: 0.5rem !important;
+    }
+
+    form[method="get"] {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.75rem !important;
+        width: 99% !important;
+    }
+
+    form[method="get"] input,
+    form[method="get"] select,
+    form[method="get"] button {
+        width: 99% !important;
+        box-sizing: border-box !important;
+    }
+
+    .table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        table-layout: auto !important;
+        font-size: 0.68rem !important;
+    }
+}
+
+.price-increase {
+    color: green;
+    font-weight: bold;
+}
+.price-decrease {
+    color: red;
+    font-weight: bold;
+}
+.price-no-change {
+    color: black;
+    font-weight: normal;
+}
+
+
+/* استایل‌های عمومی برای دکمه‌های اکسل */
+.btn {
+    text-decoration: none;
+    padding: 0.1rem 1.5rem; /* پدینگ برای کنترل اندازه باکس */
+    border: 2px solid #000000;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'BHoma', sans-serif; /* فونت دکمه */
+    font-size: 0.9rem; /* اندازه فونت */
+    
+    /* استایل‌های برای وسط چین کردن متن و رفتار دکمه */
+    display: inline-flex;
+    align-items: center; /* تراز عمودی متن در وسط */
+    justify-content: center; /* تراز افقی متن در وسط */
+    box-sizing: border-box; /* برای محاسبه صحیح عرض و پدینگ */
+    
+    /* **جدید:** محدود کردن عرض در ویندوز/دسکتاپ */
+    max-width: 180px; /* حداکثر عرض در صفحه نمایش‌های بزرگتر از 900px */
+}
+
+/* استایل‌های رنگی خاص برای دکمه‌های اکسل */
+.btn-green { background: #1b8023; } /* رنگ سبز */
+.btn-red { background: #be185d; }   /* رنگ قرمز */
+.btn-orange { background: #d97706; } /* رنگ نارنجی */
+
+/* تنظیمات مخصوص موبایل برای دکمه‌های اکسل */
+@media (max-width: 900px) {
+    .btn {
+        width: 99% !important; /* **جدید:** در موبایل عرض دکمه تمام صفحه می‌شود (این قانون max-width بالا را override می‌کند) */
+        max-width: none !important; /* **جدید:** برای اطمینان از اینکه max-width در موبایل اعمال نشود */
+        padding: 0.5rem 1.5rem;
+        border: 2px solid #000000;
+    }
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<script>
+    // تعریف متغیر allProducts برای ذخیره اطلاعات کالاها
+    let allProducts = [];
+
+    // تابع برای دریافت اطلاعات کالاها
+    async function fetchProducts() {
+        try {
+            const response = await fetch('/api/products/');
+            if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+            const data = await response.json();
+            allProducts = data.products || [];
+        } catch (error) {
+            console.error('Fetch Products Error:', error);
+            allProducts = [];
+        }
+    }
+
+    // دریافت اطلاعات کالاها در هنگام بارگذاری صفحه
+    window.addEventListener('DOMContentLoaded', function() {
+        fetchProducts();
+        renderCartPopup();
+    });
+
+
+function renderCartPopup() {
+    // دریافت کالاهای sessionStorage
+    var pendingProducts = JSON.parse(sessionStorage.getItem('pending_products') || '[]');
+    
+    // اگر کالایی در sessionStorage وجود دارد، فقط آنها را نمایش بده
+    if (pendingProducts.length > 0) {
+        let cart = pendingProducts.map(function(pendingProduct) {
+            return {
+                id: 'pending_' + (pendingProduct.id || pendingProduct.product_id),
+                product_name: pendingProduct.name || pendingProduct.product_name || 'نامشخص',
+                product_code: pendingProduct.code || pendingProduct.product_code || '',
+                price: Number(pendingProduct.price) || 0,
+                quantity: Number(pendingProduct.quantity) || 1,
+                image: null,
+                is_pending: true
+            };
+        });
+        
+        let cartCount = cart.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        document.getElementById('cart-count-badge').innerText = cartCount || '۰';
+
+        let html = '';
+        if (cart.length === 0) {
+            html = '<div class="cart-empty">سبد خرید خالی است</div>';
+        } else {
+            cart.forEach((item, idx) => {
+                html += generateCartItemHtml(item);
+            });
+            
+            // اضافه کردن پیام برای انتخاب مشتری
+            const customerInput = document.getElementById('selected-customer-id');
+            if (!customerInput || !customerInput.value) {
+                html += `
+                <div class="cart-message warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    لطفاً برای تکمیل سفارش، ابتدا مشتری را انتخاب کنید
+                </div>`;
+            }
+        }
+        
+        document.getElementById('cart-popup-content').innerHTML = html;
+        
+        // محاسبه جمع کل
+        let total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        document.getElementById('cart-total-value').innerText = total.toLocaleString();
+        
+        return;
+    }
+    
+    // اگر کالایی در sessionStorage نیست، سعی کن از API بگیر
+    const customerInput = document.getElementById('selected-customer-id');
+    let customerId = customerInput ? customerInput.value : null;
+    let cartApiUrl = '/api/cart/';
+    if (customerId) {
+        cartApiUrl += '?customer_id=' + encodeURIComponent(customerId);
+    }
+    fetch(cartApiUrl, {
+        credentials: "same-origin",
+        headers: {
+            "X-Requested-With": "XMLHttpRequest"
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (!data.success) {
+            document.getElementById('cart-popup-content').innerHTML = `
+                <div class="cart-empty">
+                    ${data.message || 'سبد خرید خالی است'}
+                </div>`;
+            document.getElementById('cart-total-value').innerText = '۰';
+            document.getElementById('cart-count-badge').innerText = '۰';
+            return;
+        }
+        let cart = data.cart || [];
+        
+        let cartCount = cart.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        document.getElementById('cart-count-badge').innerText = cartCount || '۰';
+
+        let html = '';
+        if (cart.length === 0) {
+            html = '<div class="cart-empty">سبد خرید خالی است</div>';
+        } else {
+            cart.forEach((item, idx) => {
+                html += generateCartItemHtml(item);
+            });
+        }
+        
+        document.getElementById('cart-popup-content').innerHTML = html;
+        
+        // محاسبه جمع کل
+        let total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        document.getElementById('cart-total-value').innerText = total.toLocaleString();
+    })
+    .catch(error => {
+        console.error('Error fetching cart:', error);
+        document.getElementById('cart-popup-content').innerHTML = `
+            <div class="cart-error">
+                <i class="fas fa-exclamation-circle"></i>
+                خطا در دریافت اطلاعات سبد خرید
+            </div>`;
+        document.getElementById('cart-total-value').innerText = '۰';
+        document.getElementById('cart-count-badge').innerText = '۰';
+    });
+}
+
+// تابع کمکی برای تولید HTML آیتم سبد خرید
+function generateCartItemHtml(item) {
+    const productDetails = [
+        { label: 'کد', value: item.product_code },
+        { label: 'برند', value: item.brand },
+        { label: 'خودرو', value: item.car_group },
+        { label: 'انبار', value: item.warehouse }
+    ].filter(detail => detail.value);
+
+    return `
+    <div class="cart-item-row">
+        <div class="cart-item-details">
+            ${item.image ? 
+                `<img src="${item.image}" alt="${item.product_name}" class="cart-item-img">` : 
+                `<div class="cart-item-img-placeholder"></div>`
+            }
+            <div class="cart-item-info">
+                <div class="cart-item-title">${item.product_name}</div>
+                <div class="cart-item-specs">
+                    ${productDetails.map(detail => 
+                        `<div class="cart-item-spec">
+                            <span class="spec-label">${detail.label}:</span>
+                            <span class="spec-value">${detail.value}</span>
+                        </div>`
+                    ).join('')}
+                </div>
+                <div class="cart-item-price-row">
+                    <span class="cart-item-price">قیمت واحد: ${item.price.toLocaleString()} ریال</span>
+                    <span class="cart-item-total">جمع: ${(item.price * item.quantity).toLocaleString()} ریال</span>
+                </div>
+            </div>
+        </div>
+        <div class="cart-item-actions">
+            <button class="cart-btn-remove" onclick="removeCartItem('${item.id}')" title="حذف">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+            <div class="cart-qty-controls">
+                <button class="cart-btn-qty" onclick="changeQty('${item.id}',1)" title="افزایش تعداد">+</button>
+                <div class="cart-item-qty">${item.quantity}</div>
+                <button class="cart-btn-qty" onclick="changeQty('${item.id}',-1)" title="کاهش تعداد">-</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function changeQty(itemId, delta) {
+    var customerInput = document.getElementById('selected-customer-id');
+    var customer_id = customerInput ? customerInput.value : null;
+
+    fetch('/api/cart/change_qty/', {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        body: JSON.stringify({item_id: itemId, delta: delta, customer_id: customer_id})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) renderCartPopup();
+        else alert(data.message || "خطا در تغییر تعداد");
+    });
+}
+
+function removeCartItem(itemId) {
+    // دریافت customer_id از صفحه
+    var customerInput = document.getElementById('selected-customer-id');
+    var customer_id = customerInput ? customerInput.value : null;
+
+    // بررسی اینکه آیا این کالا از sessionStorage است یا نه
+    if (itemId.startsWith('pending_')) {
+        // کالای sessionStorage
+        var pendingProducts = JSON.parse(sessionStorage.getItem('pending_products') || '[]');
+        var productId = itemId.replace('pending_', '');
+        // اضافه کردن بررسی product_id برای سازگاری با ساختارهای مختلف آیتم در sessionStorage
+        pendingProducts = pendingProducts.filter(p => {
+            const currentItemId = p.id || p.product_id; // ممکن است id یا product_id باشد
+            return currentItemId != productId;
+        });
+        sessionStorage.setItem('pending_products', JSON.stringify(pendingProducts));
+        renderCartPopup();
+        return;
+    }
+    
+    // کالای دیتابیس
+    fetch('/api/cart/remove_item/', {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        // اطمینان از ارسال customer_id
+        body: JSON.stringify({item_id: itemId, customer_id: customer_id })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderCartPopup();
+        } else {
+            alert(data.message || "خطا در حذف آیتم");
+        }
+    })
+    .catch(error => {
+        console.error('Error removing cart item:', error);
+        alert("خطا در ارتباط با سرور هنگام حذف آیتم.");
+    });
+}
+
+
+
+
+function toggleCartPopup(e) {
+    e.stopPropagation();
+    renderCartPopup();
+    let popup = document.getElementById('cart-popup');
+    popup.style.display = (popup.style.display === 'block') ? 'none' : 'block';
+}
+
+// بستن پاپ‌آپ با کلیک بیرون از آن
+document.addEventListener('click', function(event) {
+    let popup = document.getElementById('cart-popup');
+    let cartIconBtn = document.getElementById('cart-icon-btn'); // Get the button reference
+    if (popup && popup.style.display === 'block' && !popup.contains(event.target) && !cartIconBtn.contains(event.target)) {
+        popup.style.display = 'none';
+    }
+});
+
+// جلوگیری از انتشار رویداد کلیک در داخل پاپ‌آپ
+document.getElementById('cart-popup').addEventListener('click', function(e){
+    e.stopPropagation();
+});
+
+window.addEventListener('DOMContentLoaded', renderCartPopup);
+
+
+// افزودن کالا به سبد خرید محلی
+function addToCart(product_id) {
+    // بررسی نوع کاربر و مشتری
+    var isVisitor = document.body.classList.contains('is-visitor');
+    var isCustomer = document.body.classList.contains('is-customer');
+    
+    // اگر مشتری هست، نیازی به بررسی customer_id نیست
+    if (!isCustomer && !isVisitor) {
+        // اگر نه مشتری هست و نه ویزیتور، احتمالاً خطایی رخ داده
+        alert('خطا در تشخیص نوع کاربر');
+        return;
+    }
+    
+    var customer_id = null;
+    if (isVisitor) {
+        // فقط برای ویزیتور نیاز به انتخاب مشتری داریم
+        var customerInput = document.getElementById('selected-customer-id');
+        customer_id = customerInput ? customerInput.value : null;
+        if (!customer_id || customer_id === '') {
+            alert('لطفاً ابتدا مشتری را انتخاب کنید.');
+            return;
+        }
+    }
+
+    // ارسال درخواست به سرور
+    fetch('/add_to_cart/', {
+        method: 'POST',
+        credentials: "same-origin",
+        headers: {
+            'Content-Type': 'application/json',
+            "X-CSRFToken": getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            product_id: product_id,
+            quantity: 1,
+            customer_id: customer_id
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.success) {
+            renderCartPopup();
+            alert('کالا به سبد خرید اضافه شد!');
+        } else {
+            alert(data.message || 'خطا در افزودن به سبد خرید');
+        }
+    })
+    .catch(() => {
+        alert('خطا در ارتباط با سرور');
+    });
+}
+
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function showTab(tab) {
+    // همه تب‌ها را مخفی کن
+    document.getElementById('tab-all').style.display = 'none';
+    document.getElementById('tab-price').style.display = 'none';
+    document.getElementById('tab-new').style.display = 'none';
+    // تب انتخاب‌شده را نمایش بده
+    document.getElementById('tab-' + tab).style.display = 'block';
+
+    // حالت فعال برای موزاییک‌ها
+    document.querySelectorAll('.menu-tile').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    if(tab==="all") document.querySelector('.products-tile').classList.add('active');
+    if(tab==="price") document.querySelector('.price-tile').classList.add('active');
+    if(tab==="new") document.querySelector('.new-tile').classList.add('active');
+    
+    // ذخیره تب فعال در localStorage
+    localStorage.setItem('activeTab', tab);
+}
+window.onload = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('tab') || localStorage.getItem('activeTab') || 'all';
+    showTab(activeTab);
+};
+
+
+// تصویر بزرگ
+function showBigImage(src, caption) {
+    document.getElementById('imgModal').style.display = 'flex';
+    document.getElementById('modalImg').src = src;
+    document.getElementById('modalImgCaption').innerText = caption || '';
+}
+function hideBigImage() {
+    document.getElementById('imgModal').style.display = 'none';
+}
+// برای بستن با کلیک بیرون عکس
+document.getElementById('imgModal').onclick = function(event) {
+    if(event.target === this) hideBigImage();
+}
+
+window.openCustomerModal = function () {
+    const modal = document.getElementById('customerModal');
+    if (modal) {
+        modal.style.display = 'block';
+        loadCustomers('');
+    }
+};
+
+window.closeCustomerModal = function () {
+    const modal = document.getElementById('customerModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+};
+
+window.selectCustomer = function (customerId, customerName) {
+    const idInput = document.getElementById('selected-customer-id');
+    const displayInput = document.getElementById('selected-customer-display');
+    if (idInput && displayInput) {
+        idInput.value = customerId;
+        displayInput.value = customerName;
+        closeCustomerModal();
+        if (typeof renderCartPopup === "function") renderCartPopup();
+    }
+};
+
+// لود کردن لیست مشتریان (همه یا جستجو)
+function loadCustomers(query) {
+    fetch(`/search-customers/?q=${encodeURIComponent(query || '')}`)
+        .then(response => response.json())
+        .then(data => {
+            const tbody = document.getElementById('customersTableBody');
+            tbody.innerHTML = '';
+            data.customers.forEach(customer => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${customer.first_name}</td>
+                    <td>${customer.last_name}</td>
+                    <td>${customer.store_name || ''}</td>
+                    <td>${customer.mobile || ''}</td>
+                    <td>
+                        <button class="select-customer-btn" onclick="selectCustomer(${customer.id}, '${customer.first_name} ${customer.last_name}')">انتخاب</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        });
+}
+
+// هندل سرچ باکس (در صورت تایپ کاربر)
+document.getElementById('customerSearchInput').addEventListener('input', function () {
+    loadCustomers(this.value);
+});
+
+
+
+
+
+</script>
+
+
+
+{% endblock %}

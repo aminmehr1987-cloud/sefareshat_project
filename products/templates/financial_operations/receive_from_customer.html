@@ -1,0 +1,769 @@
+{% extends "products/base.html" %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}دریافت از طرف حساب{% endblock %}
+
+{% block content %}
+<!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<script src="https://unpkg.com/moment/min/moment.min.js"></script>
+<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
+
+<div class="financial-operation-container">
+    <!-- نمایش پیام‌های سیستم -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    <div class="operation-header">
+        <h2><i class="bi bi-cash-coin"></i> دریافت از طرف حساب</h2>
+    </div>
+    
+    <div class="form-card">
+        <form method="post" class="operation-form" onsubmit="return handleFormSubmit(event)">
+            {% csrf_token %}
+            {{ form.operation_type }}
+            
+            <!-- نمایش خطاهای فرم -->
+            {% if form.errors %}
+            <div class="alert alert-danger">
+                <h6>خطاهای موجود:</h6>
+                {% for field, errors in form.errors.items %}
+                    {% for error in errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="customer_display">مشتری</label>
+                    <div class="customer-input-group">
+                        <input type="text" id="customer_display" class="form-control" placeholder="برای انتخاب مشتری کلیک کنید" readonly value="{% if form.customer.value %}{% for customer in customers %}{% if customer.id == form.customer.value %}{{ customer.get_full_name }}{% endif %}{% endfor %}{% endif %}">
+                        <input type="hidden" id="id_customer" name="customer" value="{{ form.customer.value|default:'' }}">
+                        <button type="button" class="btn btn-outline-primary customer-select-btn" onclick="openCustomerModal()">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                    {% if form.customer.errors %}
+                        <div class="text-danger">{{ form.customer.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_amount"><i class="bi bi-currency-dollar"></i> مبلغ</label>
+                    {{ form.amount }}
+                    {% if form.amount.errors %}
+                        <div class="text-danger">{{ form.amount.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_date_shamsi"><i class="bi bi-calendar"></i> تاریخ</label>
+                    {{ form.date_shamsi }}
+                    {% if form.date_shamsi.errors %}
+                        <div class="text-danger">{{ form.date_shamsi.errors }}</div>
+                    {% endif %}
+                </div>
+                <div class="form-group">
+                    <label for="id_payment_method"><i class="bi bi-credit-card"></i> روش پرداخت</label>
+                    {{ form.payment_method }}
+                    {% if form.payment_method.errors %}
+                        <div class="text-danger">{{ form.payment_method.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="form-group full-width">
+                <label for="id_description"><i class="bi bi-text-paragraph"></i> توضیحات</label>
+                {{ form.description }}
+                {% if form.description.errors %}
+                    <div class="text-danger">{{ form.description.errors }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check-circle"></i> ثبت عملیات
+                </button>
+                <a href="{% url 'products:accounting_panel' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-right"></i> بازگشت
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Customer Selection Modal -->
+<div id="customerModal" class="customer-modal">
+    <div class="customer-modal-content">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">انتخاب مشتری</span>
+            <span class="close-modal" onclick="closeCustomerModal()">×</span>
+        </div>
+        <input type="text" id="customerSearch" class="customer-search-box" placeholder="جستجوی مشتری بر اساس نام..." onkeyup="searchCustomers()">
+        <table class="customers-table">
+            <thead>
+                <tr>
+                    <th>نام</th>
+                    <th>نام خانوادگی</th>
+                    <th>فروشگاه</th>
+                    <th>موبایل</th>
+                    <th>تلفن</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="customerList">
+                <!-- Customer rows will be populated here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+/* استایل‌های Alert */
+.alert {
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: none;
+    font-family: 'BHoma', sans-serif;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    color: #155724;
+    border-left: 4px solid #28a745;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+    color: #721c24;
+    border-left: 4px solid #dc3545;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    color: #856404;
+    border-left: 4px solid #ffc107;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #d1ecf1, #bee5eb);
+    color: #0c5460;
+    border-left: 4px solid #17a2b8;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: inherit;
+    opacity: 0.7;
+    cursor: pointer;
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+@font-face {
+    font-family: 'Vazirmatn Local';
+    src: url('/static/fonts/Vazir.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+.financial-operation-container {
+    width: 99%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.operation-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.operation-header h2 {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.operation-header h2 i {
+    color: #3b82f6;
+}
+
+.form-card {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.operation-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+}
+
+.form-group label i {
+    color: #3b82f6;
+}
+
+/* بخش اصلاح شده - طبق نمونه purchase_invoice */
+.form-control {
+    padding: 0.375rem 1rem;
+    line-height: 1.5;
+    font-size: 1rem;
+    height: 38px !important; /* اجبار به ارتفاع ثابت */
+    box-sizing: border-box;
+    font-family: 'BHoma', sans-serif;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    width: 100%;
+    vertical-align: middle;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+}
+
+.form-control[readonly] {
+    background-color: #ffffff;
+    cursor: pointer;
+    height: 38px !important;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-control::placeholder {
+    color: #9ca3af;
+}
+
+/* Customer Input Group - طبق نمونه purchase_invoice */
+.customer-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.customer-input-group .form-control {
+    flex: 1;
+}
+
+.customer-select-btn {
+    padding: 0.375rem 0.75rem;
+    height: 38px;
+    border: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    color: #6b7280;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.customer-select-btn:hover {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+/* Customer Modal Styles */
+.customer-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.customer-modal-content {
+    background-color: #fafafa;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 800px;
+    border-radius: 15px;
+    position: relative;
+    direction: rtl;
+}
+
+.customer-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.customer-modal-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.close-modal {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-modal:hover {
+    color: #000;
+}
+
+.customer-search-box {
+    width: 80%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-right: 20px;
+    float: right;
+}
+
+.customers-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.customers-table th,
+.customers-table td {
+    padding: 12px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+}
+
+.customers-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+.customers-table tr:hover {
+    background-color: #f9f9f9;
+    cursor: pointer;
+}
+
+.select-customer-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* استایل‌های Persian Datepicker */
+#id_date_shamsi {
+    padding: 0.375rem 1rem !important;
+    height: 38px !important;
+    line-height: 1.5 !important;
+    cursor: pointer;
+}
+
+.datepicker-plot-area {
+    font-family: 'Vazirmatn Local', sans-serif !important;
+    border-radius: 16px;
+    overflow: hidden;
+    z-index: 10000;
+}
+
+.datepicker-plot-area .datepicker-navigator,
+.datepicker-plot-area .datepicker-days-name span,
+.datepicker-plot-area .datepicker-day-view span,
+.datepicker-plot-area .datepicker-month-view span,
+.datepicker-plot-area .datepicker-year-view span {
+    font-family: 'Vazirmatn Local', sans-serif !important;
+}
+
+.datepicker-plot-area input {
+    font-family: 'BHoma', sans-serif !important;
+    font-size: 1rem !important;
+    padding: 0.375rem 1rem !important;
+    height: 38px !important;
+    line-height: 1.5 !important;
+    box-sizing: border-box !important;
+}
+
+.datepicker-plot-area .datepicker-navigator {
+    border-radius: 16px 16px 0 0;
+}
+
+.datepicker-plot-area .datepicker-day-view span {
+    border-radius: 10px;
+}
+
+.datepicker-plot-area .datepicker-month-view span,
+.datepicker-plot-area .datepicker-year-view span {
+    border-radius: 10px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(59, 130, 246, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(107, 114, 128, 0.4);
+}
+
+.btn-outline-primary {
+    background: transparent;
+    color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+.btn-outline-primary:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .financial-operation-container {
+        padding: 1rem;
+        width: 100%;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .form-card {
+        padding: 1.5rem;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .customer-modal-content {
+        width: 95%;
+        margin: 10% auto;
+        padding: 15px;
+    }
+    
+    .customer-search-box {
+        width: 100%;
+        margin-right: 0;
+    }
+}
+
+@media (max-width: 480px) {
+    .financial-operation-container {
+        padding: 0.5rem;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.3rem;
+    }
+    
+    .form-card {
+        padding: 1rem;
+    }
+    
+    .form-control {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .customer-modal-content {
+        width: 98%;
+        margin: 5% auto;
+        padding: 10px;
+    }
+}
+</style>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<!-- Persian Datepicker Script -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Persian Datepicker initialization
+    $("#id_date_shamsi").pDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValueType: 'persian',
+        autoClose: true,
+        persianDigit: true,
+        observer: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        onSelect: function(unix) {
+            var m = moment(unix);
+            var shamsiDate = m.format('jYYYY/jMM/jDD');
+            var gregorianDate = m.format('YYYY-MM-DD');
+            
+            console.log('Date selected:', {
+                unix: unix,
+                shamsi: shamsiDate,
+                gregorian: gregorianDate
+            });
+            
+            // Update the input value with properly formatted shamsi date
+            $(this).val(shamsiDate);
+        },
+        toolbox: {
+            calendarSwitch: {
+                enabled: false
+            }
+        },
+        initialValue: true,
+        altField: '#date-alt',
+        altFormat: 'YYYY-MM-DD'
+    });
+    
+    // Initialize customer modal functionality
+    initializeCustomerModal();
+});
+
+// Customer Modal Functions
+let customers = [];
+let selectedCustomer = null;
+
+function initializeCustomerModal() {
+    // Load customers from Django context or API
+    loadCustomers();
+    
+    // Close modal when clicking outside
+    document.getElementById('customerModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeCustomerModal();
+        }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeCustomerModal();
+        }
+    });
+}
+
+function loadCustomers() {
+    // Load real customer data from Django context
+    /* eslint-disable */
+    customers = [
+        {% for customer in customers %}
+        {
+            id: {{ customer.id }},
+            name: '{{ customer.first_name|escapejs }}',
+            last_name: '{{ customer.last_name|escapejs }}',
+            phone: '{{ customer.phone|default:""|escapejs }}',
+            mobile: '{{ customer.mobile|default:""|escapejs }}',
+            email: '{{ customer.user.email|default:""|escapejs }}',
+            store_name: '{{ customer.store_name|default:""|escapejs }}',
+            address: '{{ customer.address|default:""|escapejs }}'
+        }{% if not forloop.last %},{% endif %}
+        {% endfor %}
+    ];
+    /* eslint-enable */
+    
+    renderCustomerList(customers);
+}
+
+function renderCustomerList(customersToRender) {
+    const customerList = document.getElementById('customerList');
+    customerList.innerHTML = '';
+    
+    if (customersToRender.length === 0) {
+        customerList.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">مشتری یافت نشد</td></tr>';
+        return;
+    }
+    
+    customersToRender.forEach(customer => {
+        const customerRow = document.createElement('tr');
+        customerRow.className = 'customer-item';
+        
+        customerRow.innerHTML = `
+            <td>${customer.name}</td>
+            <td>${customer.last_name}</td>
+            <td>${customer.store_name || ''}</td>
+            <td>${customer.mobile || ''}</td>
+            <td>${customer.phone || ''}</td>
+            <td style="text-align: center;">
+                <button type="button" class="select-customer-btn" onclick="selectCustomerById(${customer.id})">
+                    انتخاب
+                </button>
+            </td>
+        `;
+        
+        customerList.appendChild(customerRow);
+    });
+}
+
+function searchCustomers() {
+    const searchTerm = document.getElementById('customerSearch').value.toLowerCase();
+    const filteredCustomers = customers.filter(customer => 
+        customer.name.toLowerCase().includes(searchTerm) ||
+        customer.last_name.toLowerCase().includes(searchTerm) ||
+        (customer.store_name && customer.store_name.toLowerCase().includes(searchTerm)) ||
+        customer.phone.includes(searchTerm) ||
+        (customer.email && customer.email.toLowerCase().includes(searchTerm))
+    );
+    renderCustomerList(filteredCustomers);
+}
+
+function selectCustomerById(customerId) {
+    const customer = customers.find(c => c.id === customerId);
+    if (customer) {
+        selectCustomer(customer);
+    }
+}
+
+function selectCustomer(customer) {
+    selectedCustomer = customer;
+    
+    // Update the display input with full name and store name if available
+    let displayName = `${customer.name} ${customer.last_name}`;
+    if (customer.store_name) {
+        displayName += ` (${customer.store_name})`;
+    }
+    document.getElementById('customer_display').value = displayName;
+    
+    // Update the hidden input
+    document.getElementById('id_customer').value = customer.id;
+    
+    // Close the modal
+    closeCustomerModal();
+    
+    // Clear search
+    document.getElementById('customerSearch').value = '';
+    renderCustomerList(customers);
+}
+
+function openCustomerModal() {
+    document.getElementById('customerModal').style.display = 'block';
+    document.getElementById('customerSearch').focus();
+}
+
+function closeCustomerModal() {
+    document.getElementById('customerModal').style.display = 'none';
+}
+
+// Handle form submission
+window.handleFormSubmit = function(event) {
+    return true;
+};
+</script>
+{% endblock %}
