@@ -479,22 +479,18 @@
                             <td>{{ op.date|jalali_date }}</td>
                             <td>
                                 <span class="operation-type-badge {% if op.operation_type == 'ADD' or 'RECEIVE' in op.operation_type %}operation-type-receive{% else %}operation-type-pay{% endif %}">
-                                    {% if op.type == 'petty_cash' %}
-                                        {% if op.operation_display %}
-                                            {{ op.operation_display }}
-                                        {% else %}
-                                            {% if op.operation_type == 'ADD' %}
-                                                {% if op.is_from_cash_fund %}
-                                                    انتقال به حساب تنخواه
-                                                {% else %}
-                                                    افزودن به تنخواه
-                                                {% endif %}
-                                            {% elif op.operation_type == 'WITHDRAW' %}
-                                                برداشت از تنخواه
+                                    {% if op.operation %}
+                                        {% if op.type == 'petty_cash' %}
+                                            {% if op.operation.operation_type == 'ADD' %}
+                                                افزودن به تنخواه
+                                            {% elif op.operation.operation_type == 'WITHDRAW' %}
+                                                برداشت از تنخواه: {{ op.operation.get_reason_display }}
                                             {% endif %}
+                                        {% else %}
+                                            {{ op.operation.get_operation_type_display }}
                                         {% endif %}
-                                    {% else %}
-                                        {{ op.operation.get_operation_type_display }}
+                                    {% elif op.type == 'system' %}
+                                        {{ op.description }}
                                     {% endif %}
                                 </span>
                             </td>

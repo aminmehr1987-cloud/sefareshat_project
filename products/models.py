@@ -2113,40 +2113,48 @@ class Fund(models.Model):
         return total_in - total_out
 
     def recalculate_balance(self):
-        """محاسبه مجدد موجودی فعلی صندوق بر اساس عملیات مالی تایید شده"""
+        """محاسبه مجدد موجودی فعلی صندوق بر اساس تمام عملیات‌های مرتبط."""
         from django.db.models import Sum, Q
-        from .models import FinancialOperation
+        from .models import FinancialOperation, PettyCashOperation
+
+        total_in = Decimal('0')
+        total_out = Decimal('0')
+
+        IN_OPERATIONS = ['RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK', 'PAYMENT_TO_CASH', 'CAPITAL_INVESTMENT', 'ADD']
+        OUT_OPERATIONS = ['PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH', 'CASH_WITHDRAWAL', 'WITHDRAW', 'EXPENSE', 'PETTY_CASH_WITHDRAW']
+
+        if self.fund_type == 'PETTY_CASH':
+            # For a petty cash fund, its balance changes by all petty cash operations.
+            operations = PettyCashOperation.objects.all()
+            total_in = operations.filter(operation_type='ADD').aggregate(total=Sum('amount'))['total'] or Decimal('0')
+            total_out = operations.filter(operation_type='WITHDRAW').aggregate(total=Sum('amount'))['total'] or Decimal('0')
         
-        if self.fund_type == 'CASH':
-            # برای صندوق نقدی، عملیات‌هایی که bank_name و account_number ندارند
-            operations = FinancialOperation.objects.filter(
-                bank_name__isnull=True,
-                account_number__isnull=True,
-                status='CONFIRMED'
-            )
         else:
-            # برای حساب‌های بانکی، عملیات‌هایی که bank_name و account_number دارند
-            operations = FinancialOperation.objects.filter(
-                bank_name=self.bank_name,
-                account_number=self.account_number,
-                status='CONFIRMED'
-            )
-        
-        # مجموع دریافتی‌ها
-        total_in = operations.filter(
-            operation_type__in=[
-                'RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK', 'PAYMENT_TO_CASH', 'CAPITAL_INVESTMENT', 'PETTY_CASH'
-            ]
-        ).aggregate(Sum('amount'))['amount__sum'] or 0
-        
-        # مجموع پرداختی‌ها
-        total_out = operations.filter(
-            operation_type__in=[
-                'PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH', 'EXPENSE', 'PETTY_CASH_WITHDRAW'
-            ]
-        ).aggregate(Sum('amount'))['amount__sum'] or 0
-        
-        # محاسبه مانده فعلی: موجودی اولیه + ورودی‌ها - خروجی‌ها
+            # For CASH and BANK funds
+            financial_filter = Q()
+            if self.fund_type == 'CASH':
+                # Cash operations are those explicitly linked to this fund, or those with no bank details.
+                financial_filter = Q(fund=self) | Q(bank_name__isnull=True, account_number__isnull=True)
+            elif self.fund_type == 'BANK':
+                # Bank operations are those explicitly linked, or matching bank details.
+                financial_filter = Q(fund=self) | Q(bank_name=self.bank_name, account_number=self.account_number)
+
+            if financial_filter:
+                financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED')
+                
+                # Money coming into this fund from financial operations
+                in_ops = financial_ops.filter(operation_type__in=IN_OPERATIONS).aggregate(total=Sum('amount'))['total']
+                total_in += in_ops or Decimal('0')
+                
+                # Money going out of this fund from financial operations
+                out_ops = financial_ops.filter(operation_type__in=OUT_OPERATIONS).aggregate(total=Sum('amount'))['total']
+                total_out += out_ops or Decimal('0')
+
+            # Also account for when this fund is the source for petty cash (always an outflow)
+            petty_cash_source_ops = PettyCashOperation.objects.filter(source_fund=self)
+            total_out += petty_cash_source_ops.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        # Calculate and save the new balance
         self.current_balance = self.initial_balance + total_in - total_out
         self.save(update_fields=['current_balance'])
         
@@ -2578,8 +2586,21 @@ def create_voucher_for_sales_invoice_save(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=FinancialOperation)
 def update_fund_balance_on_save(sender, instance, **kwargs):
-    if hasattr(instance, 'fund') and instance.fund:
-        instance.fund.recalculate_balance()
+    """
+    Recalculates the balance of the relevant fund whenever a FinancialOperation
+    is saved. This handles both operations explicitly linked to a fund and
+    implicit cash operations.
+    """
+    target_fund = instance.fund
+    
+    # If the operation is not linked to a specific fund, check if it's a cash operation.
+    if not target_fund and instance.bank_name is None and instance.account_number is None:
+        # This is likely a general cash operation, find the default cash fund.
+        target_fund = Fund.objects.filter(fund_type='CASH').first()
+
+    # If we have a fund to update, recalculate its balance.
+    if target_fund:
+        target_fund.recalculate_balance()
 
 @receiver(post_delete, sender=FinancialOperation)
 def update_fund_balance_on_delete(sender, instance, **kwargs):
@@ -2677,24 +2698,3 @@ def update_fund_statements_on_transaction_delete(sender, instance, **kwargs):
         
     except Exception as e:
         print(f"خطا در به‌روزرسانی صورتحساب‌های صندوق پس از حذف تراکنش {instance.id}: {e}")
-
-
-@receiver(post_save, sender=FinancialOperation)
-def update_fund_balance_on_financial_operation_save(sender, instance, created, **kwargs):
-    """به‌روزرسانی موجودی صندوق هنگام ذخیره عملیات مالی"""
-    if created and instance.status == 'CONFIRMED':
-        try:
-            # اگر صندوق مرتبط وجود دارد، موجودی آن را به‌روزرسانی کن
-            if instance.fund:
-                if instance.operation_type in ['PAYMENT_TO_CASH', 'RECEIVE_FROM_BANK', 'CASH_WITHDRAWAL']:
-                    instance.fund.update_balance(instance.amount, 'IN')
-                elif instance.operation_type in ['PAYMENT_FROM_CASH', 'PAY_TO_BANK']:
-                    instance.fund.update_balance(instance.amount, 'OUT')
-                
-                print(f"=== DEBUG: Updated fund balance for operation {instance.id} ===")
-        except Exception as e:
-            print(f"خطا در به‌روزرسانی موجودی صندوق برای عملیات {instance.id}: {e}")
-
-
-
-

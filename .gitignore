@@ -1,1 +1,10 @@
 myenv/
+# Database
+db.sqlite3
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc

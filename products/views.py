@@ -3795,9 +3795,6 @@ def pay_to_bank_view(request):
                 operation.confirmed_at = timezone.now()
                 operation.save()
 
-                # به‌روزرسانی موجودی بانک
-                update_fund_balance(operation)
-
                 # ثبت سند حسابداری
                 try:
                     from .accounting_utils import AccountingVoucherManager
@@ -3960,178 +3957,129 @@ def fund_detail_view(request, fund_id):
     """
     نمایش جزئیات صندوق
     """
-    # Handle empty or invalid fund_id
     if not fund_id or fund_id == '':
         from django.http import Http404
         raise Http404("Fund not found")
-    
+
     try:
         fund = get_object_or_404(Fund, id=fund_id)
     except (ValueError, TypeError):
         from django.http import Http404
         raise Http404("Invalid fund ID")
-    
-    # عملیات مالی مرتبط با این صندوق
-    # Build filter conditions safely
-    financial_filter_conditions = Q()
-    
-    # Only add bank_name condition if it's not empty
-    if fund.bank_name and fund.bank_name.strip():
-        financial_filter_conditions |= Q(bank_name=fund.bank_name)
-    
-    # Only add account_number condition if it's not empty
-    if fund.account_number and fund.account_number.strip():
-        financial_filter_conditions |= Q(account_number=fund.account_number)
-    
-    # If no valid conditions, get all operations
-    if not financial_filter_conditions:
-        financial_operations = FinancialOperation.objects.all().order_by('-date', '-created_at')[:50]
-    else:
-        financial_operations = FinancialOperation.objects.filter(
-            financial_filter_conditions
-        ).order_by('-date', '-created_at')[:50]
-    
-    # عملیات تنخواه مرتبط با این صندوق
-    petty_cash_operations = []
+
+    # Recalculate balance to ensure it's up-to-date and consistent with list view
+    fund.recalculate_balance()
+    fund.refresh_from_db()
+
+    all_operations = []
+    # Define IN/OUT operations for clarity
+    IN_OPERATIONS = ['RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK', 'PAYMENT_TO_CASH', 'CAPITAL_INVESTMENT', 'ADD']
+    OUT_OPERATIONS = ['PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH', 'CASH_WITHDRAWAL', 'WITHDRAW', 'EXPENSE', 'PETTY_CASH_WITHDRAW']
+
+    # Fetch operations for display
     if fund.fund_type == 'PETTY_CASH':
-        # برای صندوق تنخواه، فقط عملیات تنخواه را نمایش می‌دهیم
         from .models import PettyCashOperation
-        petty_cash_operations = PettyCashOperation.objects.all().order_by('-date', '-created_at')[:50]
-        
-        # ترکیب عملیات‌ها و مرتب‌سازی بر اساس تاریخ
-        all_operations = []
-        
-        for op in petty_cash_operations:
-            # تشخیص منبع شارژ تنخواه
+        operations = PettyCashOperation.objects.all().order_by('date', 'created_at')
+        for op in operations:
             source_info = ""
             if op.operation_type == 'ADD':
                 if op.source_fund:
-                    if op.source_fund.fund_type == 'CASH':
-                        source_info = "شارژ تنخواه از طریق صندوق نقدی"
-                    elif op.source_fund.fund_type == 'BANK':
-                        source_info = f"شارژ تنخواه از طریق بانک {op.source_fund.bank_name}"
+                    source_info = f"شارژ از {op.source_fund.name}"
                 elif op.source_bank_account:
-                    source_info = f"شارژ تنخواه از طریق بانک {op.source_bank_account.bank.name}"
+                    source_info = f"شارژ از {op.source_bank_account.title}"
                 else:
                     source_info = "شارژ تنخواه"
             elif op.operation_type == 'WITHDRAW':
-                source_info = "برداشت از تنخواه"
+                source_info = f"برداشت: {op.get_reason_display()}"
             
             all_operations.append({
-                'type': 'petty_cash',
-                'operation': op,
-                'date': op.date,
+                'date': op.date, 
+                'description': op.description or source_info, 
                 'amount': op.amount,
-                'description': op.description,
-                'operation_type': op.operation_type,
-                'operation_display': source_info,  # نمایش نوع عملیات با جزئیات منبع
-                'status': 'CONFIRMED'  # عملیات تنخواه همیشه تایید شده هستند
+                'operation_type': op.operation_type, 
+                'status': 'CONFIRMED',
+                'type': 'petty_cash', 
+                'operation': op
             })
-        
-        # مرتب‌سازی بر اساس تاریخ (جدیدترین اول)
-        all_operations.sort(key=lambda x: x['date'], reverse=True)
-        
-        # محاسبه آمار برای تنخواه
-        total_in = sum(op['amount'] for op in all_operations if op['operation_type'] == 'ADD')
-        total_out = sum(op['amount'] for op in all_operations if op['operation_type'] == 'WITHDRAW')
-        
-        # محاسبه مانده فعلی (ورودی - خروجی)
-        current_balance = total_in - total_out
-        
-        # محاسبه مانده پس از هر عملیات (برای نمایش در جدول)
-        running_balance = 0
-        for op in all_operations:
-            if op['operation_type'] == 'ADD':
-                running_balance += op['amount']
-            elif op['operation_type'] == 'WITHDRAW':
-                running_balance -= op['amount']
-            op['running_balance'] = running_balance
-    
     else:
-        # برای سایر صندوق‌ها، عملیات تنخواه که از این صندوق منبع گرفته‌اند
+        financial_filter = Q(fund=fund)
+        financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED').order_by('date', 'created_at')
+        for op in financial_ops:
+            all_operations.append({
+                'date': op.date, 
+                'description': op.description, 
+                'amount': op.amount,
+                'operation_type': op.operation_type, 
+                'status': op.status,
+                'type': 'financial', 
+                'operation': op
+            })
+        
         from .models import PettyCashOperation
-        
-        # Build filter conditions safely
-        filter_conditions = Q(source_fund=fund)
-        
-        # Only add bank condition if bank_name is not empty
-        if fund.bank_name and fund.bank_name.strip():
-            filter_conditions |= Q(source_bank_account__bank=fund.bank_name)
-        
-        petty_cash_operations = PettyCashOperation.objects.filter(
-            filter_conditions
-        ).order_by('-date', '-created_at')[:50]
-        
-        # ترکیب عملیات‌ها و مرتب‌سازی بر اساس تاریخ
-        all_operations = []
-        
-        for op in financial_operations:
+        petty_cash_as_source = PettyCashOperation.objects.filter(source_fund=fund).order_by('date', 'created_at')
+        for op in petty_cash_as_source:
             all_operations.append({
-                'type': 'financial',
-                'operation': op,
-                'date': op.date,
-                'amount': op.amount,
-                'description': op.description,
-                'operation_type': op.operation_type,
-                'status': op.status
+                'date': op.date, 
+                'description': f"برداشت برای تنخواه: {op.get_reason_display()}",
+                'amount': op.amount, 
+                'operation_type': 'WITHDRAW', 
+                'status': 'CONFIRMED',
+                'type': 'petty_cash', 
+                'operation': op
             })
+
+    # Sort all operations chronologically for calculation
+    all_operations.sort(key=lambda x: (x['date'], x['operation'].created_at if hasattr(x.get('operation'), 'created_at') else timezone.now()))
+
+    # Calculate totals for the stats box
+    total_in = sum(op['amount'] for op in all_operations if op['operation_type'] in IN_OPERATIONS)
+    total_out = sum(op['amount'] for op in all_operations if op['operation_type'] in OUT_OPERATIONS)
+
+    # Start with the opening balance
+    running_balance = fund.initial_balance
+    opening_balance_description = "مانده اول دوره"
+    from .models import FinancialYear
+    try:
+        # Find the financial year the fund was created in
+        financial_year = FinancialYear.objects.get(start_date__lte=fund.created_at.date(), end_date__gte=fund.created_at.date())
+        if financial_year.is_closed:
+            opening_balance_description = "انتقالی از سال قبل"
+    except FinancialYear.DoesNotExist:
+        # If no financial year is found for the fund's creation date, use the default description
+        pass
+
+    # Create the list for display, starting with the opening balance
+    display_operations = [{
+        'date': fund.created_at,
+        'description': opening_balance_description,
+        'amount': fund.initial_balance,
+        'operation_type': 'ADD' if fund.initial_balance >= 0 else 'WITHDRAW', # for styling
+        'status': 'CONFIRMED',
+        'type': 'system',
+        'running_balance': running_balance,
+        'operation': None, # No actual operation object
+    }]
+
+    # Process all other operations
+    for op in all_operations:
+        if op['operation_type'] in IN_OPERATIONS:
+            running_balance += op['amount']
+        elif op['operation_type'] in OUT_OPERATIONS:
+            running_balance -= op['amount']
         
-        for op in petty_cash_operations:
-            # تشخیص اینکه آیا این عملیات تنخواه از صندوق نقدی منبع گرفته شده یا نه
-            is_from_cash_fund = op.source_fund and op.source_fund.fund_type == 'CASH'
-            
-            # تشخیص نوع عملیات برای نمایش
-            operation_display = ""
-            if op.operation_type == 'ADD':
-                if is_from_cash_fund:
-                    operation_display = "انتقال به حساب تنخواه"
-                else:
-                    operation_display = "افزودن به تنخواه"
-            elif op.operation_type == 'WITHDRAW':
-                operation_display = "برداشت از تنخواه"
-            
-            all_operations.append({
-                'type': 'petty_cash',
-                'operation': op,
-                'date': op.date,
-                'amount': op.amount,
-                'description': op.description,
-                'operation_type': 'WITHDRAW',  # برای صندوق منبع، عملیات تنخواه خروجی است
-                'status': 'CONFIRMED',  # عملیات تنخواه همیشه تایید شده هستند
-                'is_from_cash_fund': is_from_cash_fund,  # اضافه کردن فیلد جدید
-                'operation_display': operation_display  # نمایش نوع عملیات
-            })
-        
-        # مرتب‌سازی بر اساس تاریخ (قدیمی‌ترین اول برای محاسبه صحیح مانده)
-        all_operations.sort(key=lambda x: x['date'])
-        
-        # محاسبه آمار
-        total_in = sum(op['amount'] for op in all_operations if 'RECEIVE' in op['operation_type'])
-        total_out = sum(op['amount'] for op in all_operations if 'PAY' in op['operation_type'] or op['operation_type'] == 'WITHDRAW')
-        
-        # محاسبه مانده فعلی (ورودی - خروجی)
-        current_balance = total_in - total_out
-        
-        # محاسبه مانده پس از هر عملیات (برای نمایش در جدول)
-        running_balance = 0
-        for op in all_operations:
-            if 'RECEIVE' in op['operation_type']:
-                running_balance += op['amount']
-            elif 'PAY' in op['operation_type'] or op['operation_type'] == 'WITHDRAW':
-                running_balance -= op['amount']
-            op['running_balance'] = running_balance
-        
-        # مرتب‌سازی بر اساس تاریخ (جدیدترین اول برای نمایش)
-        all_operations.sort(key=lambda x: x['date'], reverse=True)
+        op_with_balance = op.copy()
+        op_with_balance['running_balance'] = running_balance
+        display_operations.append(op_with_balance)
     
+    # Reverse for display (newest first)
+    display_operations.reverse()
+
     context = {
         'fund': fund,
-        'operations': all_operations[:50],  # حداکثر 50 عملیات
-        'financial_operations': financial_operations,
-        'petty_cash_operations': petty_cash_operations,
+        'operations': display_operations[:101], # Limit to 100 operations + opening balance
         'total_in': total_in,
         'total_out': total_out,
-        'current_balance': current_balance,  # مانده فعلی
+        'current_balance': fund.current_balance,
         'balance_history': fund.get_balance_history()[:20] if hasattr(fund, 'get_balance_history') else []
     }
     
@@ -4273,6 +4221,13 @@ def receive_from_customer_view(request):
                 operation.status = 'CONFIRMED'
                 operation.confirmed_by = request.user
                 operation.confirmed_at = timezone.now()
+
+                # Explicitly link cash operations to the cash fund
+                if operation.payment_method == 'cash':
+                    cash_fund = Fund.objects.filter(fund_type='CASH').first()
+                    if cash_fund:
+                        operation.fund = cash_fund
+                
                 operation.save()
                 
                 # به‌روزرسانی موجودی مشتری
@@ -4281,9 +4236,6 @@ def receive_from_customer_view(request):
                     defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
                 )
                 customer_balance.update_balance(operation.amount, operation.operation_type)
-                
-                # به‌روزرسانی موجودی صندوق
-                update_fund_balance(operation)
                 
                 # نمایش پیام تأیید
                 success_message = f'عملیات دریافت از مشتری با موفقیت ثبت شد. شماره عملیات: {operation.operation_number}'
@@ -4323,6 +4275,13 @@ def pay_to_customer_view(request):
             operation.status = 'CONFIRMED'
             operation.confirmed_by = request.user
             operation.confirmed_at = timezone.now()
+
+            # Explicitly link cash operations to the cash fund
+            if operation.payment_method == 'cash':
+                cash_fund = Fund.objects.filter(fund_type='CASH').first()
+                if cash_fund:
+                    operation.fund = cash_fund
+            
             operation.save()
             
             # ایجاد سند حسابداری
@@ -4340,9 +4299,6 @@ def pay_to_customer_view(request):
                 defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
             )
             customer_balance.update_balance(operation.amount, operation.operation_type)
-            
-            # به‌روزرسانی موجودی صندوق
-            update_fund_balance(operation)
             
             # نمایش پیام تأیید با شماره سند
             if voucher:
@@ -4382,9 +4338,6 @@ def bank_operation_view(request, operation_type):
             operation.confirmed_by = request.user
             operation.confirmed_at = timezone.now()
             operation.save()
-            
-            # به‌روزرسانی موجودی صندوق
-            update_fund_balance(operation)
             
             messages.success(request, f'عملیات {operation.get_operation_type_display()} با موفقیت ثبت شد.')
             return redirect('products:financial_operation_list')
@@ -4544,9 +4497,6 @@ def cash_operation_view(request, operation_type):
             operation.confirmed_at = timezone.now()
             operation.save()
             
-            # به‌روزرسانی موجودی صندوق
-            update_fund_balance(operation)
-            
             messages.success(request, f'عملیات {operation.get_operation_type_display()} با موفقیت ثبت شد.')
             return redirect('products:financial_operation_list')
     else:
@@ -4579,9 +4529,6 @@ def capital_investment_view(request):
             operation.confirmed_by = request.user
             operation.confirmed_at = timezone.now()
             operation.save()
-            
-            # به‌روزرسانی موجودی صندوق
-            update_fund_balance(operation)
             
             messages.success(request, 'عملیات سرمایه گذاری با موفقیت ثبت شد.')
             return redirect('products:financial_operation_list')
@@ -4969,72 +4916,6 @@ def create_petty_cash_voucher(operation, operation_type):
         pass
 
 
-def update_fund_balance(operation):
-    """
-    به‌روزرسانی موجودی صندوق بر اساس عملیات مالی
-    """
-    # تعیین صندوق مناسب بر اساس نوع عملیات
-    if operation.operation_type in ['RECEIVE_FROM_CUSTOMER', 'PAYMENT_TO_CASH']:
-        # افزایش موجودی صندوق نقدی
-        cash_fund, created = Fund.objects.get_or_create(
-            fund_type='CASH',
-            defaults={
-                'name': 'صندوق نقدی',
-                'initial_balance': 0,
-                'current_balance': 0,
-                'created_by': operation.created_by
-            }
-        )
-        cash_fund.current_balance += operation.amount
-        cash_fund.save()
-        
-    elif operation.operation_type in ['PAY_TO_CUSTOMER', 'PAYMENT_FROM_CASH']:
-        # کاهش موجودی صندوق نقدی
-        cash_fund, created = Fund.objects.get_or_create(
-            fund_type='CASH',
-            defaults={
-                'name': 'صندوق نقدی',
-                'initial_balance': 0,
-                'current_balance': 0,
-                'created_by': operation.created_by
-            }
-        )
-        cash_fund.current_balance -= operation.amount
-        cash_fund.save()
-        
-    elif operation.operation_type in ['RECEIVE_FROM_BANK']:
-        # افزایش موجودی حساب بانکی
-        bank_fund, created = Fund.objects.get_or_create(
-            fund_type='BANK',
-            bank_name=operation.bank_name,
-            account_number=operation.account_number,
-            defaults={
-                'name': f'حساب {operation.bank_name}',
-                'initial_balance': 0,
-                'current_balance': 0,
-                'created_by': operation.created_by
-            }
-        )
-        bank_fund.current_balance += operation.amount
-        bank_fund.save()
-        
-    elif operation.operation_type in ['PAY_TO_BANK', 'CASH_WITHDRAWAL']:
-        # کاهش موجودی حساب بانکی
-        bank_fund, created = Fund.objects.get_or_create(
-            fund_type='BANK',
-            bank_name=operation.bank_name,
-            account_number=operation.account_number,
-            defaults={
-                'name': f'حساب {operation.bank_name}',
-                'initial_balance': 0,
-                'current_balance': 0,
-                'created_by': operation.created_by
-            }
-        )
-        bank_fund.current_balance -= operation.amount
-        bank_fund.save()
-
-
 @login_required
 @group_required('حسابداری')
 def operation_confirmation_view(request):
@@ -5066,51 +4947,29 @@ def financial_dashboard_view(request):
     """
     from django.db.models import Sum, Q
     
-    # آمار صندوق‌ها - محاسبه از دیتابیس
+    # Get all active funds
     funds = Fund.objects.filter(is_active=True)
     
-    # محاسبه مانده نقدی از عملیات‌های مالی
-    cash_funds = funds.filter(fund_type='CASH')
+    # Recalculate and sum balances using the corrected model method
     total_cash_balance = 0
-    for fund in cash_funds:
-        # محاسبه مانده از عملیات‌های مالی
-        financial_ops = FinancialOperation.objects.filter(
-            Q(bank_name=fund.bank_name) | Q(account_number=fund.account_number),
-            status='CONFIRMED'
-        )
-        
-        # اگر هیچ عملیاتی وجود ندارد، مانده صفر است
-        if not financial_ops.exists():
-            total_cash_balance += 0
-        else:
-            cash_in = sum(op.amount for op in financial_ops if 'RECEIVE' in op.operation_type)
-            cash_out = sum(op.amount for op in financial_ops if 'PAY' in op.operation_type)
-            total_cash_balance += (cash_in - cash_out)
-    
-    # محاسبه مانده بانکی از عملیات‌های مالی
-    bank_funds = funds.filter(fund_type='BANK')
     total_bank_balance = 0
-    for fund in bank_funds:
-        financial_ops = FinancialOperation.objects.filter(
-            Q(bank_name=fund.bank_name) | Q(account_number=fund.account_number),
-            status='CONFIRMED'
-        )
-        
-        # اگر هیچ عملیاتی وجود ندارد، مانده صفر است
-        if not financial_ops.exists():
-            total_bank_balance += 0
-        else:
-            bank_in = sum(op.amount for op in financial_ops if 'RECEIVE' in op.operation_type)
-            bank_out = sum(op.amount for op in financial_ops if 'PAY' in op.operation_type)
-            total_bank_balance += (bank_in - bank_out)
     
-    # محاسبه مانده تنخواه از عملیات تنخواه
+    for fund in funds:
+        # This now contains the correct, centralized logic
+        fund.recalculate_balance()
+        if fund.fund_type == 'CASH':
+            total_cash_balance += fund.current_balance
+        elif fund.fund_type == 'BANK':
+            total_bank_balance += fund.current_balance
+
+    # Petty cash balance is calculated separately via its own class method
     total_petty_cash_balance = Fund.get_petty_cash_balance()
     
-    # آمار حساب‌های بانکی
+    # Bank accounts statistics (this seems to be a separate concept from BANK Funds)
     bank_accounts = BankAccount.objects.filter(is_active=True)
     total_bank_accounts_balance = sum(account.current_balance for account in bank_accounts)
     
+    # The grand total preserves the original logic of summing all balance types
     total_balance = total_cash_balance + total_bank_balance + total_petty_cash_balance + total_bank_accounts_balance
     
     # آمار عملیات‌های مالی

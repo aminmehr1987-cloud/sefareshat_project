@@ -40,23 +40,25 @@ def format_number(value):
 
 @register.filter
 def jformat(value, format_string):
-    """Format datetime objects to Jalali/Persian date format."""
+    """Formats a date/datetime object into a Jalali date string."""
     if not value:
         return ''
     
+    jalali_dt = None
     try:
-        # Convert to Jalali datetime
-        if isinstance(value, datetime):
-            jalali_date = jdatetime.datetime.fromgregorian(datetime=value)
-        else:
-            # If it's already a date object
-            jalali_date = jdatetime.date.fromgregorian(date=value)
+        if isinstance(value, (jdatetime.datetime, jdatetime.date)):
+            jalali_dt = value
+        elif isinstance(value, datetime):
+            jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
+        elif isinstance(value, date):
+            jalali_dt = jdatetime.date.fromgregorian(date=value)
         
-        # Format the Jalali date
-        return jalali_date.strftime(format_string)
+        if jalali_dt:
+            return jalali_dt.strftime(format_string)
     except (ValueError, TypeError, AttributeError):
-        # Fallback to original value if conversion fails
-        return str(value)
+        pass  # Fallback to returning the original value
+        
+    return str(value)
 
 @register.filter
 def persian_number_format(value):
@@ -88,23 +90,25 @@ def persian_number_format(value):
 
 @register.filter
 def jalali_date(value):
-    """Convert Gregorian date to Jalali date format."""
+    """Converts a date/datetime object into a standard 'YYYY/MM/DD' Jalali date string."""
     if not value:
         return ''
     
+    jalali_dt = None
     try:
-        # Convert to Jalali date
-        if isinstance(value, datetime):
-            jalali_date = jdatetime.datetime.fromgregorian(datetime=value)
-        else:
-            # If it's already a date object
-            jalali_date = jdatetime.date.fromgregorian(date=value)
+        if isinstance(value, (jdatetime.datetime, jdatetime.date)):
+            jalali_dt = value
+        elif isinstance(value, datetime):
+            jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
+        elif isinstance(value, date):
+            jalali_dt = jdatetime.date.fromgregorian(date=value)
         
-        # Format the Jalali date as Y/m/d
-        return jalali_date.strftime("%Y/%m/%d")
+        if jalali_dt:
+            return jalali_dt.strftime("%Y/%m/%d")
     except (ValueError, TypeError, AttributeError):
-        # Fallback to original value if conversion fails
-        return str(value)
+        pass  # Fallback to returning the original value
+
+    return str(value)
 
 @register.filter
 def intcomma(value):
