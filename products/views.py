@@ -4003,11 +4003,17 @@ def fund_detail_view(request, fund_id):
             })
     else:
         financial_filter = Q(fund=fund)
-        financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED').order_by('date', 'created_at')
+        financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED').select_related('customer').order_by('date', 'created_at')
         for op in financial_ops:
+            description = op.description
+            if op.operation_type == 'RECEIVE_FROM_CUSTOMER' and op.customer:
+                description = f"دریافت از مشتری {op.customer.get_full_name()} طی سند شماره {op.operation_number}"
+            elif op.operation_type == 'PAY_TO_CUSTOMER' and op.customer:
+                description = f"پرداخت به مشتری {op.customer.get_full_name()} طی سند شماره {op.operation_number}"
+
             all_operations.append({
                 'date': op.date, 
-                'description': op.description, 
+                'description': description, 
                 'amount': op.amount,
                 'operation_type': op.operation_type, 
                 'status': op.status,
@@ -4222,12 +4228,44 @@ def receive_from_customer_view(request):
                 operation.confirmed_by = request.user
                 operation.confirmed_at = timezone.now()
 
-                # Explicitly link cash operations to the cash fund
                 if operation.payment_method == 'cash':
+                    # Explicitly link cash operations to the cash fund
                     cash_fund = Fund.objects.filter(fund_type='CASH').first()
                     if cash_fund:
                         operation.fund = cash_fund
-                
+                elif operation.payment_method == 'pos':
+                    device = operation.card_reader_device
+                    if not device:
+                        form.add_error('card_reader_device', 'برای پرداخت با پوز، انتخاب دستگاه الزامی است.')
+                        customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        return render(request, 'financial_operations/receive_from_customer.html', {
+                            'form': form,
+                            'customers': customers
+                        })
+
+                    bank_account = device.bank_account
+                    if not bank_account:
+                        messages.error(request, f"دستگاه کارتخوان '{device.name}' به هیچ حساب بانکی متصل نیست.")
+                        customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        return render(request, 'financial_operations/receive_from_customer.html', {
+                            'form': form,
+                            'customers': customers
+                        })
+                    
+                    # The concept of a 'Fund' for a bank account is being removed for POS.
+                    # We will now directly update the BankAccount balance.
+                    operation.fund = None  # Explicitly set fund to None for POS transactions
+                    
+                    # Directly update the bank account's balance
+                    bank_account.current_balance += operation.amount
+                    bank_account.save()
+
+                    operation.bank_name = bank_account.bank.name
+                    operation.account_number = bank_account.account_number
+                    
+                    if not operation.description:
+                        operation.description = f"دریافت از {operation.customer.get_full_name()} با دستگاه پوز {device.name}"
+
                 operation.save()
                 
                 # به‌روزرسانی موجودی مشتری
@@ -4972,11 +5010,21 @@ def financial_dashboard_view(request):
     # The grand total preserves the original logic of summing all balance types
     total_balance = total_cash_balance + total_bank_balance + total_petty_cash_balance + total_bank_accounts_balance
     
-    # آمار عملیات‌های مالی
+    # آمار عملیات‌های مالی - فقط برای صندوق نقدی
     today = timezone.now().date()
-    today_operations = FinancialOperation.objects.filter(date=today, status='CONFIRMED')
-    today_income = sum(op.amount for op in today_operations if op.operation_type in ['RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK'])
-    today_expense = sum(op.amount for op in today_operations if op.operation_type in ['PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH'])
+    today_cash_operations = FinancialOperation.objects.filter(
+        date=today,
+        status='CONFIRMED',
+        fund__fund_type='CASH'
+    )
+    
+    # Note: These definitions determine what counts as income/expense *for the cash fund*.
+    # For example, RECEIVE_FROM_BANK is income for the cash fund.
+    CASH_INCOME_OPS = ['RECEIVE_FROM_CUSTOMER', 'PAYMENT_TO_CASH', 'RECEIVE_FROM_BANK']
+    CASH_EXPENSE_OPS = ['PAY_TO_CUSTOMER', 'PAYMENT_FROM_CASH', 'PAY_TO_BANK']
+
+    today_income = sum(op.amount for op in today_cash_operations if op.operation_type in CASH_INCOME_OPS)
+    today_expense = sum(op.amount for op in today_cash_operations if op.operation_type in CASH_EXPENSE_OPS)
     
     # آمار مشتریان - محاسبه از عملیات‌های واقعی
     all_customer_operations = FinancialOperation.objects.filter(
@@ -6121,68 +6169,100 @@ def bank_statement_view(request, bank_account_id):
     نمایش صورتحساب بانکی
     """
     from django.shortcuts import get_object_or_404
-    from django.db.models import Q, Sum
-    from datetime import datetime, timedelta
+    from django.db.models import Sum
+    from datetime import datetime
     
     bank_account = get_object_or_404(BankAccount, id=bank_account_id)
     
+    # Define which operations are credits (deposits) and debits (withdrawals) for a bank account
+    CREDIT_OPS = ['RECEIVE_FROM_CUSTOMER', 'PAY_TO_BANK', 'CAPITAL_INVESTMENT']
+    DEBIT_OPS = ['PAY_TO_CUSTOMER', 'RECEIVE_FROM_BANK', 'BANK_TRANSFER']
+
     # دریافت پارامترهای فیلتر
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
-    operation_type = request.GET.get('operation_type')
     
     # فیلتر کردن تراکنش‌ها - بر اساس نام بانک و شماره حساب
-    transactions = FinancialOperation.objects.filter(
+    transactions_query = FinancialOperation.objects.filter(
         bank_name=bank_account.bank.name,
-        account_number=bank_account.account_number
-    ).order_by('-date', '-created_at')
+        account_number=bank_account.account_number,
+        status='CONFIRMED'
+    )
     
+    # Apply date filters if they exist
     if start_date:
         try:
             start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
-            transactions = transactions.filter(date__gte=start_date_obj)
-        except ValueError:
-            pass
+            transactions_query = transactions_query.filter(date__gte=start_date_obj)
+        except (ValueError, TypeError):
+            start_date = None
     
     if end_date:
         try:
             end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
-            transactions = transactions.filter(date__lte=end_date_obj)
-        except ValueError:
-            pass
-    
-    if operation_type:
-        transactions = transactions.filter(operation_type=operation_type)
-    
-    # محاسبه آمار
-    total_credit = transactions.filter(operation_type='CREDIT').aggregate(
-        total=Sum('amount')
-    )['total'] or 0
-    
-    total_debit = transactions.filter(operation_type='DEBIT').aggregate(
-        total=Sum('amount')
-    )['total'] or 0
-    
-    final_balance = total_credit - total_debit
-    
-    # محاسبه موجودی پس از هر تراکنش
+            transactions_query = transactions_query.filter(date__lte=end_date_obj)
+        except (ValueError, TypeError):
+            end_date = None
+            
+    # Order transactions chronologically for calculation
+    transactions = transactions_query.order_by('date', 'created_at')
+
+    # Get the count of actual database transactions before converting to a list
+    transaction_count = transactions.count()
+
+    # Calculate totals for the stats box
+    total_credit = transactions.filter(operation_type__in=CREDIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
+    total_debit = transactions.filter(operation_type__in=DEBIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    # Start with the opening balance
     running_balance = bank_account.initial_balance
-    for transaction in transactions:
-        if transaction.operation_type == 'CREDIT':
-            running_balance += transaction.amount
-        else:
-            running_balance -= transaction.amount
-        transaction.balance_after = running_balance
     
+    # Create the list for display, starting with the opening balance
+    display_operations = [{
+        'date': bank_account.created_at,
+        'description': "موجودی اول دوره",
+        'credit': bank_account.initial_balance if bank_account.initial_balance >= 0 else 0,
+        'debit': abs(bank_account.initial_balance) if bank_account.initial_balance < 0 else 0,
+        'is_credit': bank_account.initial_balance >= 0,
+        'balance_after': running_balance,
+        'operation': None, # No actual operation object
+    }]
+
+    # Process all other operations
+    for op in transactions:
+        is_credit = op.operation_type in CREDIT_OPS
+        
+        if is_credit:
+            running_balance += op.amount
+            credit_amount = op.amount
+            debit_amount = 0
+        else: # is_debit
+            running_balance -= op.amount
+            credit_amount = 0
+            debit_amount = op.amount
+        
+        display_operations.append({
+            'date': op.date,
+            'description': op.description or op.get_operation_type_display(),
+            'credit': credit_amount,
+            'debit': debit_amount,
+            'is_credit': is_credit,
+            'balance_after': running_balance,
+            'operation': op
+        })
+    
+    # Reverse for display (newest first)
+    display_operations.reverse()
+
     context = {
         'bank_account': bank_account,
-        'transactions': transactions,
+        'transactions': display_operations,
+        'transaction_count': transaction_count,
         'total_credit': total_credit,
         'total_debit': total_debit,
-        'final_balance': final_balance,
+        'final_balance': bank_account.initial_balance + total_credit - total_debit,
         'start_date': start_date,
         'end_date': end_date,
-        'operation_type': operation_type,
         'title': f'صورتحساب بانکی - {bank_account.title}',
         'initial_balance': bank_account.initial_balance,
         'current_balance': bank_account.current_balance,

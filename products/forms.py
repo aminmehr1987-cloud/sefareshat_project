@@ -611,7 +611,7 @@ class ReceiveFromCustomerForm(forms.ModelForm):
     
     class Meta:
         model = FinancialOperation
-        fields = ['operation_type', 'customer', 'amount', 'payment_method', 'description']
+        fields = ['operation_type', 'customer', 'amount', 'payment_method', 'card_reader_device', 'description']
         widgets = {
             'operation_type': forms.HiddenInput(),
             'customer': forms.Select(attrs={'class': 'form-control'}),
@@ -621,6 +621,7 @@ class ReceiveFromCustomerForm(forms.ModelForm):
                 'step': '0.01'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
+            'card_reader_device': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3,

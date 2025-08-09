@@ -1746,6 +1746,7 @@ class Receipt(models.Model):
         ('cash', 'نقدی'),
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
+        ('pos', 'دستگاه POS'),
     ], verbose_name="روش پرداخت")
     description = models.TextField(blank=True, verbose_name="توضیحات")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
@@ -1801,7 +1802,9 @@ class FinancialOperation(models.Model):
         ('cash', 'نقدی'),
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
+        ('pos', 'دستگاه POS'),
     ], verbose_name="روش پرداخت")
+    card_reader_device = models.ForeignKey('CardReaderDevice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دستگاه کارت‌خوان")
     
     # اطلاعات اضافی
     reference_number = models.CharField(max_length=100, blank=True, verbose_name="شماره مرجع")
@@ -2698,3 +2701,45 @@ def update_fund_statements_on_transaction_delete(sender, instance, **kwargs):
         
     except Exception as e:
         print(f"خطا در به‌روزرسانی صورتحساب‌های صندوق پس از حذف تراکنش {instance.id}: {e}")
+
+
+@receiver(post_save, sender=PettyCashOperation)
+def update_source_fund_balance_on_petty_cash_save(sender, instance, **kwargs):
+    """
+    Recalculates the balance of the source fund (if any) after a
+    PettyCashOperation is saved.
+    """
+    if instance.source_fund:
+        instance.source_fund.recalculate_balance()
+    elif instance.source_bank_account:
+        # A Petty Cash top-up from a bank account implies an outflow from the corresponding BANK fund.
+        bank_fund = Fund.objects.filter(
+            fund_type='BANK',
+            bank_name=instance.source_bank_account.bank.name,
+            account_number=instance.source_bank_account.account_number
+        ).first()
+        if bank_fund:
+            bank_fund.recalculate_balance()
+
+@receiver(post_delete, sender=PettyCashOperation)
+def update_source_fund_balance_on_petty_cash_delete(sender, instance, **kwargs):
+    """
+    Recalculates the balance of the source fund (if any) after a
+    PettyCashOperation is deleted.
+    """
+    if instance.source_fund:
+        instance.source_fund.recalculate_balance()
+    elif instance.source_bank_account:
+        bank_fund = Fund.objects.filter(
+            fund_type='BANK',
+            bank_name=instance.source_bank_account.bank.name,
+            account_number=instance.source_bank_account.account_number
+        ).first()
+        if bank_fund:
+            bank_fund.recalculate_balance()
+
+
+
+
+
+

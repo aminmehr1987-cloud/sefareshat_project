@@ -66,6 +66,16 @@
                     {% endif %}
                 </div>
             </div>
+
+            <div class="form-row" id="card_reader_device_row" style="display: none;">
+                <div class="form-group">
+                    <label for="id_card_reader_device"><i class="bi bi-credit-card-2-front"></i> دستگاه کارتخوان</label>
+                    {{ form.card_reader_device }}
+                    {% if form.card_reader_device.errors %}
+                        <div class="text-danger">{{ form.card_reader_device.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
             
             <div class="form-row">
                 <div class="form-group">
@@ -597,6 +607,23 @@
 
 <script>
 $(document).ready(function() {
+    const paymentMethodField = $('#id_payment_method');
+    const cardReaderRow = $('#card_reader_device_row');
+
+    function toggleCardReaderField() {
+        if (paymentMethodField.val() === 'pos') {
+            cardReaderRow.show();
+        } else {
+            cardReaderRow.hide();
+        }
+    }
+
+    // Initial check on page load
+    toggleCardReaderField();
+
+    // Bind event listener for changes
+    paymentMethodField.on('change', toggleCardReaderField);
+    
     // Persian Datepicker initialization
     $("#id_date_shamsi").pDatepicker({
         format: 'YYYY/MM/DD',

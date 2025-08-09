@@ -443,9 +443,9 @@
         <thead>
           <tr>
             <th>تاریخ</th>
-            <th>نوع عملیات</th>
-            <th>مبلغ</th>
-            <th>توضیحات</th>
+            <th>شرح</th>
+            <th>واریز (بستانکار)</th>
+            <th>برداشت (بدهکار)</th>
             <th>موجودی پس از تراکنش</th>
           </tr>
         </thead>
@@ -453,15 +453,13 @@
           {% for transaction in transactions %}
             <tr>
               <td>{{ transaction.date|jalali_date }}</td>
-              <td>
-                <span class="operation-type {% if transaction.operation_type == 'CREDIT' %}credit{% else %}debit{% endif %}">
-                  {% if transaction.operation_type == 'CREDIT' %}واریز{% else %}برداشت{% endif %}
-                </span>
+              <td>{{ transaction.description }}</td>
+              <td class="amount-positive">
+                {% if transaction.credit > 0 %}{{ transaction.credit|persian_number_format }} ریال{% endif %}
               </td>
-              <td class="{% if transaction.operation_type == 'CREDIT' %}amount-positive{% else %}amount-negative{% endif %}">
-                {{ transaction.amount|persian_number_format }} ریال
+              <td class="amount-negative">
+                {% if transaction.debit > 0 %}{{ transaction.debit|persian_number_format }} ریال{% endif %}
               </td>
-              <td>{{ transaction.description|default:"-" }}</td>
               <td>{{ transaction.balance_after|persian_number_format }} ریال</td>
             </tr>
           {% endfor %}
@@ -489,7 +487,7 @@
       
       <div class="summary-card">
         <div class="summary-title">تعداد تراکنش‌ها</div>
-        <div class="summary-value">{{ transactions.count }}</div>
+        <div class="summary-value">{{ transaction_count }}</div>
       </div>
       
       <div class="summary-card">
