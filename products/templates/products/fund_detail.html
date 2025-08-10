@@ -471,11 +471,12 @@
                         <th>وضعیت</th>
                         <th>توضیحات</th>
                         <th>مانده پس از عملیات</th>
+                        <th>عملیات</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for op in operations %}
-                        <tr>
+                        <tr class="{% if op.operation.is_deleted or op.operation.status == 'CANCELLED' %}table-danger{% endif %}">
                             <td>{{ op.date|jalali_date }}</td>
                             <td>
                                 <span class="operation-type-badge {% if op.operation_type == 'ADD' or 'RECEIVE' in op.operation_type %}operation-type-receive{% else %}operation-type-pay{% endif %}">
@@ -498,19 +499,44 @@
                                 {{ op.amount|floatformat:0 }} ریال
                             </td>
                             <td>
-                                <span class="badge {% if op.status == 'CONFIRMED' %}bg-success{% elif op.status == 'PENDING' %}bg-warning{% else %}bg-secondary{% endif %}">
-                                    {% if op.status == 'CONFIRMED' %}
-                                        تایید شده
-                                    {% elif op.status == 'PENDING' %}
-                                        در انتظار
+                                {% if op.operation %}
+                                    {% if op.operation.is_deleted %}
+                                        <span class="badge bg-danger">حذف شده</span>
+                                    {% elif op.operation.status == 'CANCELLED' %}
+                                        <span class="badge bg-warning text-dark">باطل شده</span>
+                                    {% elif op.operation.status == 'CONFIRMED' %}
+                                        <span class="badge bg-success">تایید شده</span>
                                     {% else %}
-                                        نامشخص
+                                        <span class="badge bg-secondary">{{ op.operation.get_status_display }}</span>
                                     {% endif %}
-                                </span>
+                                {% elif op.type == 'system' %}
+                                    <span class="badge bg-info text-dark">سیستمی</span>
+                                {% endif %}
                             </td>
                             <td>{{ op.description|default:"-" }}</td>
                             <td class="operation-amount {% if op.running_balance >= 0 %}positive{% else %}negative{% endif %}">
                                 {{ op.running_balance|floatformat:0 }} ریال
+                            </td>
+                            <td>
+                                {% if op.operation and op.type == 'financial' %}
+                                    {% if op.operation.is_deleted or op.operation.status == 'CANCELLED' %}
+                                        <span class="text-muted">--</span>
+                                    {% else %}
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'products:financial_operation_edit' op.operation.id %}" class="btn btn-sm btn-outline-primary" title="ویرایش">
+                                                <i class="bi bi-pencil-fill"></i>
+                                            </a>
+                                            <form action="{% url 'products:financial_operation_delete' op.operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این عملیات مطمئن هستید؟');" style="display: inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف">
+                                                    <i class="bi bi-trash3-fill"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

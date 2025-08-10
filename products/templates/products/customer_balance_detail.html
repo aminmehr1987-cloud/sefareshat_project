@@ -52,12 +52,13 @@
                     <th>شماره سند</th>
                     <th>نوع عملیات</th>
                     <th>مبلغ</th>
+                    <th>وضعیت</th>
                     <th>عملیات</th>
                 </tr>
             </thead>
             <tbody>
                 {% for operation in operations %}
-                <tr class="{% if operation.is_deleted %}table-danger{% endif %}">
+                <tr class="{% if operation.is_deleted or operation.status == 'CANCELLED' %}table-danger{% endif %}">
                     <td>{{ operation.date|jalali_date }}</td>
                     <td>{{ operation.operation_number }}</td>
                     <td>
@@ -73,15 +74,36 @@
                         {{ operation.amount|persian_number_format }} ریال
                     </td>
                     <td>
-                        <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-primary">مشاهده</a>
-                        {% if not operation.is_deleted %}
-                        <form action="{% url 'products:financial_operation_delete' operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این تراکنش مطمئن هستید؟');" style="display: inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-delete">حذف</button>
-                        </form>
+                        {% if operation.is_deleted %}
+                            <span class="badge bg-danger">حذف شده</span>
+                        {% elif operation.status == 'CANCELLED' %}
+                            <span class="badge bg-warning text-dark">باطل شده</span>
+                        {% elif operation.status == 'CONFIRMED' %}
+                            <span class="badge bg-success">تایید شده</span>
                         {% else %}
-                        <span class="text-danger" style="margin-right: 10px;">حذف شده</span>
+                            <span class="badge bg-secondary">{{ operation.get_status_display }}</span>
                         {% endif %}
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-info" title="مشاهده جزئیات">
+                                <i class="bi bi-search"></i>
+                            </a>
+                            {% if not operation.is_deleted and operation.status != 'CANCELLED' %}
+                                <a href="{% url 'products:financial_operation_edit' operation.id %}" class="btn btn-sm btn-primary" title="ویرایش">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+                                <form action="{% url 'products:financial_operation_delete' operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این تراکنش مطمئن هستید؟');" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-danger" title="حذف">
+                                        <i class="bi bi-trash3-fill"></i>
+                                    </button>
+                                </form>
+                            {% else %}
+                                <button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-pencil-fill"></i></button>
+                                <button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-trash3-fill"></i></button>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}

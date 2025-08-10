@@ -3,7 +3,7 @@ from django.utils import timezone
 import jdatetime
 from django.contrib.auth.models import User
 # from django.contrib import admin # این خط هم احتمالا باید حذف شود، زیرا admin در models.py استفاده نمی‌شود.
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.db.models import Max, Sum, F, DecimalField, Q
 import uuid
@@ -1858,6 +1858,7 @@ class FinancialOperation(models.Model):
     def soft_delete(self, user):
         """حذف نرم عملیات مالی"""
         self.is_deleted = True
+        self.status = 'CANCELLED'
         self.deleted_at = timezone.now()
         self.deleted_by = user
         self.save()
@@ -1913,6 +1914,52 @@ class FinancialOperation(models.Model):
             new_number = 1
         
         return f"{prefix}{new_number:04d}"
+
+@receiver(pre_save, sender=FinancialOperation)
+def handle_financial_operation_status_change(sender, instance, **kwargs):
+    """
+    Signal to handle changes in the status of a FinancialOperation.
+    - If status is changed to CANCELLED, the operation is soft-deleted.
+    - If a soft-deleted operation's status is changed back to CONFIRMED,
+      it is automatically restored.
+    """
+    if not instance.pk:
+        return  # Nothing to compare against for a new instance
+
+    try:
+        old_instance = sender.objects.get(pk=instance.pk)
+        
+        # If status is being changed to CANCELLED, soft-delete it
+        if instance.status == 'CANCELLED' and old_instance.status != 'CANCELLED':
+            instance.is_deleted = True
+            instance.deleted_at = timezone.now()
+            # Note: we can't know the user who made the change here.
+
+        # If a soft-deleted operation's status is changed back to CONFIRMED, restore it
+        elif old_instance.is_deleted and instance.status == 'CONFIRMED':
+            instance.is_deleted = False
+            instance.deleted_at = None
+            instance.deleted_by = None
+            
+    except sender.DoesNotExist:
+        pass  # Should not happen if instance.pk exists, but good practice.
+
+@receiver(post_save, sender=FinancialOperation)
+def create_fund_statement_for_financial_operation(sender, instance, **kwargs):
+    """
+    Rebuilds the fund statement whenever a related financial operation is
+    saved (created, updated, soft-deleted, or restored).
+    """
+    if instance.fund:
+        instance.fund.rebuild_statements()
+
+@receiver(post_delete, sender=FinancialOperation)
+def handle_financial_operation_hard_delete(sender, instance, **kwargs):
+    """
+    Rebuilds the fund statement if a financial operation is hard-deleted.
+    """
+    if instance.fund:
+        instance.fund.rebuild_statements()
     
 
 
@@ -2067,6 +2114,49 @@ class Fund(models.Model):
         total_out = sum(op.amount for op in petty_ops if op.operation_type == 'WITHDRAW')
         
         return total_in - total_out
+
+    def rebuild_statements(self):
+        """
+        Deletes all existing statements for the fund and rebuilds them from scratch
+        based on all confirmed, non-deleted financial operations.
+        This ensures the statement is always consistent.
+        """
+        with transaction.atomic():
+            fund_locked = Fund.objects.select_for_update().get(pk=self.pk)
+
+            # 1. Clear existing statements
+            fund_locked.statements.all().delete()
+
+            # 2. Gather all relevant operations chronologically
+            operations = FinancialOperation.objects.filter(
+                fund=fund_locked,
+                status='CONFIRMED',
+                is_deleted=False
+            ).order_by('date', 'created_at')
+
+            # 3. Rebuild statements
+            running_balance = fund_locked.initial_balance
+            
+            CREDIT_OPERATIONS = ['RECEIVE_FROM_CUSTOMER', 'PAYMENT_TO_CASH', 'CAPITAL_INVESTMENT', 'RECEIVE_FROM_BANK']
+            DEBIT_OPERATIONS = ['PAY_TO_CUSTOMER', 'PAYMENT_FROM_CASH', 'PAY_TO_BANK', 'CASH_WITHDRAWAL', 'BANK_TRANSFER']
+
+            for op in operations:
+                if op.operation_type in CREDIT_OPERATIONS:
+                    running_balance += op.amount
+                elif op.operation_type in DEBIT_OPERATIONS:
+                    running_balance -= op.amount
+                
+                FundStatement.objects.create(
+                    fund=fund_locked,
+                    date=op.date,
+                    operation_type=op.get_operation_type_display(),
+                    amount=op.amount,
+                    running_balance=running_balance,
+                    description=op.description or f"عملیات شماره {op.operation_number}",
+                    reference_id=str(op.id),
+                    reference_type='FinancialOperation',
+                    created_by=op.created_by
+                )
 
     def recalculate_balance(self):
         """محاسبه مجدد موجودی فعلی صندوق بر اساس تمام عملیات‌های مرتبط."""
@@ -2350,21 +2440,23 @@ class PettyCashOperation(models.Model):
 # Signals for automatic balance updates
 @receiver(post_save, sender=FinancialOperation)
 def update_balances_on_operation_save(sender, instance, created, **kwargs):
-    """به‌روزرسانی خودکار موجودی‌ها پس از ثبت عملیات مالی"""
+    """
+    Update related balances whenever a FinancialOperation is saved.
+    This handles creation, updates (like status changes), and soft-deletes.
+    """
+    # Update customer balance if a customer is linked.
+    # This is not conditional on 'created' and will run on every save.
+    if instance.customer:
+        # Get or create the balance object for the customer.
+        customer_balance, _ = CustomerBalance.objects.get_or_create(customer=instance.customer)
+        # Recalculate the balance. This method reads all related non-deleted, confirmed operations.
+        customer_balance.update_balance()
+
+    # The fund balance is already handled by other signals, so we don't need to add duplicate logic here.
+    
+    # Voucher creation should only happen when a new operation is first confirmed.
+    # Re-running it on every save could create duplicate vouchers.
     if created and instance.status == 'CONFIRMED':
-        # به‌روزرسانی موجودی مشتری
-        if instance.customer:
-            customer_balance, created = CustomerBalance.objects.get_or_create(
-                customer=instance.customer,
-                defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
-            )
-            customer_balance.update_balance()
-        
-        # به‌روزرسانی موجودی صندوق
-        # این بخش نیاز به تعیین صندوق مناسب دارد
-        pass
-        
-        # ایجاد سند حسابداری خودکار
         try:
             from .accounting_utils import create_voucher_for_financial_operation
             create_voucher_for_financial_operation(instance)

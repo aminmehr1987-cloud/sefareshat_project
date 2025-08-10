@@ -3948,47 +3948,46 @@ def fund_detail_view(request, fund_id):
     fund.recalculate_balance()
     fund.refresh_from_db()
 
-    all_operations = []
+    all_operations_for_display = []
+    
     # Define IN/OUT operations for clarity
     IN_OPERATIONS = ['RECEIVE_FROM_CUSTOMER', 'RECEIVE_FROM_BANK', 'PAYMENT_TO_CASH', 'CAPITAL_INVESTMENT', 'ADD']
     OUT_OPERATIONS = ['PAY_TO_CUSTOMER', 'PAY_TO_BANK', 'PAYMENT_FROM_CASH', 'CASH_WITHDRAWAL', 'WITHDRAW', 'EXPENSE', 'PETTY_CASH_WITHDRAW']
 
-    # Fetch operations for display
+    # Fetch operations
     if fund.fund_type == 'PETTY_CASH':
         from .models import PettyCashOperation
         operations = PettyCashOperation.objects.all().order_by('date', 'created_at')
         for op in operations:
             source_info = ""
             if op.operation_type == 'ADD':
-                if op.source_fund:
-                    source_info = f"شارژ از {op.source_fund.name}"
-                elif op.source_bank_account:
-                    source_info = f"شارژ از {op.source_bank_account.title}"
-                else:
-                    source_info = "شارژ تنخواه"
+                source_info = f"شارژ تنخواه از {op.source_fund.name if op.source_fund else (op.source_bank_account.title if op.source_bank_account else 'نامشخص')}"
             elif op.operation_type == 'WITHDRAW':
                 source_info = f"برداشت: {op.get_reason_display()}"
             
-            all_operations.append({
+            op_data = {
                 'date': op.date, 
                 'description': op.description or source_info, 
                 'amount': op.amount,
                 'operation_type': op.operation_type, 
-                'status': 'CONFIRMED',
+                'status': 'CONFIRMED', # Petty cash ops are always confirmed
                 'type': 'petty_cash', 
                 'operation': op
-            })
+            }
+            all_operations_for_display.append(op_data)
     else:
         financial_filter = Q(fund=fund)
-        financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED', is_deleted=False).select_related('customer').order_by('date', 'created_at')
-        for op in financial_ops:
+        # Query for display (includes CANCELLED items)
+        financial_ops_display = FinancialOperation.objects.filter(financial_filter).select_related('customer').order_by('date', 'created_at')
+
+        for op in financial_ops_display:
             description = op.description
             if op.operation_type == 'RECEIVE_FROM_CUSTOMER' and op.customer:
                 description = f"دریافت از مشتری {op.customer.get_full_name()} طی سند شماره {op.operation_number}"
             elif op.operation_type == 'PAY_TO_CUSTOMER' and op.customer:
                 description = f"پرداخت به مشتری {op.customer.get_full_name()} طی سند شماره {op.operation_number}"
 
-            all_operations.append({
+            op_data = {
                 'date': op.date, 
                 'description': description, 
                 'amount': op.amount,
@@ -3996,12 +3995,13 @@ def fund_detail_view(request, fund_id):
                 'status': op.status,
                 'type': 'financial', 
                 'operation': op
-            })
+            }
+            all_operations_for_display.append(op_data)
         
         from .models import PettyCashOperation
         petty_cash_as_source = PettyCashOperation.objects.filter(source_fund=fund).order_by('date', 'created_at')
         for op in petty_cash_as_source:
-            all_operations.append({
+            op_data = {
                 'date': op.date, 
                 'description': f"برداشت برای تنخواه: {op.get_reason_display()}",
                 'amount': op.amount, 
@@ -4009,57 +4009,61 @@ def fund_detail_view(request, fund_id):
                 'status': 'CONFIRMED',
                 'type': 'petty_cash', 
                 'operation': op
-            })
+            }
+            all_operations_for_display.append(op_data)
 
-    # Sort all operations chronologically for calculation
-    all_operations.sort(key=lambda x: (x['date'], x['operation'].created_at if hasattr(x.get('operation'), 'created_at') else timezone.now()))
+    # Sort all operations chronologically for display
+    all_operations_for_display.sort(key=lambda x: (x['date'], x['operation'].created_at if hasattr(x.get('operation'), 'created_at') else timezone.now()))
+    
+    # Create a separate list for calculation, excluding cancelled items
+    all_operations_for_calc = [op for op in all_operations_for_display if op.get('status') != 'CANCELLED']
 
-    # Calculate totals for the stats box
-    total_in = sum(op['amount'] for op in all_operations if op['operation_type'] in IN_OPERATIONS)
-    total_out = sum(op['amount'] for op in all_operations if op['operation_type'] in OUT_OPERATIONS)
+    # Calculate totals for the stats box using the 'calc' list
+    total_in = sum(op['amount'] for op in all_operations_for_calc if op['operation_type'] in IN_OPERATIONS)
+    total_out = sum(op['amount'] for op in all_operations_for_calc if op['operation_type'] in OUT_OPERATIONS)
 
-    # Start with the opening balance
+    # Start with the opening balance for running balance calculation
     running_balance = fund.initial_balance
     opening_balance_description = "مانده اول دوره"
     from .models import FinancialYear
     try:
-        # Find the financial year the fund was created in
         financial_year = FinancialYear.objects.get(start_date__lte=fund.created_at.date(), end_date__gte=fund.created_at.date())
         if financial_year.is_closed:
             opening_balance_description = "انتقالی از سال قبل"
     except FinancialYear.DoesNotExist:
-        # If no financial year is found for the fund's creation date, use the default description
         pass
 
     # Create the list for display, starting with the opening balance
-    display_operations = [{
+    display_list = [{
         'date': fund.created_at,
         'description': opening_balance_description,
         'amount': fund.initial_balance,
-        'operation_type': 'ADD' if fund.initial_balance >= 0 else 'WITHDRAW', # for styling
+        'operation_type': 'ADD' if fund.initial_balance >= 0 else 'WITHDRAW',
         'status': 'CONFIRMED',
         'type': 'system',
         'running_balance': running_balance,
-        'operation': None, # No actual operation object
+        'operation': None,
     }]
 
-    # Process all other operations
-    for op in all_operations:
-        if op['operation_type'] in IN_OPERATIONS:
-            running_balance += op['amount']
-        elif op['operation_type'] in OUT_OPERATIONS:
-            running_balance -= op['amount']
+    # Process all operations for display, but only update balance for non-cancelled items
+    for op_data in all_operations_for_display:
+        # Update running balance ONLY if the operation is not cancelled
+        if op_data.get('status') != 'CANCELLED':
+            if op_data['operation_type'] in IN_OPERATIONS:
+                running_balance += op_data['amount']
+            elif op_data['operation_type'] in OUT_OPERATIONS:
+                running_balance -= op_data['amount']
         
-        op_with_balance = op.copy()
+        op_with_balance = op_data.copy()
         op_with_balance['running_balance'] = running_balance
-        display_operations.append(op_with_balance)
+        display_list.append(op_with_balance)
     
     # Reverse for display (newest first)
-    display_operations.reverse()
+    display_list.reverse()
 
     context = {
         'fund': fund,
-        'operations': display_operations[:101], # Limit to 100 operations + opening balance
+        'operations': display_list,
         'total_in': total_in,
         'total_out': total_out,
         'current_balance': fund.current_balance,
@@ -4205,18 +4209,14 @@ def financial_operation_delete_view(request, operation_id):
 
         # اگر عملیات مربوط به یک مشتری بود، موجودی آن مشتری را به‌روزرسانی می‌کنیم
         if customer:
-            try:
-                # This will call the robust recalculation method on the model
-                customer.customerbalance.update_balance()
-            except CustomerBalance.DoesNotExist:
-                # This case is unlikely if operations always create a balance object,
-                # but as a fallback, we create it and then update it.
-                cb, created = CustomerBalance.objects.get_or_create(customer=customer)
-                if created:
-                    cb.update_balance() # Recalculate if it was just created
+            # Use get_or_create to ensure the balance object exists, then update it.
+            # This is more robust than the previous try/except block.
+            customer_balance, created = CustomerBalance.objects.get_or_create(customer=customer)
+            customer_balance.update_balance()
 
         messages.success(request, f'عملیات مالی {operation_number} با موفقیت حذف شد و موجودی‌ها به‌روز گردید.')
-        return redirect('products:financial_operation_list')
+        referer_url = request.META.get('HTTP_REFERER', reverse('products:financial_operation_list'))
+        return HttpResponseRedirect(referer_url)
     
     context = {
         'operation': operation,
@@ -6107,8 +6107,7 @@ def bank_statement_view(request, bank_account_id):
     # فیلتر کردن تراکنش‌ها - بر اساس نام بانک و شماره حساب
     transactions_query = FinancialOperation.objects.filter(
         bank_name=bank_account.bank.name,
-        account_number=bank_account.account_number,
-        status='CONFIRMED'
+        account_number=bank_account.account_number
     )
     
     # Apply date filters if they exist
@@ -6133,7 +6132,7 @@ def bank_statement_view(request, bank_account_id):
     transaction_count = transactions.count()
 
     # Create a separate query for calculations that excludes deleted items
-    transactions_for_calc = transactions_query.filter(is_deleted=False)
+    transactions_for_calc = transactions_query.filter(is_deleted=False, status='CONFIRMED')
 
     # Calculate totals for the stats box using the correct query
     total_credit = transactions_for_calc.filter(operation_type__in=CREDIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
