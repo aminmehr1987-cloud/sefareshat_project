@@ -3747,19 +3747,8 @@ def receive_from_bank_view(request):
                 cash_fund.current_balance += operation.amount
                 cash_fund.save()
 
-                # ثبت سند حسابداری
-                try:
-                    from .accounting_utils import AccountingVoucherManager
-                    voucher_manager = AccountingVoucherManager()
-                    voucher = voucher_manager.create_voucher_from_financial_operation(operation)
-                    if voucher:
-                        success_message = f'عملیات دریافت از بانک با موفقیت ثبت شد. مبلغ {operation.amount:,} ریال از حساب {bank_account.title} به صندوق انتقال یافت. شماره سند: {voucher.number}'
-                    else:
-                        success_message = f'عملیات دریافت از بانک با موفقیت ثبت شد. مبلغ {operation.amount:,} ریال از حساب {bank_account.title} به صندوق انتقال یافت.'
-                except Exception as e:
-                    success_message = f'عملیات ثبت شد اما خطا در ایجاد سند حسابداری: {str(e)}'
-
-                # پیام موفقیت در session و ریدایرکت به صفحه تأیید
+                # The signal will now handle voucher creation automatically.
+                success_message = f'عملیات دریافت از بانک با موفقیت ثبت شد. مبلغ {operation.amount:,} ریال از حساب {bank_account.title} به صندوق انتقال یافت.'
                 request.session['success_message'] = success_message
                 request.session['operation_type'] = 'receive_from_bank'
                 return redirect('products:operation_confirmation')
@@ -3795,19 +3784,8 @@ def pay_to_bank_view(request):
                 operation.confirmed_at = timezone.now()
                 operation.save()
 
-                # ثبت سند حسابداری
-                try:
-                    from .accounting_utils import AccountingVoucherManager
-                    voucher_manager = AccountingVoucherManager()
-                    voucher = voucher_manager.create_voucher_from_financial_operation(operation)
-                    if voucher:
-                        success_message = f'عملیات پرداخت به بانک با موفقیت ثبت شد. شماره سند: {voucher.number}'
-                    else:
-                        success_message = 'عملیات پرداخت به بانک با موفقیت ثبت شد.'
-                except Exception as e:
-                    success_message = f'عملیات ثبت شد اما خطا در ایجاد سند حسابداری: {str(e)}'
-
-                # پیام موفقیت در session و ریدایرکت به صفحه تأیید
+                # The signal will now handle voucher creation automatically.
+                success_message = 'عملیات پرداخت به بانک با موفقیت ثبت شد.'
                 request.session['success_message'] = success_message
                 request.session['operation_type'] = 'pay_to_bank'
                 return redirect('products:operation_confirmation')
@@ -4322,14 +4300,7 @@ def pay_to_customer_view(request):
             
             operation.save()
             
-            # ایجاد سند حسابداری
-            try:
-                voucher = operation.create_accounting_entries()
-                if not voucher:
-                    messages.warning(request, 'عملیات ثبت شد اما سند حسابداری ایجاد نشد.')
-            except Exception as e:
-                messages.warning(request, f'عملیات ثبت شد اما خطا در ایجاد سند حسابداری: {str(e)}')
-                voucher = None
+            # The signal will now handle voucher creation automatically.
             
             # به‌روزرسانی موجودی مشتری
             customer_balance, created = CustomerBalance.objects.get_or_create(
@@ -4338,11 +4309,8 @@ def pay_to_customer_view(request):
             )
             customer_balance.update_balance(operation.amount, operation.operation_type)
             
-            # نمایش پیام تأیید با شماره سند
-            if voucher:
-                success_message = f'عملیات پرداخت به مشتری با موفقیت ثبت شد. شماره سند: {voucher.number}'
-            else:
-                success_message = 'عملیات پرداخت به مشتری با موفقیت ثبت شد.'
+            # نمایش پیام تأیید
+            success_message = 'عملیات پرداخت به مشتری با موفقیت ثبت شد.'
             
             # ذخیره پیام در session برای نمایش در صفحه تأیید
             request.session['success_message'] = success_message
@@ -4638,15 +4606,9 @@ def petty_cash_view(request):
                         operation.save()
                         print(f"Petty cash operation saved: {operation.operation_type} - {operation.amount}")
                         
-                        # ایجاد سند حسابداری
-                        try:
-                            create_petty_cash_voucher(operation, 'ADD')
-                            print("=== DEBUG: Voucher created successfully ===")
-                        except Exception as e:
-                            print(f"=== DEBUG: Error creating voucher: {e} ===")
-                        
+                        # The signal will now handle voucher creation automatically.
+                        operation.save()
                         success_message = f'مبلغ {operation.amount:,} تومان با موفقیت به تنخواه اضافه شد.'
-                        print(f"=== DEBUG: Success message: {success_message} ===")
                         
                         # ذخیره پیام در session برای نمایش در صفحه تأیید
                         request.session['success_message'] = success_message
@@ -4657,17 +4619,9 @@ def petty_cash_view(request):
                         print("=== DEBUG: Processing WITHDRAW operation ===")
                         # برداشت از تنخواه
                         operation.save()
-                        print(f"Petty cash operation saved: {operation.operation_type} - {operation.amount}")
                         
-                        # ایجاد سند حسابداری
-                        try:
-                            create_petty_cash_voucher(operation, 'WITHDRAW')
-                            print("=== DEBUG: Voucher created successfully ===")
-                        except Exception as e:
-                            print(f"=== DEBUG: Error creating voucher: {e} ===")
-                        
+                        # The signal will now handle voucher creation automatically.
                         success_message = f'مبلغ {operation.amount:,} تومان با موفقیت از تنخواه برداشت شد.'
-                        print(f"=== DEBUG: Success message: {success_message} ===")
                         
                         # ذخیره پیام در session برای نمایش در صفحه تأیید
                         request.session['success_message'] = success_message
@@ -4850,108 +4804,6 @@ def convert_shamsi_to_gregorian(shamsi_date_str):
     except Exception as e:
         print(f"Error converting date {shamsi_date_str}: {e}")
         return timezone.now().date()
-
-
-def create_petty_cash_voucher(operation, operation_type):
-    """
-    ایجاد سند حسابداری برای عملیات تنخواه
-    """
-    try:
-        from .models import Voucher, VoucherItem, Account, FinancialYear
-        
-        # دریافت سال مالی فعال
-        financial_year = FinancialYear.objects.filter(is_active=True).first()
-        if not financial_year:
-            print("سال مالی فعال یافت نشد")
-            return
-        
-        # دریافت حساب‌های مربوطه
-        petty_cash_account = Account.objects.filter(code='1130').first()  # تنخواه گردان
-        cash_account = Account.objects.filter(code='1110').first()  # صندوق
-        bank_account = Account.objects.filter(code='1120').first()  # بانک‌ها
-        expense_account = Account.objects.filter(code='5300').first()  # هزینه‌های اداری
-        
-        if not petty_cash_account:
-            print("حساب تنخواه یافت نشد")
-            return
-        
-        # ایجاد سند
-        voucher = Voucher.objects.create(
-            financial_year=financial_year,
-            number=f"PC{operation.operation_number}",
-            date=operation.date,
-            type='PERMANENT',
-            description=f"سند عملیات تنخواه - {operation.get_operation_type_display()}",
-            created_by=operation.created_by
-        )
-        
-        if operation_type == 'ADD':
-            # افزودن به تنخواه
-            if operation.source_fund:
-                # از صندوق به تنخواه
-                VoucherItem.objects.create(
-                    voucher=voucher,
-                    account=cash_account or petty_cash_account,
-                    description=f"برداشت از صندوق {operation.source_fund.name}",
-                    debit=0,
-                    credit=operation.amount,
-                    reference_id=str(operation.id),
-                    reference_type='PettyCashOperation'
-                )
-            elif operation.source_bank_account:
-                # از بانک به تنخواه
-                VoucherItem.objects.create(
-                    voucher=voucher,
-                    account=bank_account or petty_cash_account,
-                    description=f"برداشت از حساب {operation.source_bank_account.title}",
-                    debit=0,
-                    credit=operation.amount,
-                    reference_id=str(operation.id),
-                    reference_type='PettyCashOperation'
-                )
-            
-            # بدهکار کردن تنخواه
-            VoucherItem.objects.create(
-                voucher=voucher,
-                account=petty_cash_account,
-                description="افزودن به تنخواه",
-                debit=operation.amount,
-                credit=0,
-                reference_id=str(operation.id),
-                reference_type='PettyCashOperation'
-            )
-            
-        else:
-            # برداشت از تنخواه
-            # بستانکار کردن تنخواه
-            VoucherItem.objects.create(
-                voucher=voucher,
-                account=petty_cash_account,
-                description="برداشت از تنخواه",
-                debit=0,
-                credit=operation.amount,
-                reference_id=str(operation.id),
-                reference_type='PettyCashOperation'
-            )
-            
-            # بدهکار کردن هزینه
-            VoucherItem.objects.create(
-                voucher=voucher,
-                account=expense_account or petty_cash_account,
-                description=f"هزینه {operation.get_reason_display()}",
-                debit=operation.amount,
-                credit=0,
-                reference_id=str(operation.id),
-                reference_type='PettyCashOperation'
-            )
-        
-        voucher.save()
-        print(f"سند حسابداری برای عملیات تنخواه {operation.operation_number} ایجاد شد")
-        
-    except Exception as e:
-        print(f"خطا در ایجاد سند حسابداری: {e}")
-        # Don't re-raise the exception to avoid transaction issues
-        pass
 
 
 @login_required

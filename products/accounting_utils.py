@@ -134,839 +134,322 @@ class AccountingVoucherManager:
             self._create_payment_from_cash_items(operation, voucher)
         elif operation.operation_type == 'CAPITAL_INVESTMENT':
             self._create_capital_investment_items(operation, voucher)
-        elif operation.operation_type == 'PETTY_CASH':
-            self._create_petty_cash_items(operation, voucher)
-    
-    def _create_receive_from_customer_items(self, operation, voucher):
-        """Create voucher items for receiving from customer"""
-        # Get customer account
-        customer_account = self._get_or_create_customer_account(operation.customer)
         
-        # Get cash/bank account based on payment method
-        cash_account = self._get_or_create_cash_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description=f"دریافت از {operation.customer.get_full_name()}",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=customer_account,
-            description=f"دریافت از {operation.customer.get_full_name()}",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_pay_to_customer_items(self, operation, voucher):
-        """Create voucher items for paying to customer"""
-        # Get customer account
-        customer_account = self._get_or_create_customer_account(operation.customer)
-        
-        # Get cash/bank account based on payment method
-        cash_account = self._get_or_create_cash_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=customer_account,
-            description=f"پرداخت به {operation.customer.get_full_name()}",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description=f"پرداخت به {operation.customer.get_full_name()}",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_receive_from_bank_items(self, operation, voucher):
-        """Create voucher items for receiving from bank"""
-        # Get bank account
-        bank_account = self._get_or_create_bank_account(operation.bank_name, operation.account_number)
-        
-        # Get cash account
-        cash_account = self._get_or_create_cash_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description=f"دریافت از بانک {operation.bank_name}",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=bank_account,
-            description=f"دریافت از بانک {operation.bank_name}",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_pay_to_bank_items(self, operation, voucher):
-        """Create voucher items for paying to bank"""
-        # Get bank account
-        bank_account = self._get_or_create_bank_account(operation.bank_name, operation.account_number)
-        
-        # Get cash account
-        cash_account = self._get_or_create_cash_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=bank_account,
-            description=f"پرداخت به بانک {operation.bank_name}",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description=f"پرداخت به بانک {operation.bank_name}",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_bank_transfer_items(self, operation, voucher):
-        """Create voucher items for bank transfer"""
-        # Get source and destination bank accounts
-        source_bank = self._get_or_create_bank_account(operation.bank_name, operation.account_number)
-        dest_bank = self._get_or_create_bank_account("حساب مقصد", "0000000000")
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=dest_bank,
-            description=f"حواله بانکی به {operation.bank_name}",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=source_bank,
-            description=f"حواله بانکی از {operation.bank_name}",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_cash_withdrawal_items(self, operation, voucher):
-        """Create voucher items for cash withdrawal from bank"""
-        # Get bank and cash accounts
-        bank_account = self._get_or_create_bank_account(operation.bank_name, operation.account_number)
-        cash_account = self._get_or_create_cash_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description=f"برداشت نقدی از بانک {operation.bank_name}",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=bank_account,
-            description=f"برداشت نقدی از بانک {operation.bank_name}",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_payment_to_cash_items(self, operation, voucher):
-        """Create voucher items for payment to cash"""
-        # Get cash account
-        cash_account = self._get_or_create_cash_account()
-        
-        # Get expense account
-        expense_account = self._get_or_create_expense_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=expense_account,
-            description="پرداخت به صندوق",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description="پرداخت به صندوق",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_payment_from_cash_items(self, operation, voucher):
-        """Create voucher items for payment from cash"""
-        # Get cash account
-        cash_account = self._get_or_create_cash_account()
-        
-        # Get income account
-        income_account = self._get_or_create_income_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description="پرداخت از صندوق",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=income_account,
-            description="پرداخت از صندوق",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_capital_investment_items(self, operation, voucher):
-        """Create voucher items for capital investment"""
-        # Get cash account
-        cash_account = self._get_or_create_cash_account()
-        
-        # Get capital account
-        capital_account = self._get_or_create_capital_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description="سرمایه گذاری",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=capital_account,
-            description="سرمایه گذاری",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _create_petty_cash_items(self, operation, voucher):
-        """Create voucher items for petty cash operations"""
-        # Get petty cash account
-        petty_cash_account = self._get_or_create_petty_cash_account()
-        
-        # Get cash account
-        cash_account = self._get_or_create_cash_account()
-        
-        # Create voucher items
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=petty_cash_account,
-            description="عملیات تنخواه",
-            debit=operation.amount,
-            credit=0,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-        
-        VoucherItem.objects.create(
-            voucher=voucher,
-            account=cash_account,
-            description="عملیات تنخواه",
-            debit=0,
-            credit=operation.amount,
-            reference_id=str(operation.id),
-            reference_type='FinancialOperation'
-        )
-    
-    def _get_or_create_customer_account(self, customer):
-        """Get or create customer account"""
-        if not customer:
-            return self._get_or_create_general_account("حساب مشتریان", "1300")
-        
-        # Try to find existing customer account
-        customer_account = Account.objects.filter(
-            name__icontains=customer.get_full_name(),
-            group__name__icontains="مشتریان"
-        ).first()
-        
-        if customer_account:
-            return customer_account
-        
-        # Create new customer account
-        customer_group = self._get_or_create_account_group("حساب‌های دریافتنی", "1300")
-        
-        return Account.objects.create(
-            group=customer_group,
-            code=f"1300{customer.id:03d}",
-            name=f"حساب {customer.get_full_name()}",
-            level='DETAIL',
-            currency=self.default_currency,
-            description=f"حساب مشتری: {customer.get_full_name()}"
-        )
-    
-    def _get_or_create_cash_account(self):
-        """Get or create cash account"""
-        cash_account = Account.objects.filter(
-            name__icontains="صندوق",
-            group__name__icontains="نقدی"
-        ).first()
-        
-        if cash_account:
-            return cash_account
-        
-        # Create cash account
-        cash_group = self._get_or_create_account_group("موجودی نقدی", "1100")
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith="1100"
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[4:])
-                new_code = f"1100{last_number + 1:03d}"
-            except ValueError:
-                new_code = "1100001"
-        else:
-            new_code = "1100001"
-        
-        return Account.objects.create(
-            group=cash_group,
-            code=new_code,
-            name="صندوق نقدی",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب صندوق نقدی"
-        )
-    
-    def _get_or_create_bank_account(self, bank_name, account_number):
-        """Get or create bank account"""
-        if not bank_name:
-            bank_name = "بانک عمومی"
-        
-        bank_account = Account.objects.filter(
-            name__icontains=bank_name,
-            group__name__icontains="بانکی"
-        ).first()
-        
-        if bank_account:
-            return bank_account
-        
-        # Create bank account
-        bank_group = self._get_or_create_account_group("حساب‌های بانکی", "1200")
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith="1200"
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[4:])
-                new_code = f"1200{last_number + 1:03d}"
-            except ValueError:
-                new_code = "1200001"
-        else:
-            new_code = "1200001"
-        
-        return Account.objects.create(
-            group=bank_group,
-            code=new_code,
-            name=f"حساب بانکی {bank_name}",
-            level='DETAIL',
-            currency=self.default_currency,
-            description=f"حساب بانکی {bank_name} - {account_number}"
-        )
-    
-    def _get_or_create_expense_account(self):
-        """Get or create expense account"""
-        expense_account = Account.objects.filter(
-            name__icontains="هزینه",
-            group__name__icontains="هزینه"
-        ).first()
-        
-        if expense_account:
-            return expense_account
-        
-        # Create expense account
-        expense_group = self._get_or_create_account_group("هزینه‌ها", "5200")
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith="5200"
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[4:])
-                new_code = f"5200{last_number + 1:03d}"
-            except ValueError:
-                new_code = "5200001"
-        else:
-            new_code = "5200001"
-        
-        return Account.objects.create(
-            group=expense_group,
-            code=new_code,
-            name="هزینه‌های عمومی",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب هزینه‌های عمومی"
-        )
-    
-    def _get_or_create_income_account(self):
-        """Get or create income account"""
-        income_account = Account.objects.filter(
-            name__icontains="درآمد",
-            group__name__icontains="درآمد"
-        ).first()
-        
-        if income_account:
-            return income_account
-        
-        # Create income account
-        income_group = self._get_or_create_account_group("درآمدها", "4100")
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith="4100"
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[4:])
-                new_code = f"4100{last_number + 1:03d}"
-            except ValueError:
-                new_code = "4100001"
-        else:
-            new_code = "4100001"
-        
-        return Account.objects.create(
-            group=income_group,
-            code=new_code,
-            name="درآمدهای عمومی",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب درآمدهای عمومی"
-        )
-    
-    def _get_or_create_capital_account(self):
-        """Get or create capital account"""
-        capital_account = Account.objects.filter(
-            name__icontains="سرمایه",
-            group__name__icontains="سرمایه"
-        ).first()
-        
-        if capital_account:
-            return capital_account
-        
-        # Create capital account
-        capital_group = self._get_or_create_account_group("سرمایه‌ها", "3100")
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith="3100"
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[4:])
-                new_code = f"3100{last_number + 1:03d}"
-            except ValueError:
-                new_code = "3100001"
-        else:
-            new_code = "3100001"
-        
-        return Account.objects.create(
-            group=capital_group,
-            code=new_code,
-            name="سرمایه",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب سرمایه"
-        )
-    
-    def _get_or_create_petty_cash_account(self):
-        """Get or create petty cash account"""
-        petty_cash_account = Account.objects.filter(
-            name__icontains="تنخواه",
-            group__name__icontains="نقدی"
-        ).first()
-        
-        if petty_cash_account:
-            return petty_cash_account
-        
-        # Create petty cash account
-        cash_group = self._get_or_create_account_group("موجودی نقدی", "1100")
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith="1100"
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[4:])
-                new_code = f"1100{last_number + 1:03d}"
-            except ValueError:
-                new_code = "1100002"
-        else:
-            new_code = "1100002"
-        
-        return Account.objects.create(
-            group=cash_group,
-            code=new_code,
-            name="تنخواه",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب تنخواه"
-        )
-    
-    def _get_or_create_general_account(self, name, code_prefix):
-        """Get or create general account"""
-        account = Account.objects.filter(
-            name__icontains=name
-        ).first()
-        
-        if account:
-            return account
-        
-        # Create general account
-        group = self._get_or_create_account_group(name, code_prefix)
-        
-        # Generate unique code
-        existing_codes = Account.objects.filter(
-            code__startswith=code_prefix
-        ).values_list('code', flat=True)
-        
-        if existing_codes:
-            max_code = max(existing_codes)
-            try:
-                last_number = int(max_code[len(code_prefix):])
-                new_code = f"{code_prefix}{last_number + 1:03d}"
-            except ValueError:
-                new_code = f"{code_prefix}001"
-        else:
-            new_code = f"{code_prefix}001"
-        
-        return Account.objects.create(
-            group=group,
-            code=new_code,
-            name=name,
-            level='DETAIL',
-            currency=self.default_currency,
-            description=f"حساب {name}"
-        )
-    
-    def _get_or_create_account_group(self, name, code):
-        """Get or create account group"""
-        from .models import AccountGroup
-        
-        group = AccountGroup.objects.filter(
-            name__icontains=name
-        ).first()
-        
-        if group:
-            return group
-        
-        return AccountGroup.objects.create(
-            name=name,
-            code=code,
-            description=f"گروه حساب {name}"
-        )
-    
-    def create_voucher_from_receipt(self, receipt):
-        """Create voucher from receipt"""
+    def create_voucher_from_petty_cash_operation(self, operation):
+        """
+        Create voucher from petty cash operation.
+        This logic is moved from the old `create_petty_cash_voucher` function.
+        """
         try:
             with transaction.atomic():
-                # Create voucher
-                voucher = Voucher.objects.create(
-                    financial_year=self.current_financial_year,
-                    number=self.get_next_voucher_number(),
-                    date=receipt.date,
-                    type='PERMANENT',
-                    description=f"سند رسید دریافت از {receipt.customer.get_full_name()}",
-                    created_by=receipt.created_by
-                )
-                
-                # Get customer account
-                customer_account = self._get_or_create_customer_account(receipt.customer)
-                
-                # Get cash account
-                cash_account = self._get_or_create_cash_account()
-                
-                # Create voucher items
-                VoucherItem.objects.create(
-                    voucher=voucher,
-                    account=cash_account,
-                    description=f"دریافت از {receipt.customer.get_full_name()}",
-                    debit=receipt.amount,
-                    credit=0,
-                    reference_id=str(receipt.id),
-                    reference_type='Receipt'
-                )
-                
-                VoucherItem.objects.create(
-                    voucher=voucher,
-                    account=customer_account,
-                    description=f"دریافت از {receipt.customer.get_full_name()}",
-                    debit=0,
-                    credit=receipt.amount,
-                    reference_id=str(receipt.id),
-                    reference_type='Receipt'
-                )
-                
-                return voucher
-                
-        except Exception as e:
-            print(f"Error creating voucher for receipt {receipt.id}: {e}")
-            return None
-    
-    def create_voucher_from_invoice(self, invoice, invoice_type):
-        """Create voucher from invoice (purchase or sales)"""
-        try:
-            with transaction.atomic():
-                # Create voucher
-                voucher = Voucher.objects.create(
-                    financial_year=self.current_financial_year,
-                    number=self.get_next_voucher_number(),
-                    date=invoice.invoice_date,
-                    type='PERMANENT',
-                    description=f"سند فاکتور {invoice_type} - {invoice.invoice_number}",
-                    created_by=invoice.created_by
-                )
-                
-                # Get customer account
-                customer_account = self._get_or_create_customer_account(invoice.customer)
-                
-                # Get sales/purchase account
-                if invoice_type == 'sales':
-                    sales_account = self._get_or_create_sales_account()
-                else:
-                    purchase_account = self._get_or_create_purchase_account()
-                
-                # Create voucher items
-                if invoice_type == 'sales':
-                    VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=customer_account,
-                        description=f"فروش به {invoice.customer.get_full_name()}",
-                        debit=invoice.total_amount,
-                        credit=0,
-                        reference_id=str(invoice.id),
-                        reference_type='SalesInvoice'
-                    )
-                    
-                    VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=sales_account,
-                        description=f"فروش به {invoice.customer.get_full_name()}",
-                        debit=0,
-                        credit=invoice.total_amount,
-                        reference_id=str(invoice.id),
-                        reference_type='SalesInvoice'
-                    )
-                else:
-                    VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=purchase_account,
-                        description=f"خرید از {invoice.customer.get_full_name()}",
-                        debit=invoice.total_amount,
-                        credit=0,
-                        reference_id=str(invoice.id),
-                        reference_type='PurchaseInvoice'
-                    )
-                    
-                    VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=customer_account,
-                        description=f"خرید از {invoice.customer.get_full_name()}",
-                        debit=0,
-                        credit=invoice.total_amount,
-                        reference_id=str(invoice.id),
-                        reference_type='PurchaseInvoice'
-                    )
-                
-                return voucher
-                
-        except Exception as e:
-            print(f"Error creating voucher for invoice {invoice.id}: {e}")
-            return None
-    
-    def create_voucher_from_petty_cash_operation(self, petty_cash_operation):
-        """Create voucher from petty cash operation"""
-        try:
-            with transaction.atomic():
-                # اطمینان از وجود financial_year
                 if not self.current_financial_year:
                     self._initialize_defaults()
                 
-                # اطمینان از وجود created_by
-                created_by = petty_cash_operation.created_by
-                if not created_by:
-                    created_by = User.objects.first()
+                created_by = operation.created_by or User.objects.first()
                 
-                # Create voucher
                 voucher = Voucher.objects.create(
                     financial_year=self.current_financial_year,
                     number=self.get_next_voucher_number(),
-                    date=petty_cash_operation.date,
+                    date=operation.date,
                     type='PERMANENT',
-                    description=f"سند عملیات تنخواه - {petty_cash_operation.operation_number}",
-                    created_by=created_by
+                    description=f"سند عملیات تنخواه - {operation.get_operation_type_display()} - {operation.operation_number}",
+                    created_by=created_by,
+                    is_confirmed=True,
+                    confirmed_by=created_by,
+                    confirmed_at=timezone.now()
                 )
                 
-                # Get petty cash account
                 petty_cash_account = self._get_or_create_petty_cash_account()
-                
-                # Get cash account (source)
-                cash_account = self._get_or_create_cash_account()
-                
-                # Create voucher items based on operation type
-                if petty_cash_operation.operation_type == 'ADD':
-                    # افزودن به تنخواه: بدهکار تنخواه، بستانکار صندوق نقدی
-                    VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=petty_cash_account,
-                        description=f"افزودن به تنخواه - {petty_cash_operation.get_reason_display()}",
-                        debit=petty_cash_operation.amount,
-                        credit=0,
-                        reference_id=str(petty_cash_operation.id),
-                        reference_type='PettyCashOperation'
-                    )
+                expense_account = self._get_or_create_expense_account()
+
+                if operation.operation_type == 'ADD':
+                    source_account = None
+                    if operation.source_fund:
+                        source_account = self._get_or_create_cash_account()
+                    elif operation.source_bank_account:
+                        source_account = self._get_or_create_bank_account(
+                            operation.source_bank_account.bank.name,
+                            operation.source_bank_account.account_number
+                        )
                     
+                    if source_account:
+                        # Debit Petty Cash, Credit Source (Cash/Bank)
+                        VoucherItem.objects.create(
+                            voucher=voucher, account=petty_cash_account,
+                            description=f"افزودن به تنخواه از {source_account.name}",
+                            debit=operation.amount, credit=0,
+                            reference_id=str(operation.id), reference_type='PettyCashOperation'
+                        )
+                        VoucherItem.objects.create(
+                            voucher=voucher, account=source_account,
+                            description=f"برداشت برای تنخواه",
+                            debit=0, credit=operation.amount,
+                            reference_id=str(operation.id), reference_type='PettyCashOperation'
+                        )
+                
+                elif operation.operation_type == 'WITHDRAW':
+                    # Debit Expense, Credit Petty Cash
                     VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=cash_account,
-                        description=f"افزودن به تنخواه - {petty_cash_operation.get_reason_display()}",
-                        debit=0,
-                        credit=petty_cash_operation.amount,
-                        reference_id=str(petty_cash_operation.id),
-                        reference_type='PettyCashOperation'
+                        voucher=voucher, account=expense_account,
+                        description=f"هزینه از تنخواه: {operation.get_reason_display()}",
+                        debit=operation.amount, credit=0,
+                        reference_id=str(operation.id), reference_type='PettyCashOperation'
                     )
-                else:
-                    # برداشت از تنخواه: بدهکار صندوق نقدی، بستانکار تنخواه
                     VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=cash_account,
-                        description=f"برداشت از تنخواه - {petty_cash_operation.get_reason_display()}",
-                        debit=petty_cash_operation.amount,
-                        credit=0,
-                        reference_id=str(petty_cash_operation.id),
-                        reference_type='PettyCashOperation'
-                    )
-                    
-                    VoucherItem.objects.create(
-                        voucher=voucher,
-                        account=petty_cash_account,
-                        description=f"برداشت از تنخواه - {petty_cash_operation.get_reason_display()}",
-                        debit=0,
-                        credit=petty_cash_operation.amount,
-                        reference_id=str(petty_cash_operation.id),
-                        reference_type='PettyCashOperation'
+                        voucher=voucher, account=petty_cash_account,
+                        description=f"برداشت از تنخواه بابت {operation.get_reason_display()}",
+                        debit=0, credit=operation.amount,
+                        reference_id=str(operation.id), reference_type='PettyCashOperation'
                     )
                 
                 return voucher
-                
+
         except Exception as e:
-            print(f"Error creating voucher for petty cash operation {petty_cash_operation.id}: {e}")
+            print(f"Error creating voucher for petty cash operation {operation.id}: {e}")
             return None
+
+    def _get_debit_credit_accounts(self, operation):
+        """
+        Determines the debit and credit accounts based on the financial operation type.
+        This is the core of the double-entry logic.
+        """
+        customer_account = self._get_or_create_customer_account(operation.customer) if operation.customer else self._get_or_create_general_account("حساب‌های دریافتنی/پرداختنی", "1300")
+        cash_account = self._get_or_create_cash_account()
+        bank_account = self._get_or_create_bank_account(operation.bank_name, operation.account_number) if operation.bank_name else cash_account
+        capital_account = self._get_or_create_capital_account()
+        expense_account = self._get_or_create_expense_account()
+
+        # Default to cash/customer for unknown types
+        debit_account = cash_account
+        credit_account = customer_account
+
+        op_type = operation.operation_type
+        payment_method = operation.payment_method
+
+        # Determine the primary account (cash or bank) based on payment method
+        primary_account = bank_account if payment_method in ['bank_transfer', 'pos'] else cash_account
+
+        if op_type == 'RECEIVE_FROM_CUSTOMER':
+            debit_account = primary_account
+            credit_account = customer_account
+        elif op_type == 'PAY_TO_CUSTOMER':
+            debit_account = customer_account
+            credit_account = primary_account
+        elif op_type == 'RECEIVE_FROM_BANK': # برداشت از بانک و واریز به صندوق
+            debit_account = cash_account
+            credit_account = bank_account
+        elif op_type == 'PAY_TO_BANK': # پرداخت از صندوق به بانک
+            debit_account = bank_account
+            credit_account = cash_account
+        elif op_type == 'BANK_TRANSFER': # حواله بین دو حساب بانکی
+            # This case is more complex and might need special handling
+            # Assuming a generic 'transfers' account for now
+            debit_account = bank_account # Destination account
+            credit_account = self._get_or_create_bank_account("Source Bank", "000") # Source Account
+        elif op_type == 'CASH_WITHDRAWAL': # Same as RECEIVE_FROM_BANK
+            debit_account = cash_account
+            credit_account = bank_account
+        elif op_type == 'PAYMENT_TO_CASH': # واریز وجه به صندوق (مثلا از درآمد نامشخص)
+            debit_account = cash_account
+            credit_account = self._get_or_create_income_account()
+        elif op_type == 'PAYMENT_FROM_CASH': # پرداخت هزینه از صندوق
+            debit_account = expense_account
+            credit_account = cash_account
+        elif op_type == 'CAPITAL_INVESTMENT': # افزایش سرمایه
+            debit_account = primary_account
+            credit_account = capital_account
+
+        return debit_account, credit_account
+
+
+    def _create_receive_from_customer_items(self, operation, voucher):
+        """Create voucher items for receiving from customer"""
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"دریافت از {operation.customer.get_full_name()}",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"تسویه حساب مشتری {operation.customer.get_full_name()}",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+
+    def _create_pay_to_customer_items(self, operation, voucher):
+        """Create voucher items for paying to customer"""
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"پرداخت به {operation.customer.get_full_name()}",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"پرداخت از {credit_account.name}",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
     
+    def _create_receive_from_bank_items(self, operation, voucher):
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"برداشت از بانک {operation.bank_name}",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"واریز به صندوق از بانک {operation.bank_name}",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+
+    def _create_pay_to_bank_items(self, operation, voucher):
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"واریز به بانک {operation.bank_name}",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"برداشت از صندوق برای واریز به بانک",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+
+    def _create_bank_transfer_items(self, operation, voucher):
+        # This needs more specific logic based on how transfers are recorded.
+        # Assuming operation has from_account and to_account fields
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"حواله به حساب {operation.bank_name}",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"حواله از حساب",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+
+    def _create_cash_withdrawal_items(self, operation, voucher):
+        self._create_receive_from_bank_items(operation, voucher)
+
+    def _create_payment_to_cash_items(self, operation, voucher):
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"واریز وجه به صندوق",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"منبع واریز به صندوق",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+
+    def _create_payment_from_cash_items(self, operation, voucher):
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"پرداخت هزینه از صندوق",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"برداشت از صندوق بابت هزینه",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+
+    def _create_capital_investment_items(self, operation, voucher):
+        debit_account, credit_account = self._get_debit_credit_accounts(operation)
+        VoucherItem.objects.create(
+            voucher=voucher, account=debit_account,
+            description=f"افزایش سرمایه",
+            debit=operation.amount, credit=0,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+        VoucherItem.objects.create(
+            voucher=voucher, account=credit_account,
+            description=f"ثبت آورده نقدی/بانکی",
+            debit=0, credit=operation.amount,
+            reference_id=str(operation.id), reference_type='FinancialOperation'
+        )
+    
+    def _get_or_create_account(self, name, code, group_name, group_code, group_type):
+        """A more generic and robust way to get or create an account."""
+        group, _ = AccountGroup.objects.get_or_create(
+            code=group_code,
+            defaults={'name': group_name, 'type': group_type}
+        )
+        account, _ = Account.objects.get_or_create(
+            code=code,
+            defaults={
+                'group': group,
+                'name': name,
+                'level': 'TAFSILI' if len(code) > 4 else 'MOEIN',
+                'currency': self.default_currency,
+                'description': f"حساب خودکار {name}"
+            }
+        )
+        return account
+
+    def _get_or_create_customer_account(self, customer):
+        if not customer:
+            return self._get_or_create_account("حساب مشتریان عمومی", "1310000", "حساب‌های دریافتنی", "1310", "ASSET")
+        
+        # Construct a unique code for the customer
+        customer_code = f"1310{str(customer.id).zfill(3)}"
+        return self._get_or_create_account(f"حساب {customer.get_full_name()}", customer_code, "حساب‌های دریافتنی", "1310", "ASSET")
+
+    def _get_or_create_cash_account(self):
+        return self._get_or_create_account("صندوق", "1110001", "موجودی نقد", "1110", "ASSET")
+
+    def _get_or_create_bank_account(self, bank_name, account_number):
+        if not bank_name:
+            return self._get_or_create_account("بانک عمومی", "1120000", "بانک‌ها", "1120", "ASSET")
+
+        # Attempt to find the specific BankAccount model to get its ID
+        try:
+            bank_model = BankAccount.objects.get(account_number=account_number, bank__name=bank_name)
+            bank_code = f"1120{str(bank_model.id).zfill(3)}"
+            account_name = f"بانک {bank_name} - {account_number}"
+        except BankAccount.DoesNotExist:
+            bank_code = f"1120999" # Fallback code
+            account_name = f"بانک {bank_name}"
+
+        return self._get_or_create_account(account_name, bank_code, "بانک‌ها", "1120", "ASSET")
+
+    def _get_or_create_expense_account(self):
+        return self._get_or_create_account("هزینه‌های عمومی و اداری", "5300001", "هزینه‌های اداری", "5300", "EXPENSE")
+
+    def _get_or_create_income_account(self):
+        return self._get_or_create_account("درآمدهای متفرقه", "4300001", "درآمدهای غیرعملیاتی", "4300", "REVENUE")
+
+    def _get_or_create_capital_account(self):
+        return self._get_or_create_account("سرمایه", "3110001", "سرمایه", "3110", "EQUITY")
+        
+    def _get_or_create_petty_cash_account(self):
+        return self._get_or_create_account("تنخواه گردان", "1130001", "تنخواه گردان", "1130", "ASSET")
+
     def _get_or_create_sales_account(self):
-        """Get or create sales account"""
-        sales_account = Account.objects.filter(
-            name__icontains="فروش",
-            group__name__icontains="فروش"
-        ).first()
-        
-        if sales_account:
-            return sales_account
-        
-        # Create sales account
-        sales_group = self._get_or_create_account_group("فروش", "4100")
-        
-        return Account.objects.create(
-            group=sales_group,
-            code="4100001",
-            name="فروش کالا",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب فروش کالا"
-        )
-    
+        return self._get_or_create_account("فروش کالا", "4110001", "فروش کالا", "4110", "REVENUE")
+
     def _get_or_create_purchase_account(self):
-        """Get or create purchase account"""
-        purchase_account = Account.objects.filter(
-            name__icontains="خرید",
-            group__name__icontains="خرید"
-        ).first()
-        
-        if purchase_account:
-            return purchase_account
-        
-        # Create purchase account
-        purchase_group = self._get_or_create_account_group("خرید", "5100")
-        
-        return Account.objects.create(
-            group=purchase_group,
-            code="5100001",
-            name="خرید کالا",
-            level='DETAIL',
-            currency=self.default_currency,
-            description="حساب خرید کالا"
-        )
+        return self._get_or_create_account("بهای تمام شده کالای فروش رفته", "5110001", "بهای تمام شده کالای فروش رفته", "5110", "EXPENSE")
 
 
 # Global instance

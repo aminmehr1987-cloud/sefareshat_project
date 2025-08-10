@@ -1914,53 +1914,6 @@ class FinancialOperation(models.Model):
         
         return f"{prefix}{new_number:04d}"
     
-    def confirm_operation(self, user):
-        """تأیید عملیات مالی"""
-        if self.status == 'DRAFT':
-            self.status = 'CONFIRMED'
-            self.confirmed_by = user
-            self.confirmed_at = timezone.now()
-            self.save()
-            
-            # ایجاد تراکنش‌های حسابداری
-            self.create_accounting_entries()
-    
-    def create_accounting_entries(self):
-        """ایجاد تراکنش‌های حسابداری مرتبط"""
-        from .models import Voucher, FinancialYear
-        
-        # دریافت سال مالی فعال
-        financial_year = FinancialYear.objects.filter(is_active=True).first()
-        if not financial_year:
-            return None
-        
-        # ایجاد شماره سند
-        last_voucher = Voucher.objects.filter(financial_year=financial_year).order_by('-number').first()
-        if last_voucher:
-            try:
-                next_number = str(int(last_voucher.number) + 1).zfill(6)
-            except ValueError:
-                next_number = '000001'
-        else:
-            next_number = '000001'
-        
-        # ایجاد سند
-        voucher = Voucher.objects.create(
-            financial_year=financial_year,
-            number=next_number,
-            date=self.date,
-            type='PERMANENT',
-            description=f"{self.get_operation_type_display()} - {self.description or 'بدون توضیح'}",
-            is_confirmed=True,
-            confirmed_by=self.created_by,
-            confirmed_at=timezone.now(),
-            created_by=self.created_by
-        )
-        
-        # ایجاد آرتیکل‌های سند
-
-        
-        return voucher
 
 
 class Fund(models.Model):
