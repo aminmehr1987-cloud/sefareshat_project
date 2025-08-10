@@ -2096,7 +2096,7 @@ class Fund(models.Model):
                 financial_filter = Q(fund=self) | Q(bank_name=self.bank_name, account_number=self.account_number)
 
             if financial_filter:
-                financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED')
+                financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED', is_deleted=False)
                 
                 # Money coming into this fund from financial operations
                 in_ops = financial_ops.filter(operation_type__in=IN_OPERATIONS).aggregate(total=Sum('amount'))['total']
@@ -2204,16 +2204,30 @@ class CustomerBalance(models.Model):
     def __str__(self):
         return f"{self.customer.get_full_name()} - {self.current_balance:,}"
     
-    def update_balance(self, amount, operation_type):
-        """به‌روزرسانی موجودی مشتری"""
-        if operation_type == 'RECEIVE_FROM_CUSTOMER':
-            self.current_balance -= amount  # بدهی مشتری کاهش می‌یابد
-            self.total_received += amount
-        elif operation_type == 'PAY_TO_CUSTOMER':
-            self.current_balance += amount  # بدهی مشتری افزایش می‌یابد
-            self.total_paid += amount
+    def update_balance(self):
+        """
+        Recalculates the customer's balance from their entire non-deleted transaction history.
+        This is a robust method that avoids incremental update errors.
+        """
+        from .models import FinancialOperation # Local import to avoid circular dependency
         
-        self.last_transaction_date = timezone.now().date()
+        operations = FinancialOperation.objects.filter(
+            customer=self.customer,
+            status='CONFIRMED',
+            is_deleted=False
+        )
+
+        total_received = operations.filter(operation_type='RECEIVE_FROM_CUSTOMER').aggregate(models.Sum('amount'))['amount__sum'] or 0
+        total_paid = operations.filter(operation_type='PAY_TO_CUSTOMER').aggregate(models.Sum('amount'))['amount__sum'] or 0
+
+        self.current_balance = total_paid - total_received
+        self.total_received = total_received
+        self.total_paid = total_paid
+        
+        last_op = operations.order_by('-date', '-created_at').first()
+        if last_op:
+            self.last_transaction_date = last_op.date
+        
         self.save()
 
 
@@ -2344,7 +2358,7 @@ def update_balances_on_operation_save(sender, instance, created, **kwargs):
                 customer=instance.customer,
                 defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
             )
-            customer_balance.update_balance(instance.amount, instance.operation_type)
+            customer_balance.update_balance()
         
         # به‌روزرسانی موجودی صندوق
         # این بخش نیاز به تعیین صندوق مناسب دارد

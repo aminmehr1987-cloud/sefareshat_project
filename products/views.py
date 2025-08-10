@@ -3735,17 +3735,16 @@ def receive_from_bank_view(request):
                 
                 operation.save()
 
-                # به‌روزرسانی موجودی بانک (کسر مبلغ)
-                bank_account.current_balance -= operation.amount
-                bank_account.save()
+                # به‌روزرسانی موجودی بانک (کسر مبلغ) - با استفاده از تابع محاسبه مجدد
+                _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
 
                 # انتقال به صندوق (افزایش موجودی صندوق)
                 cash_fund, created = Fund.objects.get_or_create(
                     fund_type='CASH',
                     defaults={'name': 'صندوق نقدی', 'initial_balance': 0}
                 )
-                cash_fund.current_balance += operation.amount
-                cash_fund.save()
+                # فراخوانی متد محاسبه مجدد برای صندوق
+                cash_fund.recalculate_balance()
 
                 # The signal will now handle voucher creation automatically.
                 success_message = f'عملیات دریافت از بانک با موفقیت ثبت شد. مبلغ {operation.amount:,} ریال از حساب {bank_account.title} به صندوق انتقال یافت.'
@@ -4135,18 +4134,79 @@ def financial_operation_detail_view(request, operation_id):
     return render(request, 'products/financial_operation_detail.html', context)
 
 
+def _update_bank_account_balance(bank_name, account_number):
+    """
+    موجودی حساب بانکی را بر اساس عملیات‌های مالی حذف نشده، مجدداً محاسبه و به‌روزرسانی می‌کند.
+    """
+    from .models import BankAccount, FinancialOperation
+    from django.db.models import Sum
+
+    try:
+        bank_account = BankAccount.objects.get(
+            bank__name=bank_name,
+            account_number=account_number
+        )
+
+        # تعریف عملیات‌های بستانکار (واریز) و بدهکار (برداشت)
+        CREDIT_OPS = ['RECEIVE_FROM_CUSTOMER', 'PAY_TO_BANK', 'CAPITAL_INVESTMENT']
+        DEBIT_OPS = ['PAY_TO_CUSTOMER', 'RECEIVE_FROM_BANK', 'BANK_TRANSFER']
+
+        # دریافت تمام عملیات‌های تایید شده و حذف نشده برای این حساب بانکی
+        operations = FinancialOperation.objects.filter(
+            bank_name=bank_account.bank.name,
+            account_number=bank_account.account_number,
+            status='CONFIRMED',
+            is_deleted=False
+        )
+
+        total_credit = operations.filter(operation_type__in=CREDIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
+        total_debit = operations.filter(operation_type__in=DEBIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
+
+        # محاسبه مجدد موجودی فعلی
+        bank_account.current_balance = bank_account.initial_balance + total_credit - total_debit
+        bank_account.save(update_fields=['current_balance'])
+
+    except BankAccount.DoesNotExist:
+        # اگر حساب بانکی وجود نداشته باشد، کاری انجام نمی‌شود
+        pass
+
+
+
+
 @login_required
 @group_required('حسابداری')
 def financial_operation_delete_view(request, operation_id):
     """
-    حذف نرم عملیات مالی
+    حذف نرم عملیات مالی و به‌روزرسانی موجودی حساب بانکی و مشتری
     """
     operation = get_object_or_404(FinancialOperation, id=operation_id)
     
     if request.method == 'POST':
         operation_number = operation.operation_number
+        bank_name = operation.bank_name
+        account_number = operation.account_number
+        customer = operation.customer
+
+        # حذف نرم عملیات
         operation.soft_delete(request.user)
-        messages.success(request, f'عملیات مالی {operation_number} با موفقیت حذف شد.')
+
+        # اگر عملیات مربوط به یک حساب بانکی بود، موجودی آن حساب را به‌روزرسانی می‌کنیم
+        if bank_name and account_number:
+            _update_bank_account_balance(bank_name, account_number)
+
+        # اگر عملیات مربوط به یک مشتری بود، موجودی آن مشتری را به‌روزرسانی می‌کنیم
+        if customer:
+            try:
+                # This will call the robust recalculation method on the model
+                customer.customer_balance.update_balance()
+            except CustomerBalance.DoesNotExist:
+                # This case is unlikely if operations always create a balance object,
+                # but as a fallback, we create it and then update it.
+                cb, created = CustomerBalance.objects.get_or_create(customer=customer)
+                if created:
+                    cb.update_balance() # Recalculate if it was just created
+
+        messages.success(request, f'عملیات مالی {operation_number} با موفقیت حذف شد و موجودی‌ها به‌روز گردید.')
         return redirect('products:financial_operation_list')
     
     context = {
@@ -4160,7 +4220,7 @@ def financial_operation_delete_view(request, operation_id):
 @group_required('حسابداری')
 def financial_operation_edit_view(request, operation_id):
     """
-    ویرایش عملیات مالی
+    ویرایش عملیات مالی و به‌روزرسانی موجودی حساب بانکی
     """
     from .forms import FinancialOperationEditForm
     
@@ -4172,9 +4232,15 @@ def financial_operation_edit_view(request, operation_id):
             operation = form.save(commit=False)
             operation.updated_at = timezone.now()
             operation.save()
+            
             # علامت‌گذاری به عنوان اصلاح شده
             operation.mark_as_modified(request.user)
-            messages.success(request, f'عملیات مالی {operation.operation_number} با موفقیت ویرایش شد.')
+
+            # اگر عملیات مربوط به یک حساب بانکی بود، موجودی آن حساب را به‌روزرسانی می‌کنیم
+            if operation.bank_name and operation.account_number:
+                _update_bank_account_balance(operation.bank_name, operation.account_number)
+
+            messages.success(request, f'عملیات مالی {operation.operation_number} با موفقیت ویرایش شد و موجودی به‌روز گردید.')
             return redirect('products:financial_operation_detail', operation_id=operation.id)
     else:
         form = FinancialOperationEditForm(instance=operation)
@@ -4234,9 +4300,8 @@ def receive_from_customer_view(request):
                     # We will now directly update the BankAccount balance.
                     operation.fund = None  # Explicitly set fund to None for POS transactions
                     
-                    # Directly update the bank account's balance
-                    bank_account.current_balance += operation.amount
-                    bank_account.save()
+                    # Recalculate the bank account's balance using the helper function
+                    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
 
                     operation.bank_name = bank_account.bank.name
                     operation.account_number = bank_account.account_number
@@ -4251,7 +4316,7 @@ def receive_from_customer_view(request):
                     customer=operation.customer,
                     defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
                 )
-                customer_balance.update_balance(operation.amount, operation.operation_type)
+                customer_balance.update_balance()
                 
                 # نمایش پیام تأیید
                 success_message = f'عملیات دریافت از مشتری با موفقیت ثبت شد. شماره عملیات: {operation.operation_number}'
@@ -4307,7 +4372,7 @@ def pay_to_customer_view(request):
                 customer=operation.customer,
                 defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
             )
-            customer_balance.update_balance(operation.amount, operation.operation_type)
+            customer_balance.update_balance()
             
             # نمایش پیام تأیید
             success_message = 'عملیات پرداخت به مشتری با موفقیت ثبت شد.'
@@ -4433,11 +4498,10 @@ def bank_transfer_view(request):
                     customer=recipient,
                     defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
                 )
-                customer_balance.update_balance(amount, 'PAY_TO_CUSTOMER')
+                customer_balance.update_balance()
                 
-                # به‌روزرسانی موجودی حساب بانکی مبدا
-                from_bank_account.current_balance -= amount
-                from_bank_account.save()
+                # به‌روزرسانی موجودی حساب بانکی مبدا - با استفاده از تابع محاسبه مجدد
+                _update_bank_account_balance(from_bank_account.bank.name, from_bank_account.account_number)
                 
                 # ایجاد اسناد حسابداری
                 try:
@@ -4598,9 +4662,9 @@ def petty_cash_view(request):
                             )
                             
                         elif source_bank_account:
-                            print(f"Updating bank account balance: {source_bank_account.current_balance} -> {source_bank_account.current_balance - operation.amount}")
-                            source_bank_account.current_balance -= operation.amount
-                            source_bank_account.save()
+                            print(f"Updating bank account balance for: {source_bank_account.title}")
+                            # Recalculate the source bank account's balance using the helper function
+                            _update_bank_account_balance(source_bank_account.bank.name, source_bank_account.account_number)
                         
                         # ذخیره عملیات تنخواه (بدون ایجاد صندوق)
                         operation.save()
@@ -5817,6 +5881,10 @@ def bank_account_detail_view(request, bank_account_id):
         'bank', 'account', 'created_by'
     ), id=bank_account_id)
     
+    # Defensive recalculation to ensure the balance is always up-to-date
+    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
+    bank_account.refresh_from_db()  # Refresh the object to get the updated balance
+    
     context = {
         'bank_account': bank_account,
         'title': f'جزئیات حساب بانکی {bank_account.title}'
@@ -5981,26 +6049,21 @@ def bank_account_edit_view(request, bank_account_id):
             # ویرایش اطلاعات حساب بانکی
             form = BankAccountForm(request.POST, instance=bank_account)
             if form.is_valid():
-                # دریافت موجودی اولیه جدید و موجودی جدید از فرم
-                new_initial_balance = form.cleaned_data.get('initial_balance')
                 new_balance = form.cleaned_data.get('new_balance')
                 
-                # ذخیره موجودی اولیه قبلی
-                old_initial_balance = bank_account.initial_balance
-                
-                # ذخیره فرم
+                # Save the form to update fields like initial_balance
                 bank_account = form.save(commit=False)
                 
-                # اگر موجودی جدید وارد شده باشد
-                if new_balance is not None:
-                    # به‌روزرسانی موجودی اولیه و موجودی فعلی
-                    bank_account.initial_balance = new_initial_balance
+                if new_balance is not None and new_balance != '':
+                    # If a manual balance is provided, use it
                     bank_account.current_balance = new_balance
                     bank_account.save()
-                    messages.success(request, f'حساب بانکی با موفقیت ویرایش شد. موجودی فعلی به‌روزرسانی شد.')
+                    messages.success(request, f'حساب بانکی با موفقیت ویرایش و موجودی به صورت دستی به {new_balance:,.2f} ریال تغییر یافت.')
                 else:
+                    # Otherwise, save the changes (like initial_balance) and then recalculate
                     bank_account.save()
-                    messages.success(request, 'حساب بانکی با موفقیت ویرایش شد.')
+                    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
+                    messages.success(request, 'حساب بانکی با موفقیت ویرایش شد و موجودی مجدداً محاسبه گردید.')
                 
                 return redirect('products:bank_account_list')
     
@@ -6025,6 +6088,10 @@ def bank_statement_view(request, bank_account_id):
     from datetime import datetime
     
     bank_account = get_object_or_404(BankAccount, id=bank_account_id)
+    
+    # Defensive recalculation to ensure the balance is always up-to-date
+    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
+    bank_account.refresh_from_db()
     
     # Define which operations are credits (deposits) and debits (withdrawals) for a bank account
     CREDIT_OPS = ['RECEIVE_FROM_CUSTOMER', 'PAY_TO_BANK', 'CAPITAL_INVESTMENT']

@@ -56,29 +56,48 @@ class CustomerAdmin(admin.ModelAdmin):
         "last_name", 
         "store_name", 
         "mobile", 
-        "phone", 
-        "address", 
-        "created_by", 
+        "view_transactions_link",
         "created_at"
     )
     search_fields = ("first_name", "last_name", "store_name", "mobile", "phone", "address")
     list_filter = ("created_by", "created_at")
+    readonly_fields = ("created_at", "view_transactions_link")
     fieldsets = (
         (None, {
             "fields": (
                 "first_name", 
                 "last_name", 
-                "store_name", 
+                "store_name",
+            )
+        }),
+        ("اطلاعات تماس و ورود", {
+            "fields": (
                 "mobile", 
                 "phone", 
                 "address", 
+                "user",
+            )
+        }),
+        ("گردش حساب و اطلاعات سیستمی", {
+            "fields": (
+                "view_transactions_link",
                 "created_by", 
-                "user", 
                 "created_at"
             )
         }),
     )
-    readonly_fields = ("created_at",)
+
+    def view_transactions_link(self, obj):
+        from django.urls import reverse
+        from django.utils.html import format_html
+        
+        url = (
+            reverse("admin:products_financialoperation_changelist")
+            + f"?customer__id__exact={obj.id}"
+        )
+        return format_html('<a href="{}" target="_blank">مشاهده گردش حساب</a>', url)
+    
+    view_transactions_link.short_description = "گردش حساب"
 
     def created_at_jalali(self, obj):
         return obj.created_at.strftime('%Y/%m/%d %H:%M')
@@ -599,10 +618,10 @@ admin.site.register(AccountGroup)
 admin.site.register(Account)
 @admin.register(BankAccount)
 class BankAccountAdmin(admin.ModelAdmin):
-    list_display = ('title', 'bank', 'account_number', 'card_number', 'get_card_readers_count', 'is_active', 'current_balance')
+    list_display = ('title', 'bank', 'account_number', 'current_balance', 'is_active', 'view_transactions_link')
     list_filter = ('bank', 'account_type', 'is_active', 'has_card_reader')
     search_fields = ('title', 'account_number', 'card_number', 'bank__name')
-    readonly_fields = ('current_balance', 'created_at', 'created_by')
+    readonly_fields = ('current_balance', 'created_at', 'created_by', 'view_transactions_link')
     
     fieldsets = (
         (None, {
@@ -612,8 +631,8 @@ class BankAccountAdmin(admin.ModelAdmin):
             'fields': ('has_card_reader', 'card_reader_device_1', 'card_reader_device_2', 'card_reader_device_3', 'card_reader_device_4'),
             'classes': ('collapse',)
         }),
-        ('موجودی', {
-            'fields': ('initial_balance', 'current_balance'),
+        ('موجودی و گردش حساب', {
+            'fields': ('initial_balance', 'current_balance', 'view_transactions_link'),
             'classes': ('collapse',)
         }),
         ('وضعیت', {
@@ -625,6 +644,22 @@ class BankAccountAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def view_transactions_link(self, obj):
+        from django.urls import reverse
+        from django.utils.html import format_html
+        import urllib.parse
+
+        # Use direct field lookups for a more reliable filter
+        query_string = urllib.parse.urlencode({
+            'bank_name__exact': obj.bank.name,
+            'account_number__exact': obj.account_number
+        })
+        
+        url = reverse("admin:products_financialoperation_changelist") + '?' + query_string
+        return format_html('<a href="{}" target="_blank">مشاهده گردش حساب</a>', url)
+    
+    view_transactions_link.short_description = "گردش حساب"
     
     def get_card_readers_count(self, obj):
         if not obj.has_card_reader:
@@ -650,15 +685,18 @@ admin.site.register(FinancialTransaction)
 
 @admin.register(CardReaderDevice)
 class CardReaderDeviceAdmin(admin.ModelAdmin):
-    list_display = ('name', 'device_type', 'terminal_number', 'support_company', 'support_phone', 'bank_account', 'is_active', 'created_by', 'created_at')
+    list_display = ('name', 'device_type', 'terminal_number', 'bank_account', 'is_active', 'view_transactions_link')
     list_filter = ('device_type', 'is_active', 'manufacturer', 'bank_account__bank', 'created_at')
     search_fields = ('name', 'terminal_number', 'serial_number', 'manufacturer', 'model', 'support_company', 'support_phone', 'bank_account__title')
-    readonly_fields = ('created_at', 'created_by')
+    readonly_fields = ('created_at', 'created_by', 'view_transactions_link')
     ordering = ('name', 'terminal_number')
     
     fieldsets = (
         (None, {
             'fields': ('name', 'device_type', 'terminal_number', 'is_active')
+        }),
+        ('ارتباط و تراکنش‌ها', {
+            'fields': ('bank_account', 'view_transactions_link'),
         }),
         ('اطلاعات فنی', {
             'fields': ('serial_number', 'manufacturer', 'model'),
@@ -666,10 +704,6 @@ class CardReaderDeviceAdmin(admin.ModelAdmin):
         }),
         ('اطلاعات پشتیبانی', {
             'fields': ('support_company', 'support_phone', 'support_email'),
-            'classes': ('collapse',)
-        }),
-        ('ارتباط با حساب بانکی', {
-            'fields': ('bank_account',),
             'classes': ('collapse',)
         }),
         ('توضیحات', {
@@ -681,6 +715,18 @@ class CardReaderDeviceAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def view_transactions_link(self, obj):
+        from django.urls import reverse
+        from django.utils.html import format_html
+        
+        url = (
+            reverse("admin:products_financialoperation_changelist")
+            + f"?card_reader_device__id__exact={obj.id}"
+        )
+        return format_html('<a href="{}" target="_blank">مشاهده تراکنش‌ها</a>', url)
+    
+    view_transactions_link.short_description = "گردش حساب"
     
     def save_model(self, request, obj, form, change):
         if not change:  # Only for new objects
@@ -1030,9 +1076,9 @@ class FundBalanceHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(FinancialOperation)
 class FinancialOperationAdmin(admin.ModelAdmin):
-    list_display = ('operation_number', 'operation_type', 'date', 'amount', 'status', 'customer', 'fund_info', 'created_by')
-    list_filter = ('operation_type', 'status', 'date', 'payment_method', 'fund')
-    search_fields = ('operation_number', 'description', 'customer__first_name', 'customer__last_name', 'fund__name', 'fund__fund_type')
+    list_display = ('operation_number', 'operation_type', 'date', 'amount', 'status', 'customer', 'fund_info', 'created_by', 'bank_name', 'account_number')
+    list_filter = ('operation_type', 'status', 'date', 'payment_method', 'fund', 'bank_name', 'card_reader_device', 'customer')
+    search_fields = ('operation_number', 'description', 'customer__first_name', 'customer__last_name', 'fund__name', 'fund__fund_type', 'bank_name', 'account_number')
     readonly_fields = ('operation_number', 'created_at', 'updated_at')
     date_hierarchy = 'date'
     ordering = ('-date', '-created_at')
