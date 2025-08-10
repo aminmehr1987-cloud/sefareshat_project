@@ -294,6 +294,12 @@
   .btn-delete:hover {
       background-color: #c82333;
   }
+  .table-danger, .table-danger > th, .table-danger > td {
+      background-color: #f8d7da !important;
+  }
+  .table-danger .text-danger {
+      color: #721c24 !important;
+  }
   
   /* Responsive Design */
   @media (max-width: 768px) {
@@ -464,7 +470,7 @@
         </thead>
         <tbody>
           {% for transaction in transactions %}
-            <tr>
+            <tr class="{% if transaction.operation.is_deleted %}table-danger{% endif %}">
               <td>{{ transaction.date|jalali_date }}</td>
               <td>
                 <a href="{% if transaction.operation %}{% url 'products:financial_operation_detail' transaction.operation.id %}{% endif %}" style="color: inherit; text-decoration: none;">
@@ -480,10 +486,14 @@
               <td>{{ transaction.balance_after|persian_number_format }} ریال</td>
               <td>
                 {% if transaction.operation %}
-                  <form action="{% url 'products:financial_operation_delete' transaction.operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این تراکنش مطمئن هستید؟');" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn-delete">حذف</button>
-                  </form>
+                  {% if transaction.operation.is_deleted %}
+                    <span class="text-danger">حذف شده</span>
+                  {% else %}
+                    <form action="{% url 'products:financial_operation_delete' transaction.operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این تراکنش مطمئن هستید؟');" style="display: inline;">
+                      {% csrf_token %}
+                      <button type="submit" class="btn-delete">حذف</button>
+                    </form>
+                  {% endif %}
                 {% endif %}
               </td>
             </tr>

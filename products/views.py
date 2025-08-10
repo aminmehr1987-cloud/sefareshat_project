@@ -3980,7 +3980,7 @@ def fund_detail_view(request, fund_id):
             })
     else:
         financial_filter = Q(fund=fund)
-        financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED').select_related('customer').order_by('date', 'created_at')
+        financial_ops = FinancialOperation.objects.filter(financial_filter, status='CONFIRMED', is_deleted=False).select_related('customer').order_by('date', 'created_at')
         for op in financial_ops:
             description = op.description
             if op.operation_type == 'RECEIVE_FROM_CUSTOMER' and op.customer:
@@ -4075,40 +4075,49 @@ def financial_operation_list_view(request):
     """
     نمایش لیست عملیات مالی
     """
-    operations = FinancialOperation.objects.all().order_by('-date', '-created_at')
+    # Fetch all operations for display, including deleted ones
+    operations_for_display = FinancialOperation.objects.all().order_by('-date', '-created_at')
     
+    # Create a separate query for calculations which excludes deleted items
+    operations_for_calc = operations_for_display.filter(is_deleted=False)
+
     # فیلترها
     operation_type = request.GET.get('operation_type')
     status = request.GET.get('status')
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     
+    # Apply filters to both queries
     if operation_type:
-        operations = operations.filter(operation_type=operation_type)
+        operations_for_display = operations_for_display.filter(operation_type=operation_type)
+        operations_for_calc = operations_for_calc.filter(operation_type=operation_type)
     if status:
-        operations = operations.filter(status=status)
+        operations_for_display = operations_for_display.filter(status=status)
+        operations_for_calc = operations_for_calc.filter(status=status)
     if date_from:
         try:
             from .views import convert_shamsi_to_gregorian
             date_from_gregorian = convert_shamsi_to_gregorian(date_from)
-            operations = operations.filter(date__gte=date_from_gregorian)
+            operations_for_display = operations_for_display.filter(date__gte=date_from_gregorian)
+            operations_for_calc = operations_for_calc.filter(date__gte=date_from_gregorian)
         except ValueError:
             pass
     if date_to:
         try:
             from .views import convert_shamsi_to_gregorian
             date_to_gregorian = convert_shamsi_to_gregorian(date_to)
-            operations = operations.filter(date__lte=date_to_gregorian)
+            operations_for_display = operations_for_display.filter(date__lte=date_to_gregorian)
+            operations_for_calc = operations_for_calc.filter(date__lte=date_to_gregorian)
         except ValueError:
             pass
     
-    # آمار کلی
-    total_amount = operations.aggregate(Sum('amount'))['amount__sum'] or 0
-    confirmed_operations = operations.filter(status='CONFIRMED')
+    # آمار کلی - based on non-deleted and filtered operations
+    total_amount = operations_for_calc.aggregate(Sum('amount'))['amount__sum'] or 0
+    confirmed_operations = operations_for_calc.filter(status='CONFIRMED')
     confirmed_amount = confirmed_operations.aggregate(Sum('amount'))['amount__sum'] or 0
     
     context = {
-        'operations': operations,
+        'operations': operations_for_display, # Pass the display query to the template
         'total_amount': total_amount,
         'confirmed_amount': confirmed_amount,
         'operation_types': FinancialOperation.OPERATION_TYPES,
@@ -4198,7 +4207,7 @@ def financial_operation_delete_view(request, operation_id):
         if customer:
             try:
                 # This will call the robust recalculation method on the model
-                customer.customer_balance.update_balance()
+                customer.customerbalance.update_balance()
             except CustomerBalance.DoesNotExist:
                 # This case is unlikely if operations always create a balance object,
                 # but as a fallback, we create it and then update it.
@@ -4743,7 +4752,7 @@ def customer_balance_list_view(request):
         )
         
         # عملیات‌های مرتبط با این مشتری
-        operations = FinancialOperation.objects.filter(customer=customer)
+        operations = FinancialOperation.objects.filter(customer=customer, is_deleted=False)
         
         # محاسبه مجموع‌ها از عملیات‌های واقعی
         total_received = operations.filter(
@@ -4776,7 +4785,8 @@ def customer_balance_list_view(request):
     
     # آمار کلی - محاسبه از عملیات‌های واقعی
     all_operations = FinancialOperation.objects.filter(
-        customer__isnull=False
+        customer__isnull=False,
+        is_deleted=False
     )
     
     total_received = all_operations.filter(
@@ -4811,28 +4821,19 @@ def customer_balance_detail_view(request, customer_id):
         defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
     )
     
-    # عملیات‌های مرتبط با این مشتری
+    # Ensure the balance is up-to-date by calling the model's method
+    customer_balance.update_balance()
+    customer_balance.refresh_from_db()
+
+    # Fetch all operations (including deleted) for display purposes
     operations = FinancialOperation.objects.filter(
         customer=customer
     ).order_by('-date', '-created_at')
-    
-    # محاسبه مجدد مجموع‌ها از عملیات‌های واقعی
-    total_received = operations.filter(
-        operation_type='RECEIVE_FROM_CUSTOMER'
-    ).aggregate(Sum('amount'))['amount__sum'] or 0
-    
-    total_paid = operations.filter(
-        operation_type='PAY_TO_CUSTOMER'
-    ).aggregate(Sum('amount'))['amount__sum'] or 0
-    
-    # محاسبه موجودی فعلی
-    current_balance = total_paid - total_received
-    
-    # به‌روزرسانی موجودی مشتری
-    customer_balance.total_received = total_received
-    customer_balance.total_paid = total_paid
-    customer_balance.current_balance = current_balance
-    customer_balance.save()
+
+    # Use the correctly calculated values from the customer_balance object
+    total_received = customer_balance.total_received
+    total_paid = customer_balance.total_paid
+    current_balance = customer_balance.current_balance
     
     context = {
         'customer': customer,
@@ -4931,7 +4932,8 @@ def financial_dashboard_view(request):
     today_cash_operations = FinancialOperation.objects.filter(
         date=today,
         status='CONFIRMED',
-        fund__fund_type='CASH'
+        fund__fund_type='CASH',
+        is_deleted=False
     )
     
     # Note: These definitions determine what counts as income/expense *for the cash fund*.
@@ -4944,7 +4946,8 @@ def financial_dashboard_view(request):
     
     # آمار مشتریان - محاسبه از عملیات‌های واقعی
     all_customer_operations = FinancialOperation.objects.filter(
-        customer__isnull=False
+        customer__isnull=False,
+        is_deleted=False
     )
     
     total_received = all_customer_operations.filter(
@@ -4963,7 +4966,7 @@ def financial_dashboard_view(request):
     creditor_count = customer_balances.filter(current_balance__lt=0).count()
     
     # عملیات‌های اخیر
-    recent_operations = FinancialOperation.objects.filter(status='CONFIRMED').order_by('-date', '-created_at')[:10]
+    recent_operations = FinancialOperation.objects.filter(status='CONFIRMED', is_deleted=False).order_by('-date', '-created_at')[:10]
     
     context = {
         'total_balance': total_balance,
@@ -6129,9 +6132,12 @@ def bank_statement_view(request, bank_account_id):
     # Get the count of actual database transactions before converting to a list
     transaction_count = transactions.count()
 
-    # Calculate totals for the stats box
-    total_credit = transactions.filter(operation_type__in=CREDIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
-    total_debit = transactions.filter(operation_type__in=DEBIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
+    # Create a separate query for calculations that excludes deleted items
+    transactions_for_calc = transactions_query.filter(is_deleted=False)
+
+    # Calculate totals for the stats box using the correct query
+    total_credit = transactions_for_calc.filter(operation_type__in=CREDIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
+    total_debit = transactions_for_calc.filter(operation_type__in=DEBIT_OPS).aggregate(Sum('amount'))['amount__sum'] or 0
 
     # Start with the opening balance
     running_balance = bank_account.initial_balance
@@ -6179,7 +6185,7 @@ def bank_statement_view(request, bank_account_id):
         'transaction_count': transaction_count,
         'total_credit': total_credit,
         'total_debit': total_debit,
-        'final_balance': bank_account.initial_balance + total_credit - total_debit,
+        'final_balance': bank_account.current_balance,
         'start_date': start_date,
         'end_date': end_date,
         'title': f'صورتحساب بانکی - {bank_account.title}',

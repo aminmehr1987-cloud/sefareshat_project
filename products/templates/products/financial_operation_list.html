@@ -79,7 +79,7 @@
                 <i class="bi bi-currency-dollar"></i>
             </div>
             <div class="card-content">
-                <h3>مجموع مبالغ</h3>
+                <h3>مجموع مبالغ (فعال)</h3>
                 <p>{{ total_amount|persian_number_format }} ریال</p>
             </div>
         </div>
@@ -88,7 +88,7 @@
                 <i class="bi bi-check-circle"></i>
             </div>
             <div class="card-content">
-                <h3>مبالغ تأیید شده</h3>
+                <h3>مبالغ تأیید شده (فعال)</h3>
                 <p>{{ confirmed_amount|persian_number_format }} ریال</p>
             </div>
         </div>
@@ -97,7 +97,7 @@
                 <i class="bi bi-list-ol"></i>
             </div>
             <div class="card-content">
-                <h3>تعداد عملیات</h3>
+                <h3>تعداد کل عملیات</h3>
                 <p>{{ operations.count }}</p>
             </div>
         </div>
@@ -124,7 +124,7 @@
                 </thead>
                 <tbody>
                     {% for operation in operations %}
-                    <tr class="{{ operation.row_class }}">
+                    <tr class="{% if operation.is_deleted %}table-danger{% endif %}">
                         <td>
                             <span class="document-number">{{ operation.operation_number }}</span>
                         </td>
@@ -168,15 +168,13 @@
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <a href="{% url 'products:financial_operation_delete' operation.id %}" 
-                                   class="btn btn-sm btn-outline-danger" title="حذف"
-                                   onclick="return confirm('آیا از حذف این عملیات اطمینان دارید؟')">
+                                   class="btn btn-sm btn-outline-danger" title="حذف">
                                     <i class="bi bi-trash"></i>
                                 </a>
-                                {% endif %}
-                                {% if operation.status == 'DRAFT' and not operation.is_deleted %}
-                                <button class="btn btn-sm btn-outline-success confirm-operation" title="تأیید عملیات" data-operation-id="{{ operation.id }}">
-                                    <i class="bi bi-check"></i>
-                                </button>
+                                {% else %}
+                                <span class="deleted-status">
+                                    <i class="bi bi-check-circle-fill"></i> حذف شده
+                                </span>
                                 {% endif %}
                             </div>
                         </td>
@@ -452,7 +450,7 @@
     font-size: 0.9rem;
 }
 
-.operations-table tr:hover {
+.operations-table tr:not(.table-danger):hover {
     background: #f9fafb;
 }
 
@@ -476,55 +474,16 @@
     min-width: 80px;
 }
 
-.operation-type.receive_from_customer {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.operation-type.pay_to_customer {
-    background: #fef2f2;
-    color: #991b1b;
-}
-
-.operation-type.receive_from_bank {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.operation-type.pay_to_bank {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.operation-type.bank_transfer {
-    background: #e0e7ff;
-    color: #3730a3;
-}
-
-.operation-type.cash_withdrawal {
-    background: #f3e8ff;
-    color: #7c3aed;
-}
-
-.operation-type.payment_to_cash {
-    background: #ecfdf5;
-    color: #065f46;
-}
-
-.operation-type.payment_from_cash {
-    background: #fef2f2;
-    color: #7f1d1d;
-}
-
-.operation-type.capital_investment {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.operation-type.petty_cash {
-    background: #fce7f3;
-    color: #be185d;
-}
+.operation-type.receive_from_customer { background: #dcfce7; color: #166534; }
+.operation-type.pay_to_customer { background: #fef2f2; color: #991b1b; }
+.operation-type.receive_from_bank { background: #dbeafe; color: #1e40af; }
+.operation-type.pay_to_bank { background: #fef3c7; color: #92400e; }
+.operation-type.bank_transfer { background: #e0e7ff; color: #3730a3; }
+.operation-type.cash_withdrawal { background: #f3e8ff; color: #7c3aed; }
+.operation-type.payment_to_cash { background: #ecfdf5; color: #065f46; }
+.operation-type.payment_from_cash { background: #fef2f2; color: #7f1d1d; }
+.operation-type.capital_investment { background: #fef3c7; color: #92400e; }
+.operation-type.petty_cash { background: #fce7f3; color: #be185d; }
 
 .amount {
     font-weight: 600;
@@ -550,20 +509,9 @@
     min-width: 80px;
 }
 
-.status-badge.draft {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.status-badge.confirmed {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.status-badge.cancelled {
-    background: #fef2f2;
-    color: #991b1b;
-}
+.status-badge.draft { background: #fef3c7; color: #92400e; }
+.status-badge.confirmed { background: #dcfce7; color: #166534; }
+.status-badge.cancelled { background: #fef2f2; color: #991b1b; }
 
 .action-buttons {
     display: flex;
@@ -589,68 +537,52 @@
     font-size: 0.8rem;
 }
 
-.btn-primary {
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    color: white;
-}
-
-.btn-primary:hover {
-    background: linear-gradient(135deg, #2563eb, #1e40af);
-    transform: translateY(-1px);
-}
-
-.btn-secondary {
-    background: linear-gradient(135deg, #6b7280, #4b5563);
-    color: white;
-}
-
-.btn-secondary:hover {
-    background: linear-gradient(135deg, #4b5563, #374151);
-    transform: translateY(-1px);
-}
-
-.btn-outline-primary {
-    background: transparent;
-    color: #3b82f6;
-    border: 1px solid #3b82f6;
-}
-
-.btn-outline-primary:hover {
-    background: #3b82f6;
-    color: white;
-}
-
-.btn-outline-success {
-    background: transparent;
-    color: #10b981;
-    border: 1px solid #10b981;
-}
-
-.btn-outline-success:hover {
-    background: #10b981;
-    color: white;
-}
-
-.btn-outline-warning {
-    background: transparent;
-    color: #f59e0b;
-    border: 1px solid #f59e0b;
-}
-
-.btn-outline-warning:hover {
-    background: #f59e0b;
-    color: white;
-}
-
-.btn-outline-danger {
-    background: transparent;
-    color: #ef4444;
-    border: 1px solid #ef4444;
-}
-
+.btn-primary { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
+.btn-primary:hover { background: linear-gradient(135deg, #2563eb, #1e40af); transform: translateY(-1px); }
+.btn-secondary { background: linear-gradient(135deg, #6b7280, #4b5563); color: white; }
+.btn-secondary:hover { background: linear-gradient(135deg, #4b5563, #374151); transform: translateY(-1px); }
+.btn-outline-primary { background: transparent; color: #3b82f6; border: 1px solid #3b82f6; }
+.btn-outline-primary:hover { background: #3b82f6; color: white; }
+.btn-outline-success { background: transparent; color: #10b981; border: 1px solid #10b981; }
+.btn-outline-success:hover { background: #10b981; color: white; }
+.btn-outline-warning { background: transparent; color: #f59e0b; border: 1px solid #f59e0b; }
+.btn-outline-warning:hover { background: #f59e0b; color: white; }
+.btn-outline-danger { background: transparent; color: #ef4444; border: 1px solid #ef4444; }
 .btn-outline-danger:hover {
     background: #ef4444;
     color: white;
+}
+
+/* Styling for deleted row */
+.operations-table tr.table-danger {
+    background-color: #fef2f2 !important;
+    text-decoration: line-through;
+    color: #9ca3af;
+}
+
+.operations-table tr.table-danger .document-number,
+.operations-table tr.table-danger .amount {
+    color: #9ca3af;
+}
+
+.operations-table tr.table-danger:hover {
+    background-color: #fee2e2 !important;
+}
+
+.deleted-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.deleted-status i {
+    font-size: 1rem;
 }
 
 /* رنگ‌بندی ردیف‌ها */

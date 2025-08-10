@@ -57,7 +57,7 @@
             </thead>
             <tbody>
                 {% for operation in operations %}
-                <tr>
+                <tr class="{% if operation.is_deleted %}table-danger{% endif %}">
                     <td>{{ operation.date|jalali_date }}</td>
                     <td>{{ operation.operation_number }}</td>
                     <td>
@@ -74,6 +74,14 @@
                     </td>
                     <td>
                         <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-primary">مشاهده</a>
+                        {% if not operation.is_deleted %}
+                        <form action="{% url 'products:financial_operation_delete' operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این تراکنش مطمئن هستید؟');" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-delete">حذف</button>
+                        </form>
+                        {% else %}
+                        <span class="text-danger" style="margin-right: 10px;">حذف شده</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -198,6 +206,21 @@
 .btn-sm {
     padding: 0.25rem 0.5rem;
     font-size: 0.875rem;
+}
+.btn-delete {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+.btn-delete:hover {
+    background-color: #c82333;
+}
+.table-danger, .table-danger > th, .table-danger > td {
+    background-color: #f8d7da !important;
+}
+.text-danger {
+    color: #721c24 !important;
 }
 </style>
 {% endblock %} 
