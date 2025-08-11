@@ -10,6 +10,7 @@
 {% block content %}
 <!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
 <link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <script src="https://unpkg.com/moment/min/moment.min.js"></script>
 <script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
 
@@ -154,18 +155,18 @@
             <table class="cheque-table">
                 <thead>
                     <tr>
-                        <th>پشت نمره</th>
+                        <th style="width: 50px;">پشت نمره</th>
                         <th>تاریخ سررسید</th>
-                        <th>نام بانک</th>
+                        <th style="width: 180px;">نام بانک</th>
                         <th>نام شعبه</th>
                         <th>سری چک</th>
                         <th>سریال چک</th>
-                        <th>شناسه صیادی</th>
+                        <th style="width: 200px;">شناسه صیادی</th>
                         <th>مبلغ</th>
                         <th>صاحب حساب</th>
                         <th>کدملی</th>
                         <th>شماره حساب</th>
-                        <th>حذف</th>
+                        <th style="width: 30px;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="cheque-list-body">
@@ -722,6 +723,7 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
 <script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
 $(document).ready(function() {
@@ -943,7 +945,7 @@ function addChequeRow() {
         <td><input type="text" name="endorsement_${rowIndex}" class="form-control cheque-input"></td>
         <td><input type="text" name="due_date_${rowIndex}" class="form-control cheque-input persian-datepicker" placeholder="YYYY/MM/DD"></td>
         <td>
-            <select name="bank_name_${rowIndex}" class="form-control cheque-input">
+            <select name="bank_name_${rowIndex}" class="form-control cheque-input select2-searchable">
                 <option value="" selected>---------</option>
                 {% for bank in banks %}<option value="{{ bank.name }}">{{ bank.name }}</option>{% endfor %}
             </select>
@@ -952,7 +954,7 @@ function addChequeRow() {
         <td><input type="text" name="series_${rowIndex}" class="form-control cheque-input"></td>
         <td><input type="text" name="serial_${rowIndex}" class="form-control cheque-input"></td>
         <td><input type="text" name="sayadi_id_${rowIndex}" class="form-control cheque-input" maxlength="16"></td>
-        <td><input type="number" name="amount_${rowIndex}" class="form-control cheque-input amount-field" value="0"></td>
+        <td><input type="text" inputmode="numeric" name="amount_${rowIndex}" class="form-control cheque-input amount-field" value="0"></td>
         <td><input type="text" name="owner_name_${rowIndex}" class="form-control cheque-input"></td>
         <td><input type="text" name="national_id_${rowIndex}" class="form-control cheque-input" maxlength="10"></td>
         <td><input type="text" name="account_number_${rowIndex}" class="form-control cheque-input"></td>
@@ -966,6 +968,17 @@ function addChequeRow() {
         autoClose: true,
         initialValue: false,
         onSelect: function() { $(this).trigger('change'); }
+    });
+
+    // Initialize Select2 for the new row
+    $(newRow).find('.select2-searchable').select2({
+        dropdownParent: $('#chequeModal .customer-modal-content')
+    }).on('select2:open', () => {
+        // Automatically focus the search field when the dropdown is opened.
+        // The timeout is a workaround for modals that can steal focus.
+        setTimeout(() => {
+            document.querySelector('.select2-search__field').focus();
+        }, 10);
     });
     
     // Add event listeners for the new row
@@ -1093,11 +1106,25 @@ function saveAllCheques() {
     closeChequeModal();
 }
 
+// Helper function to convert Persian/Arabic digits to English digits
+function toEnglishDigits(str) {
+    if (!str) return '';
+    return str.toString().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+}
+
 // Helper function to format amount input with thousand separators
 function formatAmountInput(input) {
-    let value = input.value.replace(/[^\d]/g, ''); // Remove non-digits
+    // First, convert any existing Persian digits to English to parse correctly, then remove non-numeric characters.
+    let value = toEnglishDigits(input.value).replace(/[^0-9]/g, '');
     if (value) {
-        input.value = parseInt(value).toLocaleString('fa-IR');
+        // Use BigInt to handle large numbers safely
+        try {
+            const numericValue = BigInt(value);
+            input.value = numericValue.toLocaleString('fa-IR');
+        } catch (e) {
+            // Handle cases where the number might be invalid during typing
+            input.value = value;
+        }
     } else {
         input.value = '';
     }
@@ -1105,7 +1132,9 @@ function formatAmountInput(input) {
 
 // Helper function to parse amount from formatted string
 function parseAmountFromFormattedString(formattedValue) {
-    return formattedValue.replace(/[^\d]/g, ''); // Remove all non-digit characters
+    if (!formattedValue) return '';
+    // Convert to English digits and remove anything that's not a number
+    return toEnglishDigits(formattedValue).replace(/[^0-9]/g, '');
 }
 
 </script>
