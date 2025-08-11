@@ -2308,7 +2308,10 @@ class CustomerBalance(models.Model):
         )
 
         total_received = operations.filter(operation_type='RECEIVE_FROM_CUSTOMER').aggregate(models.Sum('amount'))['amount__sum'] or 0
-        total_paid = operations.filter(operation_type='PAY_TO_CUSTOMER').aggregate(models.Sum('amount'))['amount__sum'] or 0
+        
+        # A bank transfer to a customer is a form of payment to them, increasing their debt.
+        paid_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER']
+        total_paid = operations.filter(operation_type__in=paid_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
 
         self.current_balance = total_paid - total_received
         self.total_received = total_received

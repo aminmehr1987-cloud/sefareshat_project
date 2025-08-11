@@ -241,11 +241,12 @@ class AccountingVoucherManager:
         elif op_type == 'PAY_TO_BANK': # پرداخت از صندوق به بانک
             debit_account = bank_account
             credit_account = cash_account
-        elif op_type == 'BANK_TRANSFER': # حواله بین دو حساب بانکی
-            # This case is more complex and might need special handling
-            # Assuming a generic 'transfers' account for now
-            debit_account = bank_account # Destination account
-            credit_account = self._get_or_create_bank_account("Source Bank", "000") # Source Account
+        elif op_type == 'BANK_TRANSFER':
+            # حواله از حساب بانکی شرکت به یک مشتری
+            # بدهکار: حساب مشتری
+            # بستانکار: حساب بانکی شرکت
+            debit_account = customer_account
+            credit_account = bank_account
         elif op_type == 'CASH_WITHDRAWAL': # Same as RECEIVE_FROM_BANK
             debit_account = cash_account
             credit_account = bank_account
@@ -325,20 +326,29 @@ class AccountingVoucherManager:
         )
 
     def _create_bank_transfer_items(self, operation, voucher):
-        # This needs more specific logic based on how transfers are recorded.
-        # Assuming operation has from_account and to_account fields
+        """Create voucher items for a bank transfer to a customer."""
         debit_account, credit_account = self._get_debit_credit_accounts(operation)
+
+        # Debit the customer's account
         VoucherItem.objects.create(
-            voucher=voucher, account=debit_account,
-            description=f"حواله به حساب {operation.bank_name}",
-            debit=operation.amount, credit=0,
-            reference_id=str(operation.id), reference_type='FinancialOperation'
+            voucher=voucher,
+            account=debit_account,
+            description=f"حواله به مشتری: {operation.customer.get_full_name()} از حساب {credit_account.name}",
+            debit=operation.amount,
+            credit=0,
+            reference_id=str(operation.id),
+            reference_type='FinancialOperation'
         )
+        
+        # Credit the source bank account
         VoucherItem.objects.create(
-            voucher=voucher, account=credit_account,
-            description=f"حواله از حساب",
-            debit=0, credit=operation.amount,
-            reference_id=str(operation.id), reference_type='FinancialOperation'
+            voucher=voucher,
+            account=credit_account,
+            description=f"برداشت بابت حواله به مشتری: {operation.customer.get_full_name()}",
+            debit=0,
+            credit=operation.amount,
+            reference_id=str(operation.id),
+            reference_type='FinancialOperation'
         )
 
     def _create_cash_withdrawal_items(self, operation, voucher):
@@ -391,6 +401,7 @@ class AccountingVoucherManager:
     
     def _get_or_create_account(self, name, code, group_name, group_code, group_type):
         """A more generic and robust way to get or create an account."""
+        from .models import AccountGroup
         group, _ = AccountGroup.objects.get_or_create(
             code=group_code,
             defaults={'name': group_name, 'type': group_type}

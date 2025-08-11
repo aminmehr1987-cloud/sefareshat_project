@@ -4442,115 +4442,61 @@ def bank_transfer_view(request):
     """
     if request.method == 'POST':
         form = BankTransferForm(request.POST)
-        if form.errors:
-            # نمایش خطاها به کاربر
-            for field, errors in form.errors.items():
-                for error in errors:
-                    messages.error(request, f"خطا در فیلد {field}: {error}")
-            return render(request, 'financial_operations/bank_transfer.html', {'form': form, 'customers': Customer.objects.all().order_by('first_name', 'last_name')})
         if form.is_valid():
             try:
                 # دریافت اطلاعات فرم
                 amount = form.cleaned_data['amount']
-                date = convert_shamsi_to_gregorian(form.cleaned_data['date_shamsi'])
+                date_shamsi = form.cleaned_data['date_shamsi']
                 description = form.cleaned_data['description']
                 from_bank_account = form.cleaned_data['from_bank_account']
-                to_bank = form.cleaned_data['to_bank']
-                to_account = form.cleaned_data['to_account']
                 recipient = form.cleaned_data['recipient']
-                
-                # اگر گیرنده انتخاب نشده، اولین مشتری را انتخاب کن
-                if not recipient:
-                    recipient = Customer.objects.first()
-                    if not recipient:
-                        messages.error(request, 'هیچ مشتری در سیستم ثبت نشده است.')
-                        return render(request, 'financial_operations/bank_transfer.html', {'form': form})
-                
-
                 
                 # بررسی موجودی حساب مبدا
                 if from_bank_account.current_balance < amount:
                     messages.error(request, f'موجودی حساب {from_bank_account.title} کافی نیست. موجودی فعلی: {from_bank_account.current_balance:,} ریال')
-                    return render(request, 'financial_operations/bank_transfer.html', {'form': form})
-                
-                # عملیات برداشت از حساب مبدا
-                withdrawal_operation = FinancialOperation.objects.create(
-                    operation_type='RECEIVE_FROM_BANK',
-                    date=date,
+                    customers = Customer.objects.all().order_by('first_name', 'last_name')
+                    return render(request, 'financial_operations/bank_transfer.html', {'form': form, 'customers': customers})
+
+                # ایجاد یک عملیات مالی واحد از نوع حواله بانکی
+                operation = FinancialOperation.objects.create(
+                    operation_type='BANK_TRANSFER',
+                    date=convert_shamsi_to_gregorian(date_shamsi),
                     amount=amount,
+                    customer=recipient,
                     bank_name=from_bank_account.bank.name,
                     account_number=from_bank_account.account_number,
                     payment_method='bank_transfer',
-                    description=f"برداشت برای حواله به {to_bank.name} - {recipient.get_full_name()}: {description}",
+                    description=f"حواله از حساب {from_bank_account.title} به {recipient.get_full_name()} - {description}",
                     created_by=request.user,
                     status='CONFIRMED',
                     confirmed_by=request.user,
                     confirmed_at=timezone.now()
                 )
+
+                # The signal for FinancialOperation's post_save will automatically handle:
+                # 1. Updating customer balance (customer_balance.update_balance())
+                # 2. Updating the source bank account's balance via fund recalculation
+                # 3. Creating the accounting voucher (create_voucher_for_financial_operation)
+
+                success_message = f'حواله بانکی به مبلغ {amount:,} ریال با موفقیت ثبت شد. شماره عملیات: {operation.operation_number}'
                 
-                # عملیات پرداخت به مشتری (واریز به حساب مقصد)
-                deposit_operation = FinancialOperation.objects.create(
-                    operation_type='PAY_TO_CUSTOMER',
-                    date=date,
-                    amount=amount,
-                    customer=recipient,
-                    payment_method='bank_transfer',
-                    description=f"پرداخت حواله از {from_bank_account.title} به {recipient.get_full_name()}: {description}",
-                    created_by=request.user,
-                    status='CONFIRMED',
-                    confirmed_by=request.user,
-                    confirmed_at=timezone.now()
-                )
-                
-                # به‌روزرسانی موجودی مشتری
-                customer_balance, created = CustomerBalance.objects.get_or_create(
-                    customer=recipient,
-                    defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
-                )
-                customer_balance.update_balance()
-                
-                # به‌روزرسانی موجودی حساب بانکی مبدا - با استفاده از تابع محاسبه مجدد
-                _update_bank_account_balance(from_bank_account.bank.name, from_bank_account.account_number)
-                
-                # ایجاد اسناد حسابداری
-                try:
-                    from .accounting_utils import AccountingVoucherManager
-                    voucher_manager = AccountingVoucherManager()
-                    
-                    # سند برای برداشت از حساب مبدا
-                    withdrawal_voucher = voucher_manager.create_voucher_from_financial_operation(withdrawal_operation)
-                    
-                    # سند برای واریز به حساب مقصد
-                    deposit_voucher = voucher_manager.create_voucher_from_financial_operation(deposit_operation)
-                    
-                    if withdrawal_voucher and deposit_voucher:
-                        voucher_info = f"شماره سند برداشت: {withdrawal_voucher.number}، شماره سند واریز: {deposit_voucher.number}"
-                    elif withdrawal_voucher:
-                        voucher_info = f"شماره سند برداشت: {withdrawal_voucher.number}، خطا در ایجاد سند واریز"
-                    elif deposit_voucher:
-                        voucher_info = f"خطا در ایجاد سند برداشت، شماره سند واریز: {deposit_voucher.number}"
-                    else:
-                        voucher_info = "خطا در ایجاد اسناد حسابداری"
-                except Exception as e:
-                    voucher_info = f"خطا در ایجاد سند حسابداری: {str(e)}"
-                
-                # نمایش پیام تأیید
-                success_message = f'حواله بانکی به مبلغ {amount:,} ریال با موفقیت ثبت شد. شماره عملیات برداشت: {withdrawal_operation.operation_number}، شماره عملیات پرداخت: {deposit_operation.operation_number}. {voucher_info}'
-                
-                # ذخیره پیام در session برای نمایش در صفحه تأیید
                 request.session['success_message'] = success_message
                 request.session['operation_type'] = 'bank_transfer'
                 return redirect('products:operation_confirmation')
-                
+
             except Exception as e:
+                import traceback
+                traceback.print_exc()
                 messages.error(request, f'خطا در ثبت عملیات حواله بانکی: {str(e)}')
-                return render(request, 'financial_operations/bank_transfer.html', {'form': form})
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"خطا در فیلد '{form.fields[field].label}': {error}")
+
     else:
         form = BankTransferForm()
     
-    # دریافت لیست مشتریان برای مودال انتخاب گیرنده
     customers = Customer.objects.all().order_by('first_name', 'last_name')
-    
     return render(request, 'financial_operations/bank_transfer.html', {
         'form': form,
         'customers': customers
