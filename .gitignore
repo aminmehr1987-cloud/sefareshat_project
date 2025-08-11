@@ -1,4 +1,6 @@
-myenv/
+# Environments
+env/
+
 # Database
 db.sqlite3
 

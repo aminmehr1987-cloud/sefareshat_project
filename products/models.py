@@ -1619,23 +1619,34 @@ class Check(models.Model):
         ('VOID', 'باطل شده'),
     ]
 
-    checkbook = models.ForeignKey(CheckBook, null=True, blank=True, on_delete=models.PROTECT, verbose_name="دسته چک")
-    number = models.CharField(max_length=50, verbose_name="شماره چک")
+    checkbook = models.ForeignKey(CheckBook, null=True, blank=True, on_delete=models.PROTECT, verbose_name="دسته چک (برای چک‌های پرداختی)")
+    number = models.CharField(max_length=50, verbose_name="شماره/سریال چک")
+    series = models.CharField(max_length=50, blank=True, null=True, verbose_name="سری چک")
     amount = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="مبلغ")
     date = jmodels.jDateField(verbose_name="تاریخ سررسید")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='UNUSED', verbose_name="وضعیت")
     payee = models.CharField(max_length=200, verbose_name="در وجه")
     description = models.TextField(blank=True, verbose_name="توضیحات")
-    bank_name = models.CharField(max_length=100, blank=True, verbose_name="نام بانک")  # برای چک‌های دریافتی
-    bank_branch = models.CharField(max_length=100, blank=True, verbose_name="شعبه بانک")  # برای چک‌های دریافتی
-    account_number = models.CharField(max_length=50, blank=True, verbose_name="شماره حساب")  # برای چک‌های دریافتی
+
+    # Fields for received checks
+    bank_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="نام بانک")
+    bank_branch = models.CharField(max_length=100, blank=True, null=True, verbose_name="شعبه بانک")
+    account_number = models.CharField(max_length=50, blank=True, null=True, verbose_name="شماره حساب")
+    owner_name = models.CharField(max_length=200, blank=True, null=True, verbose_name="نام صاحب حساب")
+    owner_national_id = models.CharField(max_length=10, blank=True, null=True, verbose_name="کدملی صاحب حساب")
+    sayadi_id = models.CharField(max_length=16, blank=True, null=True, verbose_name="شناسه صیادی")
+    endorsement = models.CharField(max_length=255, blank=True, null=True, verbose_name="پشت نمره")
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="ایجاد کننده")
 
     class Meta:
         verbose_name = "چک"
         verbose_name_plural = "چک‌ها"
-        unique_together = ['checkbook', 'number']
+        # A check number should be unique for our own checkbooks. Received checks don't have a checkbook.
+        constraints = [
+            models.UniqueConstraint(fields=['checkbook', 'number'], name='unique_issued_check', condition=Q(checkbook__isnull=False))
+        ]
         ordering = ['-date', '-created_at']
 
     def __str__(self):

@@ -81,6 +81,67 @@ class FinancialYearForm(forms.ModelForm):
 
         return cleaned_data
 
+
+class ReceivedCheckForm(forms.ModelForm):
+    """
+    فرم ثبت چک دریافتی در مودال
+    """
+    # Override bank_name to be a dropdown from the Bank model
+    bank = forms.ModelChoiceField(
+        queryset=Bank.objects.filter(is_active=True).order_by('name'),
+        label="نام بانک",
+        required=True,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        empty_label="بانک را انتخاب کنید"
+    )
+
+    class Meta:
+        model = Check
+        fields = [
+            'endorsement', 'number', 'series', 'bank', 'bank_branch', 
+            'account_number', 'sayadi_id', 'amount', 'owner_national_id', 'owner_name', 'date'
+        ]
+        widgets = {
+            'endorsement': forms.TextInput(attrs={'class': 'form-control'}),
+            'number': forms.TextInput(attrs={'class': 'form-control'}),
+            'series': forms.TextInput(attrs={'class': 'form-control'}),
+            'bank_branch': forms.TextInput(attrs={'class': 'form-control'}),
+            'account_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'sayadi_id': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 16}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control'}),
+            'owner_national_id': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 10}),
+            'owner_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+        labels = {
+            'endorsement': "پشت نمره",
+            'number': "سریال چک",
+            'series': "سری چک",
+            'bank': "نام بانک",
+            'bank_branch': "نام شعبه",
+            'account_number': "شماره حساب",
+            'sayadi_id': "شناسه صیادی",
+            'amount': "مبلغ",
+            'owner_national_id': "کدملی صاحب حساب",
+            'owner_name': "نام صاحب حساب",
+            'date': "تاریخ سررسید",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['series'].required = False
+        self.fields['owner_national_id'].required = False
+        self.fields['owner_name'].required = False
+        
+        # Override the bank_name from the model with the ModelChoiceField
+        self.fields['bank_name'] = self.fields.pop('bank')
+
+    def clean_sayadi_id(self):
+        sayadi_id = self.cleaned_data.get('sayadi_id')
+        if sayadi_id and (not sayadi_id.isdigit() or len(sayadi_id) != 16):
+            raise ValidationError("شناسه صیادی باید یک عدد 16 رقمی باشد.")
+        return sayadi_id
+
 class CurrencyForm(forms.ModelForm):
     class Meta:
         model = Currency

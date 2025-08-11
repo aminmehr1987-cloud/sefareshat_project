@@ -4269,6 +4269,9 @@ def receive_from_customer_view(request):
     """
     دریافت از مشتری - با منطق کامل
     """
+    from .models import Bank
+    from .forms import ReceivedCheckForm
+
     if request.method == 'POST':
         form = ReceiveFromCustomerForm(request.POST)
         if form.is_valid():
@@ -4291,18 +4294,22 @@ def receive_from_customer_view(request):
                     if not device:
                         form.add_error('card_reader_device', 'برای پرداخت با پوز، انتخاب دستگاه الزامی است.')
                         customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        banks = Bank.objects.filter(is_active=True).order_by('name')
                         return render(request, 'financial_operations/receive_from_customer.html', {
                             'form': form,
-                            'customers': customers
+                            'customers': customers,
+                            'banks': banks
                         })
 
                     bank_account = device.bank_account
                     if not bank_account:
                         messages.error(request, f"دستگاه کارتخوان '{device.name}' به هیچ حساب بانکی متصل نیست.")
                         customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        banks = Bank.objects.filter(is_active=True).order_by('name')
                         return render(request, 'financial_operations/receive_from_customer.html', {
                             'form': form,
-                            'customers': customers
+                            'customers': customers,
+                            'banks': banks
                         })
                     
                     # The concept of a 'Fund' for a bank account is being removed for POS.
@@ -4342,9 +4349,14 @@ def receive_from_customer_view(request):
         form = ReceiveFromCustomerForm()
     
     customers = Customer.objects.all().order_by('first_name', 'last_name')
+    banks = Bank.objects.filter(is_active=True).order_by('name')
+    cheque_form = ReceivedCheckForm()
+
     return render(request, 'financial_operations/receive_from_customer.html', {
         'form': form,
-        'customers': customers
+        'customers': customers,
+        'banks': banks,
+        'cheque_form': cheque_form
     })
 
 
@@ -4688,36 +4700,13 @@ def customer_balance_list_view(request):
     """
     نمایش لیست موجودی مشتریان
     """
-    # محاسبه مجدد موجودی تمام مشتریان از عملیات‌های واقعی
+    # Recalculate the balance for all customers to ensure data is fresh.
     customers = Customer.objects.all()
-    
     for customer in customers:
-        customer_balance, created = CustomerBalance.objects.get_or_create(
-            customer=customer,
-            defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
-        )
-        
-        # عملیات‌های مرتبط با این مشتری
-        operations = FinancialOperation.objects.filter(customer=customer, is_deleted=False)
-        
-        # محاسبه مجموع‌ها از عملیات‌های واقعی
-        total_received = operations.filter(
-            operation_type='RECEIVE_FROM_CUSTOMER'
-        ).aggregate(Sum('amount'))['amount__sum'] or 0
-        
-        total_paid = operations.filter(
-            operation_type='PAY_TO_CUSTOMER'
-        ).aggregate(Sum('amount'))['amount__sum'] or 0
-        
-        # محاسبه موجودی فعلی
-        current_balance = total_paid - total_received
-        
-        # به‌روزرسانی موجودی مشتری
-        customer_balance.total_received = total_received
-        customer_balance.total_paid = total_paid
-        customer_balance.current_balance = current_balance
-        customer_balance.save()
-    
+        customer_balance, created = CustomerBalance.objects.get_or_create(customer=customer)
+        # Use the robust update_balance method from the model
+        customer_balance.update_balance()
+
     customer_balances = CustomerBalance.objects.select_related('customer').all().order_by('-current_balance')
     
     # فیلترها
@@ -4739,8 +4728,9 @@ def customer_balance_list_view(request):
         operation_type='RECEIVE_FROM_CUSTOMER'
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
+    paid_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER']
     total_paid = all_operations.filter(
-        operation_type='PAY_TO_CUSTOMER'
+        operation_type__in=paid_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
     total_balance = total_paid - total_received
