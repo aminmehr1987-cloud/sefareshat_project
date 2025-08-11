@@ -86,19 +86,19 @@
                     </td>
                     <td>
                         <div class="btn-group" role="group">
-                            <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-info" title="مشاهده جزئیات">
-                                <i class="bi bi-search"></i>
+                            <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
+                                <i class="bi bi-eye"></i>
                             </a>
                             {% if not operation.is_deleted and operation.status != 'CANCELLED' %}
-                                <a href="{% url 'products:financial_operation_edit' operation.id %}" class="btn btn-sm btn-primary" title="ویرایش">
+                                <a href="{% url 'products:financial_operation_edit' operation.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
                                     <i class="bi bi-pencil-fill"></i>
                                 </a>
-                                <form action="{% url 'products:financial_operation_delete' operation.id %}" method="post" onsubmit="return confirm('آیا از حذف این تراکنش مطمئن هستید؟');" style="display: inline;">
+                                <form id="delete-form-{{ operation.id }}" action="{% url 'products:financial_operation_delete' operation.id %}" method="post" style="display: none;">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-danger" title="حذف">
-                                        <i class="bi bi-trash3-fill"></i>
-                                    </button>
                                 </form>
+                                <a href="#" onclick="if(confirm('آیا از حذف این تراکنش مطمئن هستید؟')) { document.getElementById('delete-form-{{ operation.id }}').submit(); } return false;" class="btn btn-sm btn-outline-danger" title="حذف">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </a>
                             {% else %}
                                 <button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-pencil-fill"></i></button>
                                 <button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-trash3-fill"></i></button>
@@ -116,10 +116,17 @@
 </div>
 
 <style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+
 .customer-detail-container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 2rem;
+    font-family: 'BHoma', sans-serif;
 }
 
 .detail-header {
@@ -227,8 +234,42 @@
 
 .btn-sm {
     padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
 }
+
+.btn-outline-primary {
+    background: transparent;
+    color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+.btn-outline-primary:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-outline-warning {
+    background: transparent;
+    color: #f59e0b;
+    border: 1px solid #f59e0b;
+}
+
+.btn-outline-warning:hover {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-outline-danger {
+    background: transparent;
+    color: #dc3545;
+    border: 1px solid #dc3545;
+}
+
+.btn-outline-danger:hover {
+    background: #dc3545;
+    color: white;
+}
+
 .btn-delete {
     background-color: #dc3545;
     color: white;
