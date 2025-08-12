@@ -36,7 +36,7 @@ from .models import Fund, FinancialOperation, CustomerBalance, PettyCashOperatio
 from .forms import FundForm, FinancialOperationForm, PettyCashOperationForm, ReceiveFromCustomerForm, PayToCustomerForm, BankOperationForm, BankTransferForm, CashOperationForm, CapitalInvestmentForm
 from functools import wraps
 from .forms import BankAccountForm
-from .models import Account, BankAccount
+from .models import Account, BankAccount, ReceivedCheque
 
 
 
@@ -4904,6 +4904,12 @@ def financial_dashboard_view(request):
     # عملیات‌های اخیر
     recent_operations = FinancialOperation.objects.filter(status='CONFIRMED', is_deleted=False).order_by('-date', '-created_at')[:10]
     
+    # Received Cheque Summary
+    all_cheques = ReceivedCheque.objects.all()
+    total_cheques_amount = all_cheques.aggregate(Sum('amount'))['amount__sum'] or 0
+    on_hand_cheques_amount = all_cheques.filter(status='RECEIVED').aggregate(Sum('amount'))['amount__sum'] or 0
+    deposited_cheques_amount = all_cheques.filter(status='DEPOSITED').aggregate(Sum('amount'))['amount__sum'] or 0
+
     context = {
         'total_balance': total_balance,
         'total_cash_balance': total_cash_balance,
@@ -4919,6 +4925,10 @@ def financial_dashboard_view(request):
         'creditor_count': creditor_count,
         'recent_operations': recent_operations,
         'funds': funds,
+        # Cheque context
+        'total_cheques_amount': total_cheques_amount,
+        'on_hand_cheques_amount': on_hand_cheques_amount,
+        'deposited_cheques_amount': deposited_cheques_amount,
     }
     
     return render(request, 'products/financial_dashboard.html', context)

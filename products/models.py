@@ -1768,6 +1768,46 @@ class Receipt(models.Model):
         verbose_name_plural = "رسیدهای دریافت"
         ordering = ['-date']
 
+
+class ReceivedCheque(models.Model):
+    financial_operation = models.ForeignKey('FinancialOperation', on_delete=models.CASCADE, related_name='received_cheques', null=True, blank=True, verbose_name="عملیات مالی")
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='received_cheques', verbose_name="مشتری")
+    
+    endorsement = models.CharField(max_length=255, blank=True, null=True, verbose_name="پشت نمره")
+    due_date = models.DateField(verbose_name="تاریخ سررسید")
+    bank_name = models.CharField(max_length=100, verbose_name="نام بانک")
+    branch_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="نام شعبه")
+    series = models.CharField(max_length=50, blank=True, null=True, verbose_name="سری چک")
+    serial = models.CharField(max_length=50, blank=True, null=True, verbose_name="سریال چک")
+    sayadi_id = models.CharField(max_length=16, unique=True, verbose_name="شناسه صیادی")
+    amount = models.DecimalField(max_digits=15, decimal_places=0, verbose_name="مبلغ")
+    owner_name = models.CharField(max_length=255, verbose_name="صاحب حساب")
+    national_id = models.CharField(max_length=10, blank=True, null=True, verbose_name="کدملی صاحب حساب")
+    account_number = models.CharField(max_length=50, verbose_name="شماره حساب")
+    
+    STATUS_CHOICES = [
+        ('RECEIVED', 'دریافت شده'),
+        ('DEPOSITED', 'واگذار به بانک'),
+        ('CLEARED', 'وصول شده'),
+        ('MANUALLY_CLEARED', 'وصول به صورت دستی'),
+        ('SPENT', 'خرج شده'),
+        ('BOUNCED', 'برگشت خورده'),
+        ('RETURNED', 'مسترد شده'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='RECEIVED', verbose_name="وضعیت")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_received_cheques', verbose_name="ایجاد کننده")
+
+    def __str__(self):
+        return f"چک صیادی {self.sayadi_id} از {self.customer}"
+
+    class Meta:
+        verbose_name = "چک دریافتی"
+        verbose_name_plural = "چک‌های دریافتی"
+        ordering = ['-due_date']
+
     def __str__(self):
         return f"رسید {self.id} از {self.customer} به مبلغ {self.amount}"
 

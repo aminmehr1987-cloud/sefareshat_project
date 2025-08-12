@@ -155,18 +155,18 @@
             <table class="cheque-table">
                 <thead>
                     <tr>
-                        <th style="width: 50px;">پشت نمره</th>
+                        <th style="width: 80px;">پشت نمره</th>
                         <th>تاریخ سررسید</th>
-                        <th style="width: 180px;">نام بانک</th>
+                        <th>نام بانک</th>
                         <th>نام شعبه</th>
                         <th>سری چک</th>
                         <th>سریال چک</th>
-                        <th style="width: 200px;">شناسه صیادی</th>
+                        <th style="width: 160px;">شناسه صیادی</th>
                         <th>مبلغ</th>
                         <th>صاحب حساب</th>
                         <th>کدملی</th>
                         <th>شماره حساب</th>
-                        <th style="width: 30px;">حذف</th>
+                        <th style="width: 60px;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="cheque-list-body">
@@ -176,7 +176,7 @@
         </div>
         <div class="cheque-summary">
             <div class="summary-box">
-                <label>میانگین سررسید (روز)</label>
+                <label>راس چک :</label>
                 <input type="text" id="averageDueDateBox" class="form-control" readonly>
             </div>
             <div class="summary-box">
@@ -614,11 +614,14 @@
 .cheque-table th {
     background-color: #f8f9fa;
 }
+#chequeModal .customer-modal-content {
+    font-family: 'BHoma', sans-serif;
+}
+
 .cheque-table .form-control {
+    /* Inherits font-size, padding, and height from the main .form-control style for consistency */
     width: 100%;
     box-sizing: border-box;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.875rem;
 }
 .cheque-summary {
     display: flex;
@@ -943,7 +946,7 @@ function addChequeRow() {
 
     newRow.innerHTML = `
         <td><input type="text" name="endorsement_${rowIndex}" class="form-control cheque-input"></td>
-        <td><input type="text" name="due_date_${rowIndex}" class="form-control cheque-input persian-datepicker" placeholder="YYYY/MM/DD"></td>
+        <td><input type="text" name="due_date_${rowIndex}" class="form-control cheque-input autoformat-date" placeholder="YYYY/MM/DD"></td>
         <td>
             <select name="bank_name_${rowIndex}" class="form-control cheque-input select2-searchable">
                 <option value="" selected>---------</option>
@@ -962,13 +965,7 @@ function addChequeRow() {
     `;
     tbody.appendChild(newRow);
 
-    // Re-initialize datepicker for the new row
-    $(newRow).find(".persian-datepicker").pDatepicker({
-        format: 'YYYY/MM/DD',
-        autoClose: true,
-        initialValue: false,
-        onSelect: function() { $(this).trigger('change'); }
-    });
+    // Datepicker initialization removed as per user request.
 
     // Initialize Select2 for the new row
     $(newRow).find('.select2-searchable').select2({
@@ -984,8 +981,10 @@ function addChequeRow() {
     // Add event listeners for the new row
     addEventListenersToRow(newRow);
     
-    // Focus on the first input of the new row
-    newRow.querySelector('.cheque-input').focus();
+    // Focus on the first input of the new row, with a timeout to ensure reliability
+    setTimeout(() => {
+        newRow.querySelector('.cheque-input').focus();
+    }, 50);
 }
 
 function removeChequeRow(button) {
@@ -1017,7 +1016,12 @@ function addEventListenersToRow(row) {
         formatAmountInput(this);
         updateChequeSummary();
     });
-    $(row).find('.persian-datepicker').on('change', updateChequeSummary);
+
+    const dateInput = row.querySelector('.autoformat-date');
+    dateInput.addEventListener('input', function() {
+        formatDateInput(this);
+    });
+    $(dateInput).on('change', updateChequeSummary);
 }
 
 function updateChequeSummary() {
@@ -1061,6 +1065,7 @@ function updateChequeSummary() {
     // Update the total amount box
     const totalAmountBox = document.getElementById('totalChequeAmountBox');
     totalAmountBox.value = totalAmount.toLocaleString('fa-IR');
+    totalAmountBox.dataset.rawAmount = totalAmount; // Store raw numeric value
 
     // Update the average due date box
     const averageDueDateBox = document.getElementById('averageDueDateBox');
@@ -1097,13 +1102,39 @@ function saveAllCheques() {
     });
 
     console.log("Collected Cheque Data:", cheques);
+
+    // Update the main form's amount field
+    const totalAmountBox = document.getElementById('totalChequeAmountBox');
+    const rawTotal = totalAmountBox.dataset.rawAmount || '0';
+    const mainAmountInput = document.getElementById('id_amount');
+    if (mainAmountInput) {
+        mainAmountInput.value = rawTotal;
+    }
     
     // In a real implementation, you would set this data to a hidden input
     // document.getElementById('cheques_data_hidden_input').value = JSON.stringify(cheques);
     
     // For now, we just close the modal as per the user's request to implement UI first.
-    alert(`اطلاعات ${cheques.length} چک در کنسول ثبت شد. در مرحله بعد این اطلاعات به سرور ارسال خواهد شد.`);
+    alert(`اطلاعات ${cheques.length} چک در کنسول ثبت شد و مبلغ کل در فرم اصلی قرار گرفت.`);
     closeChequeModal();
+}
+
+function formatDateInput(input) {
+    let value = input.value.replace(/\D/g, ''); // Remove all non-digit characters
+    
+    if (value.length > 8) {
+        value = value.substring(0, 8); // Limit to YYYYMMDD
+    }
+
+    let formattedValue = value;
+    if (value.length > 4) {
+        formattedValue = value.substring(0, 4) + '/' + value.substring(4);
+    }
+    if (value.length > 6) {
+        formattedValue = value.substring(0, 4) + '/' + value.substring(4, 6) + '/' + value.substring(6);
+    }
+    
+    input.value = formattedValue;
 }
 
 // Helper function to convert Persian/Arabic digits to English digits

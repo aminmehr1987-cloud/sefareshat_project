@@ -16,7 +16,7 @@ from .models import (
     FinancialYear, Currency, AccountGroup, Account, BankAccount, 
     CashRegister, CheckBook, Check, Voucher, VoucherItem, SalesInvoiceItem,
     Fund, FundBalanceHistory, FinancialOperation, CustomerBalance, PettyCashOperation,
-    FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement
+    FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement, ReceivedCheque
 )
 import jdatetime as jmodels
 from django.db.models import Q, F, Sum
@@ -1235,3 +1235,38 @@ class PettyCashOperationAdmin(admin.ModelAdmin):
             'total_withdraw': total_withdraw,
             'current_balance': current_balance,
         }
+
+@admin.register(ReceivedCheque)
+class ReceivedChequeAdmin(admin.ModelAdmin):
+    list_display = ('sayadi_id', 'customer', 'amount', 'due_date', 'bank_name', 'status', 'created_by', 'created_at')
+    list_filter = ('status', 'bank_name', 'due_date', 'created_by')
+    search_fields = (
+        'sayadi_id', 
+        'customer__first_name', 
+        'customer__last_name', 
+        'owner_name', 
+        'serial',
+        'series',
+        'bank_name',
+        'branch_name',
+        'account_number',
+        'national_id',
+        'endorsement'
+    )
+    readonly_fields = ('created_at', 'updated_at', 'created_by')
+    fieldsets = (
+        (None, {
+            'fields': ('customer', 'financial_operation', 'status')
+        }),
+        ('اطلاعات چک', {
+            'fields': ('sayadi_id', 'amount', 'due_date', 'bank_name', 'branch_name', 'account_number', 'owner_name', 'national_id', 'series', 'serial')
+        }),
+        ('اطلاعات تکمیلی', {
+            'fields': ('endorsement', 'created_by', 'created_at', 'updated_at')
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not obj.pk:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
