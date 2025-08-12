@@ -260,54 +260,6 @@
         </div>
     </div>
 
-
-    <!-- Recent Operations -->
-    <div class="recent-operations">
-        <h2><i class="bi bi-clock-history"></i> عملیات‌های اخیر</h2>
-        <div class="operations-table">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>تاریخ</th>
-                        <th>نوع عملیات</th>
-                        <th>مبلغ</th>
-                        <th>وضعیت</th>
-                        <th>عملیات</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for operation in recent_operations %}
-                    <tr>
-                        <td>{{ operation.date|jalali_date }}</td>
-                        <td>{{ operation.get_operation_type_display }}</td>
-                        <td class="amount">{{ operation.amount|persian_number_format }} ریال</td>
-                        <td>
-                            <span class="status-badge {{ operation.status|lower }}">
-                                {{ operation.get_status_display }}
-                            </span>
-                        </td>
-                        <td>
-                            <a href="{% url 'products:financial_operation_detail' operation.id %}" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="5" class="text-center">هیچ عملیاتی یافت نشد.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        <div class="view-all">
-            <a href="{% url 'products:financial_operation_list' %}" class="btn btn-outline-primary">
-                مشاهده همه عملیات
-            </a>
-        </div>
-    </div>
-
-    
 </div>
 
 <style>
