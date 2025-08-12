@@ -31,7 +31,6 @@
     <div class="form-card">
         <form method="post" class="operation-form" onsubmit="return handleFormSubmit(event)">
             {% csrf_token %}
-            <input type="hidden" name="cheques_data" id="cheques_data_hidden_input">
             {{ form.operation_type }}
             
             <!-- نمایش خطاهای فرم -->
@@ -147,7 +146,7 @@
 
 <!-- Cheque Details Modal -->
 <div id="chequeModal" class="customer-modal">
-    <div class="customer-modal-content" style="max-width: 95%; width: 1600px;">
+    <div class="customer-modal-content" style="max-width: 95%; width: 1400px;">
         <div class="customer-modal-header">
             <span class="customer-modal-title"> مشخصات چک های دریافتی</span>
             <span class="close-modal" onclick="closeChequeModal()">×</span>
@@ -157,7 +156,7 @@
                 <thead>
                     <tr>
                         <th style="width: 80px;">پشت نمره</th>
-                        <th style="width: 150px;">تاریخ سررسید</th>
+                        <th>تاریخ سررسید</th>
                         <th>نام بانک</th>
                         <th>نام شعبه</th>
                         <th>سری چک</th>
@@ -755,12 +754,6 @@ $(document).ready(function() {
 
     // Bind event listener for changes
     paymentMethodField.on('change', toggleFields);
-
-    // Use event delegation for cheque inputs to ensure it works for dynamically added rows
-    $('#cheque-list-body').on('input change', '.cheque-input', function() {
-        // Debounce or throttle this if performance becomes an issue
-        updateChequeSummary();
-    });
     
     // Persian Datepicker initialization
     $(".persian-datepicker").pDatepicker({
@@ -928,39 +921,7 @@ function closeCustomerModal() {
 
 // Handle form submission
 window.handleFormSubmit = function(event) {
-    const paymentMethod = document.getElementById('id_payment_method').value;
-    if (paymentMethod === 'cheque') {
-        const cheques = [];
-        const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
-
-        rows.forEach((row, index) => {
-            const amountStr = parseAmountFromFormattedString(row.querySelector(`input[name^="amount_"]`).value);
-            const amount = parseFloat(amountStr) || 0;
-            
-            // Only include cheques with an amount
-            if (amount > 0) {
-                const chequeData = {
-                    endorsement: row.querySelector(`input[name^="endorsement_"]`).value,
-                    due_date: row.querySelector(`input[name^="due_date_"]`).value,
-                    bank_name: row.querySelector(`select[name^="bank_name_"]`).value,
-                    branch_name: row.querySelector(`input[name^="branch_name_"]`).value,
-                    series: row.querySelector(`input[name^="series_"]`).value,
-                    serial: row.querySelector(`input[name^="serial_"]`).value,
-                    sayadi_id: row.querySelector(`input[name^="sayadi_id_"]`).value,
-                    amount: amountStr,
-                    owner_name: row.querySelector(`input[name^="owner_name_"]`).value,
-                    national_id: row.querySelector(`input[name^="national_id_"]`).value,
-                    account_number: row.querySelector(`input[name^="account_number_"]`).value,
-                };
-                cheques.push(chequeData);
-            }
-        });
-        
-        // Set the hidden input's value
-        document.getElementById('cheques_data_hidden_input').value = JSON.stringify(cheques);
-    }
-    
-    // Allow the form to submit
+    // In a future step, we'll gather cheque data here before submitting
     return true;
 };
 
@@ -1049,14 +1010,18 @@ function addEventListenersToRow(row) {
         });
     });
 
-    // Format amount and date on input, but calculation is handled by delegation
+    // Add listeners for calculation
     row.querySelector('.amount-field').addEventListener('input', function() {
+        // Format the input with thousand separators
         formatAmountInput(this);
+        updateChequeSummary();
     });
 
-    row.querySelector('.autoformat-date').addEventListener('input', function() {
+    const dateInput = row.querySelector('.autoformat-date');
+    dateInput.addEventListener('input', function() {
         formatDateInput(this);
     });
+    $(dateInput).on('change', updateChequeSummary);
 }
 
 function updateChequeSummary() {
@@ -1064,18 +1029,18 @@ function updateChequeSummary() {
     let weightedDaysSum = 0;
     const operationDateStr = document.getElementById('id_date_shamsi').value;
     
+    // Ensure the main operation date is set, otherwise, we can't calculate the average
     if (!operationDateStr) {
+        // Maybe show a message to the user to set the main date first
         return;
     }
     
+    // Use moment-jalaali to parse the main operation date
     const operationDate = moment(operationDateStr, 'jYYYY/jMM/jDD');
-    if (!operationDate.isValid()) {
-        return; 
-    }
 
     const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
     
-    for (const row of rows) {
+    rows.forEach(row => {
         const amountInput = row.querySelector('input[name^="amount_"]');
         const dateInput = row.querySelector('input[name^="due_date_"]');
         
@@ -1084,14 +1049,18 @@ function updateChequeSummary() {
         
         totalAmount += amount;
         
-        if (amount > 0 && dateStr && dateStr.length === 10) { // Check for complete date
-            const dueDate = moment(dateStr, 'jYYYY/jMM/jDD');
-            if (dueDate.isValid()) {
-                const daysDifference = dueDate.diff(operationDate, 'days');
-                weightedDaysSum += daysDifference * amount;
+        if (amount > 0 && dateStr) {
+            try {
+                const dueDate = moment(dateStr, 'jYYYY/jMM/jDD');
+                if (dueDate.isValid()) {
+                    const daysDifference = dueDate.diff(operationDate, 'days');
+                    weightedDaysSum += daysDifference * amount;
+                }
+            } catch (e) {
+                console.error("Error parsing date:", dateStr, e);
             }
         }
-    }
+    });
 
     // Update the total amount box
     const totalAmountBox = document.getElementById('totalChequeAmountBox');
@@ -1109,23 +1078,44 @@ function updateChequeSummary() {
 }
 
 function saveAllCheques() {
-    // This function now just confirms the data entry and updates the main form amount.
-    // The actual data gathering happens on final form submission.
-    
-    updateChequeSummary(); // Ensure summary is up-to-date
+    const cheques = [];
+    const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
 
-    // Update the main form's amount field with the total from the cheques
+    rows.forEach((row, index) => {
+        const chequeData = {
+            endorsement: row.querySelector(`input[name="endorsement_${index}"]`).value,
+            due_date: row.querySelector(`input[name="due_date_${index}"]`).value,
+            bank_name: row.querySelector(`select[name="bank_name_${index}"]`).value,
+            branch_name: row.querySelector(`input[name="branch_name_${index}"]`).value,
+            series: row.querySelector(`input[name="series_${index}"]`).value,
+            serial: row.querySelector(`input[name="serial_${index}"]`).value,
+            sayadi_id: row.querySelector(`input[name="sayadi_id_${index}"]`).value,
+            amount: parseAmountFromFormattedString(row.querySelector(`input[name="amount_${index}"]`).value),
+            owner_name: row.querySelector(`input[name="owner_name_${index}"]`).value,
+            national_id: row.querySelector(`input[name="national_id_${index}"]`).value,
+            account_number: row.querySelector(`input[name="account_number_${index}"]`).value,
+        };
+        // We only add the cheque if it has an amount, to avoid submitting empty rows
+        if (parseFloat(chequeData.amount) > 0) {
+            cheques.push(chequeData);
+        }
+    });
+
+    console.log("Collected Cheque Data:", cheques);
+
+    // Update the main form's amount field
     const totalAmountBox = document.getElementById('totalChequeAmountBox');
     const rawTotal = totalAmountBox.dataset.rawAmount || '0';
     const mainAmountInput = document.getElementById('id_amount');
-
     if (mainAmountInput) {
         mainAmountInput.value = rawTotal;
-        // Also format it for display
-        formatAmountInput(mainAmountInput);
     }
     
-    // Close the modal
+    // In a real implementation, you would set this data to a hidden input
+    // document.getElementById('cheques_data_hidden_input').value = JSON.stringify(cheques);
+    
+    // For now, we just close the modal as per the user's request to implement UI first.
+    alert(`اطلاعات ${cheques.length} چک در کنسول ثبت شد و مبلغ کل در فرم اصلی قرار گرفت.`);
     closeChequeModal();
 }
 
