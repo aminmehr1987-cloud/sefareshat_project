@@ -31,6 +31,7 @@
     <div class="form-card">
         <form method="post" class="operation-form" onsubmit="return handleFormSubmit(event)">
             {% csrf_token %}
+            <input type="hidden" name="cheques_data" id="cheques_data_hidden_input">
             {{ form.operation_type }}
             
             <!-- نمایش خطاهای فرم -->
@@ -107,7 +108,7 @@
             </div>
             
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" id="submit-operation-btn" class="btn btn-primary" disabled>
                     <i class="bi bi-check-circle"></i> ثبت عملیات
                 </button>
                 <a href="{% url 'products:accounting_panel' %}" class="btn btn-secondary">
@@ -793,7 +794,20 @@ $(document).ready(function() {
     
     // Initialize customer modal functionality
     initializeCustomerModal();
+
+    // Check customer selection on page load to enable/disable submit button
+    checkCustomerSelection();
 });
+
+function checkCustomerSelection() {
+    const customerId = document.getElementById('id_customer').value;
+    const submitBtn = document.getElementById('submit-operation-btn');
+    if (customerId) {
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.disabled = true;
+    }
+}
 
 // Customer Modal Functions
 let customers = [];
@@ -902,6 +916,9 @@ function selectCustomer(customer) {
     // Update the hidden input
     document.getElementById('id_customer').value = customer.id;
     
+    // Enable the submit button
+    document.getElementById('submit-operation-btn').disabled = false;
+    
     // Close the modal
     closeCustomerModal();
     
@@ -921,8 +938,16 @@ function closeCustomerModal() {
 
 // Handle form submission
 window.handleFormSubmit = function(event) {
-    // In a future step, we'll gather cheque data here before submitting
-    return true;
+    const paymentMethod = document.getElementById('id_payment_method').value;
+    if (paymentMethod === 'cheque') {
+        const chequesData = document.getElementById('cheques_data_hidden_input').value;
+        if (!chequesData || chequesData === '[]') {
+            alert('برای ثبت دریافت چکی، حداقل یک چک باید از طریق دکمه "معرفی چک" اضافه شود.');
+            event.preventDefault(); // Stop form submission
+            return false;
+        }
+    }
+    return true; // Allow form submission
 };
 
 
@@ -1080,42 +1105,62 @@ function updateChequeSummary() {
 function saveAllCheques() {
     const cheques = [];
     const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
+    let hasError = false;
 
     rows.forEach((row, index) => {
-        const chequeData = {
-            endorsement: row.querySelector(`input[name="endorsement_${index}"]`).value,
-            due_date: row.querySelector(`input[name="due_date_${index}"]`).value,
-            bank_name: row.querySelector(`select[name="bank_name_${index}"]`).value,
-            branch_name: row.querySelector(`input[name="branch_name_${index}"]`).value,
-            series: row.querySelector(`input[name="series_${index}"]`).value,
-            serial: row.querySelector(`input[name="serial_${index}"]`).value,
-            sayadi_id: row.querySelector(`input[name="sayadi_id_${index}"]`).value,
-            amount: parseAmountFromFormattedString(row.querySelector(`input[name="amount_${index}"]`).value),
-            owner_name: row.querySelector(`input[name="owner_name_${index}"]`).value,
-            national_id: row.querySelector(`input[name="national_id_${index}"]`).value,
-            account_number: row.querySelector(`input[name="account_number_${index}"]`).value,
-        };
-        // We only add the cheque if it has an amount, to avoid submitting empty rows
-        if (parseFloat(chequeData.amount) > 0) {
+        const amountInput = row.querySelector(`input[name="amount_${index}"]`);
+        const amount = parseAmountFromFormattedString(amountInput.value);
+
+        if (parseFloat(amount) > 0) {
+            const chequeData = {
+                endorsement: row.querySelector(`input[name="endorsement_${index}"]`).value,
+                due_date: row.querySelector(`input[name="due_date_${index}"]`).value,
+                bank_name: row.querySelector(`select[name="bank_name_${index}"]`).value,
+                branch_name: row.querySelector(`input[name="branch_name_${index}"]`).value,
+                series: row.querySelector(`input[name="series_${index}"]`).value,
+                serial: row.querySelector(`input[name="serial_${index}"]`).value,
+                sayadi_id: row.querySelector(`input[name="sayadi_id_${index}"]`).value,
+                amount: amount,
+                owner_name: row.querySelector(`input[name="owner_name_${index}"]`).value,
+                national_id: row.querySelector(`input[name="national_id_${index}"]`).value,
+                account_number: row.querySelector(`input[name="account_number_${index}"]`).value,
+            };
+
+            // Basic validation
+            if (!chequeData.due_date || !chequeData.bank_name || !chequeData.sayadi_id || !chequeData.owner_name) {
+                alert(`لطفاً اطلاعات ضروری (تاریخ، بانک، شناسه صیادی، صاحب حساب) را برای چک ردیف ${index + 1} کامل کنید.`);
+                hasError = true;
+                return; // Exit forEach loop for this item
+            }
             cheques.push(chequeData);
         }
     });
 
-    console.log("Collected Cheque Data:", cheques);
+    if (hasError) {
+        return; // Stop the function if any cheque has errors
+    }
 
-    // Update the main form's amount field
+    // Set the value of the hidden input
+    document.getElementById('cheques_data_hidden_input').value = JSON.stringify(cheques);
+
+    // Update the main form's amount field with the total
     const totalAmountBox = document.getElementById('totalChequeAmountBox');
     const rawTotal = totalAmountBox.dataset.rawAmount || '0';
-    const mainAmountInput = document.getElementById('id_amount');
-    if (mainAmountInput) {
-        mainAmountInput.value = rawTotal;
+    document.getElementById('id_amount').value = rawTotal;
+    
+    // Update the "Introduce Cheque" button to show the count
+    const introduceBtn = document.getElementById('introduceChequeBtn');
+    if (cheques.length > 0) {
+        introduceBtn.classList.remove('btn-info');
+        introduceBtn.classList.add('btn-success');
+        introduceBtn.innerHTML = `<i class="bi bi-check-circle-fill"></i> ${cheques.length} چک ثبت شد`;
+    } else {
+        introduceBtn.classList.remove('btn-success');
+        introduceBtn.classList.add('btn-info');
+        introduceBtn.innerHTML = 'معرفی چک';
     }
-    
-    // In a real implementation, you would set this data to a hidden input
-    // document.getElementById('cheques_data_hidden_input').value = JSON.stringify(cheques);
-    
-    // For now, we just close the modal as per the user's request to implement UI first.
-    alert(`اطلاعات ${cheques.length} چک در کنسول ثبت شد و مبلغ کل در فرم اصلی قرار گرفت.`);
+
+    // Close the modal
     closeChequeModal();
 }
 

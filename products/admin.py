@@ -1238,7 +1238,7 @@ class PettyCashOperationAdmin(admin.ModelAdmin):
 
 @admin.register(ReceivedCheque)
 class ReceivedChequeAdmin(admin.ModelAdmin):
-    list_display = ('sayadi_id', 'customer', 'amount', 'due_date', 'bank_name', 'status', 'created_by', 'created_at')
+    list_display = ('sayadi_id', 'customer', 'amount', 'jalali_due_date', 'bank_name', 'status', 'created_by', 'jalali_created_at')
     list_filter = ('status', 'bank_name', 'due_date', 'created_by')
     search_fields = (
         'sayadi_id', 
@@ -1253,7 +1253,7 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
         'national_id',
         'endorsement'
     )
-    readonly_fields = ('created_at', 'updated_at', 'created_by')
+    readonly_fields = ('jalali_created_at', 'jalali_updated_at', 'created_by')
     fieldsets = (
         (None, {
             'fields': ('customer', 'financial_operation', 'status')
@@ -1262,9 +1262,30 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
             'fields': ('sayadi_id', 'amount', 'due_date', 'bank_name', 'branch_name', 'account_number', 'owner_name', 'national_id', 'series', 'serial')
         }),
         ('اطلاعات تکمیلی', {
-            'fields': ('endorsement', 'created_by', 'created_at', 'updated_at')
+            'fields': ('endorsement', 'created_by', 'jalali_created_at', 'jalali_updated_at')
         }),
     )
+
+    def jalali_due_date(self, obj):
+        if obj.due_date:
+            return jdatetime.date.fromgregorian(date=obj.due_date).strftime('%Y/%m/%d')
+        return '-'
+    jalali_due_date.short_description = "تاریخ سررسید"
+    jalali_due_date.admin_order_field = 'due_date'
+
+    def jalali_created_at(self, obj):
+        if obj.created_at:
+            return jdatetime.datetime.fromgregorian(datetime=obj.created_at).strftime('%Y/%m/%d %H:%M')
+        return '-'
+    jalali_created_at.short_description = "تاریخ ثبت"
+    jalali_created_at.admin_order_field = 'created_at'
+
+    def jalali_updated_at(self, obj):
+        if obj.updated_at:
+            return jdatetime.datetime.fromgregorian(datetime=obj.updated_at).strftime('%Y/%m/%d %H:%M')
+        return '-'
+    jalali_updated_at.short_description = "تاریخ بروزرسانی"
+    jalali_updated_at.admin_order_field = 'updated_at'
 
     def save_model(self, request, obj, form, change):
         if not obj.pk:

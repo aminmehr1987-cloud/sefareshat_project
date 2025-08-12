@@ -35,6 +35,7 @@ from .forms import FinancialYearForm, CurrencyForm, ReceiptForm
 from .models import Fund, FinancialOperation, CustomerBalance, PettyCashOperation
 from .forms import FundForm, FinancialOperationForm, PettyCashOperationForm, ReceiveFromCustomerForm, PayToCustomerForm, BankOperationForm, BankTransferForm, CashOperationForm, CapitalInvestmentForm
 from functools import wraps
+from decimal import Decimal
 from .forms import BankAccountForm
 from .models import Account, BankAccount, ReceivedCheque
 
@@ -4320,7 +4321,9 @@ def receive_from_customer_view(request):
                         operation.description = f"دریافت از {operation.customer.get_full_name()} با دستگاه پوز {device.name}"
                 
                 elif operation.payment_method == 'cheque':
-                    cheques_data_json = request.POST.get('cheques_data', '[]')
+                    cheques_data_json = request.POST.get('cheques_data')
+                    if not cheques_data_json:
+                        cheques_data_json = '[]'
                     cheques_data = json.loads(cheques_data_json)
                     
                     if not cheques_data:
@@ -4820,6 +4823,8 @@ def customer_balance_detail_view(request, customer_id):
         'total_paid': total_paid,
         'current_balance': current_balance,
     }
+    
+    return render(request, 'products/customer_balance_detail.html', context)
 
 @login_required
 @group_required('حسابداری')

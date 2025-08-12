@@ -1,6 +1,7 @@
 from django import template
 from datetime import datetime, timezone
 import jdatetime
+from datetime import date
 from django.contrib.humanize.templatetags.humanize import intcomma as humanize_intcomma
 
 register = template.Library()
