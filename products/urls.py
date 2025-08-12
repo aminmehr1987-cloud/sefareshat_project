@@ -159,4 +159,5 @@ urlpatterns = [
     
     # Received Cheques
     path('accounting/received-cheques/', views.received_cheque_list_view, name='received_cheque_list'),
+    path('accounting/received-cheques/<int:cheque_id>/change-status/', views.change_received_cheque_status, name='change_received_cheque_status'),
 ]

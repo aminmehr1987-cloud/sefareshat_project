@@ -1,6 +1,6 @@
 from django import forms
 from django.forms import inlineformset_factory
-from .models import Order, OrderItem, Product, Customer  # Product را هم import کنید
+from .models import Order, OrderItem, Product, Customer, ReceivedCheque
 from .models import FinancialYear, Currency
 from .models import FinancialOperation, Fund, PettyCashOperation, CustomerBalance
 from .models import BankAccount, Bank, CheckBook, Check
@@ -401,6 +401,25 @@ class ReceiptForm(forms.ModelForm):
             except ValueError as e:
                 raise ValidationError(f"خطا در فرمت تاریخ: {str(e)}")
         
+        return cleaned_data
+
+class ReceivedChequeStatusChangeForm(forms.ModelForm):
+    class Meta:
+        model = ReceivedCheque
+        fields = ['status', 'recipient_name']
+        widgets = {
+            'status': forms.Select(attrs={'class': 'form-control'}),
+            'recipient_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'نام کامل دریافت کننده چک را وارد کنید'}),
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        recipient_name = cleaned_data.get("recipient_name")
+
+        if status == 'SPENT' and not recipient_name:
+            self.add_error('recipient_name', 'برای وضعیت "خرج شده"، نام دریافت کننده الزامی است.')
+
         return cleaned_data
 
 

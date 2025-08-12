@@ -10,9 +10,7 @@ def financial_operation_post_save(sender, instance, created, **kwargs):
     """
     # Only create a voucher if the operation is confirmed and it's a new operation
     # or if an existing operation is moved to confirmed state.
-    if instance.status == 'CONFIRMED':
-        # We can add a check here to prevent re-creating vouchers if not desired.
-        # For now, let's assume we want a voucher whenever it's confirmed.
+    if created and instance.status == 'CONFIRMED':
         print(f"Signal received for confirmed FinancialOperation: {instance.operation_number}")
         accounting_manager.create_voucher_from_financial_operation(instance)
 

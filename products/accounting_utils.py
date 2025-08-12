@@ -83,6 +83,8 @@ class AccountingVoucherManager:
         Create voucher from financial operation
         ایجاد سند حسابداری از عملیات مالی
         """
+        if Voucher.objects.filter(items__reference_id=str(operation.id)).exists():
+            return Voucher.objects.get(items__reference_id=str(operation.id))
         try:
             with transaction.atomic():
                 # اطمینان از وجود financial_year
@@ -465,6 +467,10 @@ class AccountingVoucherManager:
 
 # Global instance
 accounting_manager = AccountingVoucherManager()
+
+def reset_accounting_manager():
+    global accounting_manager
+    accounting_manager = AccountingVoucherManager()
 
 
 def create_voucher_for_financial_operation(operation):

@@ -93,10 +93,8 @@
                         <td class="amount">{{ cheque.amount|persian_number_format }} ریال</td>
                         <td>{{ cheque.due_date|jalali_date }}</td>
                         <td>
-                            {% if cheque.status == 'SPENT' and cheque.financial_operation %}
-                                {{ cheque.financial_operation.customer.get_full_name }}
-                            {% else %}
-                                {{ cheque.created_by.username }}
+                            {% if cheque.status == 'SPENT' %}
+                                {{ cheque.recipient_name|default_if_none:"" }}
                             {% endif %}
                         </td>
                         <td>{{ cheque.created_at|jalali_date_time }}</td>
@@ -109,7 +107,7 @@
                                 <a href="#" class="btn btn-sm btn-outline-warning" title="ویرایش">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <a href="#" class="btn btn-sm btn-outline-danger" title="تغییر وضعیت">
+                                <a href="{% url 'products:change_received_cheque_status' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-danger" title="تغییر وضعیت">
                                     <i class="bi bi-arrow-repeat"></i>
                                 </a>
                             </div>

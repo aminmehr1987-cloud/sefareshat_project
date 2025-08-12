@@ -1,0 +1,52 @@
+{% extends "products/base.html" %}
+{% load custom_filters %}
+
+{% block title %}تغییر وضعیت چک{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>تغییر وضعیت چک {{ cheque.sayadi_id }}</h2>
+    <p>مشتری: {{ cheque.customer.get_full_name }}</p>
+    <p>مبلغ: {{ cheque.amount|persian_number_format }} ریال</p>
+
+    <form method="post" id="statusChangeForm">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="id_status" class="form-label">وضعیت جدید:</label>
+            {{ form.status }}
+        </div>
+        <div class="mb-3" id="recipientNameContainer" style="display: none;">
+            <label for="id_recipient_name" class="form-label">نام دریافت کننده:</label>
+            {{ form.recipient_name }}
+            {% if form.recipient_name.errors %}
+                <div class="alert alert-danger mt-2">
+                    {{ form.recipient_name.errors|first }}
+                </div>
+            {% endif %}
+        </div>
+        <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
+        <a href="{% url 'products:received_cheque_list' %}" class="btn btn-secondary">انصراف</a>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusSelect = document.getElementById('id_status');
+    const recipientNameContainer = document.getElementById('recipientNameContainer');
+
+    function toggleRecipientField() {
+        if (statusSelect.value === 'SPENT') {
+            recipientNameContainer.style.display = 'block';
+        } else {
+            recipientNameContainer.style.display = 'none';
+        }
+    }
+
+    // Initial check
+    toggleRecipientField();
+
+    // Listen for changes
+    statusSelect.addEventListener('change', toggleRecipientField);
+});
+</script>
+{% endblock %}

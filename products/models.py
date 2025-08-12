@@ -1795,6 +1795,7 @@ class ReceivedCheque(models.Model):
         ('RETURNED', 'مسترد شده'),
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='RECEIVED', verbose_name="وضعیت")
+    recipient_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="نام دریافت‌کننده (در صورت خرج چک)")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")

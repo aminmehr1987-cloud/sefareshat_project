@@ -38,6 +38,7 @@ from functools import wraps
 from decimal import Decimal
 from .forms import BankAccountForm
 from .models import Account, BankAccount, ReceivedCheque
+from .forms import ReceivedChequeStatusChangeForm
 
 
 
@@ -4826,6 +4827,25 @@ def customer_balance_detail_view(request, customer_id):
     
     return render(request, 'products/customer_balance_detail.html', context)
 
+
+@login_required
+@group_required('حسابداری')
+def change_received_cheque_status(request, cheque_id):
+    cheque = get_object_or_404(ReceivedCheque, id=cheque_id)
+    if request.method == 'POST':
+        form = ReceivedChequeStatusChangeForm(request.POST, instance=cheque)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'وضعیت چک {cheque.sayadi_id} با موفقیت به‌روز شد.')
+            return redirect('products:received_cheque_list')
+    else:
+        form = ReceivedChequeStatusChangeForm(instance=cheque)
+
+    return render(request, 'products/received_cheque_change_status.html', {
+        'form': form,
+        'cheque': cheque
+    })
+
 @login_required
 @group_required('حسابداری')
 def received_cheque_list_view(request):
@@ -4857,10 +4877,12 @@ def received_cheque_list_view(request):
         cheques_list = cheques_list.filter(bank_name__icontains=bank_filter)
 
     if start_date_filter:
-        cheques_list = cheques_list.filter(due_date__gte=start_date_filter)
+        start_date_gregorian = convert_shamsi_to_gregorian(start_date_filter)
+        cheques_list = cheques_list.filter(due_date__gte=start_date_gregorian)
         
     if end_date_filter:
-        cheques_list = cheques_list.filter(due_date__lte=end_date_filter)
+        end_date_gregorian = convert_shamsi_to_gregorian(end_date_filter)
+        cheques_list = cheques_list.filter(due_date__lte=end_date_gregorian)
 
     # Pagination
     paginator = Paginator(cheques_list, 25)  # 25 cheques per page
