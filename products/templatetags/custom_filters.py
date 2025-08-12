@@ -111,6 +111,26 @@ def jalali_date(value):
     return str(value)
 
 @register.filter
+def jalali_date_time(value):
+    """Converts a datetime object into a 'YYYY/MM/DD HH:MM' Jalali datetime string."""
+    if not value:
+        return ''
+    
+    jalali_dt = None
+    try:
+        if isinstance(value, jdatetime.datetime):
+            jalali_dt = value
+        elif isinstance(value, datetime):
+            jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
+        
+        if jalali_dt:
+            return jalali_dt.strftime("%Y/%m/%d %H:%M")
+    except (ValueError, TypeError, AttributeError):
+        pass
+
+    return str(value)
+
+@register.filter
 def intcomma(value):
     """Format a number with thousand separator."""
     return humanize_intcomma(value)

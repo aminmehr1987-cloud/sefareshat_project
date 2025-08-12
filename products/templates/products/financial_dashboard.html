@@ -201,7 +201,8 @@
             {% endfor %}
         </div>
     </div>
-    
+
+
     <!-- Received Cheques Summary -->
     <div class="funds-overview">
         <h2><i class="bi bi-journal-check"></i> خلاصه چکهای دریافتی</h2>
@@ -217,7 +218,7 @@
                         </p>
                     </div>
                     <div class="fund-details">
-                        <a href="{% url 'admin:products_receivedcheque_changelist' %}" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <a href="{% url 'products:received_cheque_list' %}" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i> جزئیات
                         </a>
                     </div>
@@ -234,7 +235,7 @@
                         </p>
                     </div>
                     <div class="fund-details">
-                        <a href="{% url 'admin:products_receivedcheque_changelist' %}?status__exact=RECEIVED" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <a href="{% url 'products:received_cheque_list' %}?status=RECEIVED" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i> جزئیات
                         </a>
                     </div>
@@ -251,7 +252,7 @@
                         </p>
                     </div>
                     <div class="fund-details">
-                        <a href="{% url 'admin:products_receivedcheque_changelist' %}?status__exact=DEPOSITED" class="btn btn-sm btn-outline-primary" target="_blank">
+                        <a href="{% url 'products:received_cheque_list' %}?status=DEPOSITED" class="btn btn-sm btn-outline-primary">
                             <i class="bi bi-eye"></i> جزئیات
                         </a>
                     </div>
@@ -259,7 +260,6 @@
             </div>
         </div>
     </div>
-
 </div>
 
 <style>

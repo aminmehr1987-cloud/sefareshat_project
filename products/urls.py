@@ -156,5 +156,7 @@ urlpatterns = [
     # Enhanced Financial Operation URLs with proper routing
     path('accounting/bank-operation/<str:operation_type>/', views.bank_operation_view, name='bank_operation'),
     path('accounting/cash-operation/<str:operation_type>/', views.cash_operation_view, name='cash_operation'),
-
+    
+    # Received Cheques
+    path('accounting/received-cheques/', views.received_cheque_list_view, name='received_cheque_list'),
 ]

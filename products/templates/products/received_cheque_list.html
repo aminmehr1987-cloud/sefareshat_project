@@ -1,0 +1,470 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}لیست چک‌های دریافتی{% endblock %}
+
+{% block content %}
+<div class="list-page-container">
+    <!-- Header -->
+    <div class="list-header">
+        <h1><i class="bi bi-journal-check"></i> لیست چک‌های دریافتی</h1>
+        <div class="header-actions">
+            <a href="{% url 'products:accounting_panel' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> بازگشت به پنل مالی
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-card">
+        <form method="get" class="filters-form">
+            <div class="filter-row">
+                <div class="filter-group" style="flex-grow: 2;">
+                    <label for="q">جستجو:</label>
+                    <input type="text" name="q" id="q" class="form-control" placeholder="شناسه، مشتری، مبلغ..." value="{{ filters.q }}">
+                </div>
+                <div class="filter-group">
+                    <label for="status">وضعیت:</label>
+                    <select name="status" id="status" class="form-control">
+                        <option value="">همه وضعیت‌ها</option>
+                        {% for value, name in status_choices %}
+                        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="bank">نام بانک:</label>
+                    <input type="text" name="bank" id="bank" class="form-control" placeholder="مثال: ملت" value="{{ filters.bank }}">
+                </div>
+                 <div class="filter-group">
+                    <label for="start_date">از تاریخ سررسید:</label>
+                    <input type="text" name="start_date" id="start_date" class="form-control persian-datepicker" 
+                           value="{{ filters.start_date }}" placeholder="YYYY/MM/DD" readonly>
+                </div>
+                <div class="filter-group">
+                    <label for="end_date">تا تاریخ سررسید:</label>
+                    <input type="text" name="end_date" id="end_date" class="form-control persian-datepicker" 
+                           value="{{ filters.end_date }}" placeholder="YYYY/MM/DD" readonly>
+                </div>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> اعمال فیلتر
+                </button>
+                <a href="{% url 'products:received_cheque_list' %}" class="btn btn-secondary">
+                    <i class="bi bi-x-circle"></i> پاک کردن فیلتر
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table -->
+    <div class="list-table-card">
+        <div class="table-header">
+            <h2>چک‌های دریافتی</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="list-table">
+                <thead>
+                    <tr>
+                        <th>پشت نمره</th>
+                        <th>مشتری</th>
+                        <th>بانک</th>
+                        <th>مبلغ</th>
+                        <th>تاریخ سررسید</th>
+                        <th>دریافت کننده</th>
+                        <th>تاریخ ثبت</th>
+                        <th>وضعیت</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cheque in page_obj %}
+                    <tr>
+                        <td>{{ cheque.endorsement|default_if_none:"" }}</td>
+                        <td>{{ cheque.customer.get_full_name }}</td>
+                        <td>{{ cheque.bank_name }}</td>
+                        <td class="amount">{{ cheque.amount|persian_number_format }} ریال</td>
+                        <td>{{ cheque.due_date|jalali_date }}</td>
+                        <td>
+                            {% if cheque.status == 'SPENT' and cheque.financial_operation %}
+                                {{ cheque.financial_operation.customer.get_full_name }}
+                            {% else %}
+                                {{ cheque.created_by.username }}
+                            {% endif %}
+                        </td>
+                        <td>{{ cheque.created_at|jalali_date_time }}</td>
+                        <td><span class="status-badge {{ cheque.status|lower }}">{{ cheque.get_status_display }}</span></td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="#" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a href="#" class="btn btn-sm btn-outline-danger" title="تغییر وضعیت">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center empty-message">
+                            <i class="bi bi-inbox"></i>
+                            <p>هیچ چکی یافت نشد.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="pagination-container">
+            <ul class="pagination">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page=1&{{ request.GET.urlencode }}">&laquo; اول</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">قبلی</a></li>
+                {% endif %}
+
+                {% for i in page_obj.paginator.page_range %}
+                {% if page_obj.number == i %}
+                <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a></li>
+                {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">بعدی</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode }}">آخر &raquo;</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.list-page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.list-header h1 {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.list-header h1 i {
+    color: #3b82f6;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.filters-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border: 1px solid #e5e7eb;
+}
+
+.filters-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    align-items: end;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.form-control {
+    padding: 0.5rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: 'BHoma', sans-serif;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.filter-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.list-table-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.table-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.table-header h2 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.list-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.list-table th,
+.list-table td {
+    padding: 1rem 1.5rem;
+    text-align: right;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.list-table tr:last-child td {
+    border-bottom: none;
+}
+
+.list-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+}
+
+.list-table tr:hover {
+    background: #f9fafb;
+}
+
+.document-number {
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    color: #3b82f6;
+    background: #eff6ff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.amount {
+    font-weight: 600;
+    color: #1f2937;
+    font-family: 'Courier New', monospace;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    display: inline-block;
+    min-width: 80px;
+    text-transform: capitalize;
+}
+.status-badge.received { background: #dbeafe; color: #1e40af; }
+.status-badge.deposited { background: #e0e7ff; color: #3730a3; }
+.status-badge.cleared { background: #dcfce7; color: #166534; }
+.status-badge.bounced { background: #fef2f2; color: #991b1b; }
+.status-badge.endorsed { background: #f3e8ff; color: #7c3aed; }
+.status-badge.cancelled { background: #fee2e2; color: #991b1b; }
+.status-badge.spent { background: #fef3c7; color: #92400e; }
+.status-badge.manually_cleared { background: #d1fae5; color: #065f46; }
+
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.btn-primary { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
+.btn-primary:hover { background: linear-gradient(135deg, #2563eb, #1e40af); transform: translateY(-1px); }
+.btn-secondary { background: linear-gradient(135deg, #6b7280, #4b5563); color: white; }
+.btn-secondary:hover { background: linear-gradient(135deg, #4b5563, #374151); transform: translateY(-1px); }
+.btn-outline-primary { background: transparent; color: #3b82f6; border: 1px solid #3b82f6; }
+.btn-outline-primary:hover { background: #3b82f6; color: white; }
+.btn-outline-warning { background: transparent; color: #f59e0b; border: 1px solid #f59e0b; }
+.btn-outline-warning:hover { background: #f59e0b; color: white; }
+.btn-outline-danger { background: transparent; color: #ef4444; border: 1px solid #ef4444; }
+.btn-outline-danger:hover { background: #ef4444; color: white; }
+
+.empty-message {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: #6b7280;
+}
+
+.empty-message i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #d1d5db;
+}
+
+.empty-message p {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.pagination-container {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+    display: flex;
+    justify-content: center;
+}
+
+.pagination {
+    margin: 0;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.page-item .page-link {
+    color: #3b82f6;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    transition: all 0.3s ease;
+}
+
+.page-item .page-link:hover {
+    background-color: #eff6ff;
+    border-color: #3b82f6;
+}
+
+.page-item.active .page-link {
+    background-color: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+}
+
+.page-item.disabled .page-link {
+    color: #9ca3af;
+    background-color: #f3f4f6;
+    border-color: #e5e7eb;
+}
+</style>
+
+<!-- jQuery and Persian Datepicker CSS and JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@latest/dist/css/persian-datepicker.min.css">
+<script src="https://unpkg.com/persian-date@latest/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@latest/dist/js/persian-datepicker.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('.persian-datepicker').persianDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValue: false,
+        autoClose: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        // To handle initial value if it's in YYYY-MM-DD format
+        onSelect: function(unix) {
+            // The value is already in the correct format for display
+        }
+    });
+
+    // Auto-submit form on status change for immediate filtering
+    const statusSelect = document.getElementById('status');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', function() {
+            this.closest('form').submit();
+        });
+    }
+});
+</script>
+{% endblock %}

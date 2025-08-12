@@ -4312,20 +4312,61 @@ def receive_from_customer_view(request):
                             'banks': banks
                         })
                     
-                    # The concept of a 'Fund' for a bank account is being removed for POS.
-                    # We will now directly update the BankAccount balance.
-                    operation.fund = None  # Explicitly set fund to None for POS transactions
-                    
-                    # Recalculate the bank account's balance using the helper function
+                    operation.fund = None
                     _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
-
                     operation.bank_name = bank_account.bank.name
                     operation.account_number = bank_account.account_number
-                    
                     if not operation.description:
                         operation.description = f"دریافت از {operation.customer.get_full_name()} با دستگاه پوز {device.name}"
+                
+                elif operation.payment_method == 'cheque':
+                    cheques_data_json = request.POST.get('cheques_data', '[]')
+                    cheques_data = json.loads(cheques_data_json)
+                    
+                    if not cheques_data:
+                        messages.error(request, 'برای ثبت دریافت چکی، حداقل یک چک باید اضافه شود.')
+                        customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        banks = Bank.objects.filter(is_active=True).order_by('name')
+                        return render(request, 'financial_operations/receive_from_customer.html', {'form': form, 'customers': customers, 'banks': banks})
 
+                    total_cheque_amount = 0
+                    saved_cheques = []
+                    for cheque_data in cheques_data:
+                        # Convert amount to Decimal
+                        amount = Decimal(cheque_data['amount'].replace(',', ''))
+                        total_cheque_amount += amount
+                        
+                        # Convert date
+                        due_date_gregorian = convert_shamsi_to_gregorian(cheque_data['due_date'])
+                        
+                        cheque = ReceivedCheque.objects.create(
+                            customer=operation.customer,
+                            endorsement=cheque_data.get('endorsement'),
+                            due_date=due_date_gregorian,
+                            bank_name=cheque_data['bank_name'],
+                            branch_name=cheque_data.get('branch_name'),
+                            series=cheque_data.get('series'),
+                            serial=cheque_data.get('serial'),
+                            sayadi_id=cheque_data['sayadi_id'],
+                            amount=amount,
+                            owner_name=cheque_data['owner_name'],
+                            national_id=cheque_data.get('national_id'),
+                            account_number=cheque_data['account_number'],
+                            created_by=request.user
+                        )
+                        saved_cheques.append(cheque)
+
+                    operation.amount = total_cheque_amount
+                    if not operation.description:
+                        operation.description = f"دریافت {len(saved_cheques)} فقره چک از {operation.customer.get_full_name()}"
+                
                 operation.save()
+
+                # If cheques were processed, link them to the operation
+                if operation.payment_method == 'cheque' and 'saved_cheques' in locals():
+                    for cheque in saved_cheques:
+                        cheque.financial_operation = operation
+                        cheque.save(update_fields=['financial_operation'])
                 
                 # به‌روزرسانی موجودی مشتری
                 customer_balance, created = CustomerBalance.objects.get_or_create(
@@ -4779,6 +4820,60 @@ def customer_balance_detail_view(request, customer_id):
         'total_paid': total_paid,
         'current_balance': current_balance,
     }
+
+@login_required
+@group_required('حسابداری')
+def received_cheque_list_view(request):
+    """
+    Displays a list of received cheques with filtering and pagination.
+    """
+    cheques_list = ReceivedCheque.objects.select_related('customer', 'created_by').order_by('-due_date')
+    
+    # Filtering
+    search_query = request.GET.get('q')
+    status_filter = request.GET.get('status')
+    bank_filter = request.GET.get('bank')
+    start_date_filter = request.GET.get('start_date')
+    end_date_filter = request.GET.get('end_date')
+
+    if search_query:
+        cheques_list = cheques_list.filter(
+            Q(sayadi_id__icontains=search_query) |
+            Q(customer__first_name__icontains=search_query) |
+            Q(customer__last_name__icontains=search_query) |
+            Q(owner_name__icontains=search_query) |
+            Q(amount__icontains=search_query)
+        )
+    
+    if status_filter:
+        cheques_list = cheques_list.filter(status=status_filter)
+        
+    if bank_filter:
+        cheques_list = cheques_list.filter(bank_name__icontains=bank_filter)
+
+    if start_date_filter:
+        cheques_list = cheques_list.filter(due_date__gte=start_date_filter)
+        
+    if end_date_filter:
+        cheques_list = cheques_list.filter(due_date__lte=end_date_filter)
+
+    # Pagination
+    paginator = Paginator(cheques_list, 25)  # 25 cheques per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'status_choices': ReceivedCheque.STATUS_CHOICES,
+        'filters': {
+            'q': search_query or '',
+            'status': status_filter or '',
+            'bank': bank_filter or '',
+            'start_date': start_date_filter or '',
+            'end_date': end_date_filter or '',
+        }
+    }
+    return render(request, 'products/received_cheque_list.html', context)
     
     return render(request, 'products/customer_balance_detail.html', context)
 
