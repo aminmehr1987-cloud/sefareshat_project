@@ -7,6 +7,16 @@
 {% block extra_head %}
 <!-- Persian Datepicker CSS -->
 <link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<style>
+    /* Hotfix for persian-datepicker position in RTL */
+    .datepicker-container {
+        direction: rtl !important;
+        /* Position it below the input, aligned to the right */
+        top: 100% !important;
+        right: 0 !important;
+        left: auto !important;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -40,45 +50,7 @@
                         {{ field.label }}
                     </label>
                     <div class="field-wrapper">
-                        {% if field.name == 'due_date' or field.name == 'received_date' or field.name == 'issue_date' %}
-                            <div class="persian-datepicker">
-                                <input type="text" 
-                                       id="{{ field.id_for_label }}" 
-                                       name="{{ field.name }}" 
-                                       value="{{ field.value|default:'' }}" 
-                                       class="form-control persian-date" 
-                                       placeholder="انتخاب تاریخ"
-                                       readonly>
-                            </div>
-                        {% elif field.name == 'bank_name' %}
-                            <select id="{{ field.id_for_label }}" 
-                                    name="{{ field.name }}" 
-                                    class="form-control">
-                                <option value="">انتخاب بانک</option>
-                                <option value="ملی" {% if field.value == "ملی" %}selected{% endif %}>بانک ملی ایران</option>
-                                <option value="تجارت" {% if field.value == "تجارت" %}selected{% endif %}>بانک تجارت</option>
-                                <option value="صادرات" {% if field.value == "صادرات" %}selected{% endif %}>بانک صادرات ایران</option>
-                                <option value="کشاورزی" {% if field.value == "کشاورزی" %}selected{% endif %}>بانک کشاورزی</option>
-                                <option value="صنعت و معدن" {% if field.value == "صنعت و معدن" %}selected{% endif %}>بانک صنعت و معدن</option>
-                                <option value="رفاه کارگران" {% if field.value == "رفاه کارگران" %}selected{% endif %}>بانک رفاه کارگران</option>
-                                <option value="اقتصاد نوین" {% if field.value == "اقتصاد نوین" %}selected{% endif %}>بانک اقتصاد نوین</option>
-                                <option value="پاسارگاد" {% if field.value == "پاسارگاد" %}selected{% endif %}>بانک پاسارگاد</option>
-                                <option value="پارسیان" {% if field.value == "پارسیان" %}selected{% endif %}>بانک پارسیان</option>
-                                <option value="سامان" {% if field.value == "سامان" %}selected{% endif %}>بانک سامان</option>
-                                <option value="سینا" {% if field.value == "سینا" %}selected{% endif %}>بانک سینا</option>
-                                <option value="کارآفرین" {% if field.value == "کارآفرین" %}selected{% endif %}>بانک کارآفرین</option>
-                                <option value="دی" {% if field.value == "دی" %}selected{% endif %}>بانک دی</option>
-                                <option value="ایران زمین" {% if field.value == "ایران زمین" %}selected{% endif %}>بانک ایران زمین</option>
-                                <option value="قوامین" {% if field.value == "قوامین" %}selected{% endif %}>بانک قوامین</option>
-                                <option value="ملت" {% if field.value == "ملت" %}selected{% endif %}>بانک ملت</option>
-                                <option value="انصار" {% if field.value == "انصار" %}selected{% endif %}>بانک انصار</option>
-                                <option value="توسعه تعاون" {% if field.value == "توسعه تعاون" %}selected{% endif %}>بانک توسعه تعاون</option>
-                                <option value="آینده" {% if field.value == "آینده" %}selected{% endif %}>بانک آینده</option>
-                                <option value="شهر" {% if field.value == "شهر" %}selected{% endif %}>بانک شهر</option>
-                            </select>
-                        {% else %}
-                            {{ field }}
-                        {% endif %}
+                        {{ field }}
                     </div>
                     {% if field.errors %}
                         <div class="field-error">
@@ -539,9 +511,6 @@ document.addEventListener('DOMContentLoaded', function() {
         format: 'YYYY/MM/DD',
         initialValue: true,
         autoClose: true,
-        position: 'auto',
-        altField: '#altField',
-        altFormat: 'YYYY/MM/DD',
         minDate: new persianDate().subtract('year', 10).valueOf(),
         maxDate: new persianDate().add('year', 2).valueOf(),
         timePicker: {

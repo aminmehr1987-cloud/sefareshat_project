@@ -4256,9 +4256,15 @@ def financial_operation_edit_view(request, operation_id):
     else:
         form = FinancialOperationEditForm(instance=operation)
     
+    # Fetch related cheques if the payment method is cheque
+    related_cheques = None
+    if operation.payment_method == 'cheque':
+        related_cheques = operation.received_cheques.all()
+
     context = {
         'form': form,
         'operation': operation,
+        'related_cheques': related_cheques,
         'title': 'ویرایش عملیات مالی'
     }
     return render(request, 'financial_operations/operation_edit.html', context)
@@ -4854,13 +4860,29 @@ def received_cheque_detail_view(request, cheque_id):
 
 @login_required
 @group_required('حسابداری')
+@transaction.atomic
 def received_cheque_edit_view(request, cheque_id):
     cheque = get_object_or_404(ReceivedCheque, id=cheque_id)
     if request.method == 'POST':
         form = ReceivedChequeEditForm(request.POST, instance=cheque)
         if form.is_valid():
-            form.save()
-            messages.success(request, f'چک {cheque.sayadi_id} با موفقیت ویرایش شد.')
+            updated_cheque = form.save()
+
+            # Check if the cheque is part of a financial operation
+            if updated_cheque.financial_operation:
+                operation = updated_cheque.financial_operation
+                
+                # Recalculate the total amount from all related cheques
+                new_total_amount = operation.received_cheques.aggregate(
+                    total=Sum('amount')
+                )['total'] or 0
+                
+                # Update the operation's amount if it has changed
+                if operation.amount != new_total_amount:
+                    operation.amount = new_total_amount
+                    operation.save(update_fields=['amount'])
+            
+            messages.success(request, f'چک {cheque.sayadi_id} با موفقیت ویرایش شد و سوابق مالی به‌روز گردید.')
             return redirect('products:received_cheque_detail', cheque_id=cheque.id)
     else:
         form = ReceivedChequeEditForm(instance=cheque)

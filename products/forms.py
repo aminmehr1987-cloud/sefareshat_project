@@ -404,11 +404,25 @@ class ReceiptForm(forms.ModelForm):
         return cleaned_data
 
 class ReceivedChequeEditForm(forms.ModelForm):
+    due_date = forms.CharField(
+        label="تاریخ سررسید",
+        widget=forms.TextInput(attrs={'class': 'form-control autoformat-date', 'placeholder': 'YYYY/MM/DD'}),
+        required=True
+    )
+    
+    bank_name = forms.ChoiceField(
+        label="نام بانک",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        required=True
+    )
+
     class Meta:
         model = ReceivedCheque
-        fields = ['bank_name', 'branch_name', 'serial', 'series', 'sayadi_id', 'amount', 'owner_name', 'national_id', 'account_number', 'endorsement', 'due_date']
+        fields = [
+            'due_date', 'bank_name', 'branch_name', 'serial', 'series', 'sayadi_id', 
+            'amount', 'owner_name', 'national_id', 'account_number', 'endorsement'
+        ]
         widgets = {
-            'bank_name': forms.TextInput(attrs={'class': 'form-control'}),
             'branch_name': forms.TextInput(attrs={'class': 'form-control'}),
             'serial': forms.TextInput(attrs={'class': 'form-control'}),
             'series': forms.TextInput(attrs={'class': 'form-control'}),
@@ -418,8 +432,33 @@ class ReceivedChequeEditForm(forms.ModelForm):
             'national_id': forms.TextInput(attrs={'class': 'form-control'}),
             'account_number': forms.TextInput(attrs={'class': 'form-control'}),
             'endorsement': forms.TextInput(attrs={'class': 'form-control'}),
-            'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Populate bank choices dynamically
+        bank_choices = [(bank.name, bank.name) for bank in Bank.objects.filter(is_active=True).order_by('name')]
+        self.fields['bank_name'].choices = [('', 'انتخاب بانک')] + bank_choices
+        
+        if self.instance and self.instance.pk:
+            # Set initial value for due_date
+            if self.instance.due_date:
+                self.initial['due_date'] = jdatetime.date.fromgregorian(date=self.instance.due_date).strftime('%Y/%m/%d')
+            
+            # Set initial bank
+            if self.instance.bank_name:
+                self.initial['bank_name'] = self.instance.bank_name
+
+    def clean_due_date(self):
+        date_str = self.cleaned_data.get('due_date')
+        if isinstance(date_str, str):
+            try:
+                year, month, day = map(int, date_str.split('/'))
+                jdate = jdatetime.date(year, month, day)
+                return jdate.togregorian()
+            except (ValueError, TypeError):
+                raise ValidationError("فرمت تاریخ نامعتبر است. لطفاً از انتخابگر تاریخ استفاده کنید.", code='invalid_date_format')
+        return date_str
 
 class ReceivedChequeStatusChangeForm(forms.ModelForm):
     class Meta:
