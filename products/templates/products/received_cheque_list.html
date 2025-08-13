@@ -101,10 +101,10 @@
                         <td><span class="status-badge {{ cheque.status|lower }}">{{ cheque.get_status_display }}</span></td>
                         <td>
                             <div class="action-buttons">
-                                <a href="#" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
+                                <a href="{% url 'products:received_cheque_detail' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
                                     <i class="bi bi-eye"></i>
                                 </a>
-                                <a href="#" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                                <a href="{% url 'products:received_cheque_edit' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
                                     <i class="bi bi-pencil"></i>
                                 </a>
                                 <a href="{% url 'products:change_received_cheque_status' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-danger" title="تغییر وضعیت">

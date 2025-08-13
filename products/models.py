@@ -1996,14 +1996,6 @@ def handle_financial_operation_status_change(sender, instance, **kwargs):
     except sender.DoesNotExist:
         pass  # Should not happen if instance.pk exists, but good practice.
 
-@receiver(post_save, sender=FinancialOperation)
-def create_fund_statement_for_financial_operation(sender, instance, **kwargs):
-    """
-    Rebuilds the fund statement whenever a related financial operation is
-    saved (created, updated, soft-deleted, or restored).
-    """
-    if instance.fund:
-        instance.fund.rebuild_statements()
 
 @receiver(post_delete, sender=FinancialOperation)
 def handle_financial_operation_hard_delete(sender, instance, **kwargs):
@@ -2700,24 +2692,6 @@ def create_voucher_for_sales_invoice_save(sender, instance, created, **kwargs):
                 
         except Exception as e:
             print(f"خطا در ایجاد سند حسابداری برای فاکتور فروش {instance.id}: {e}")
-
-@receiver(post_save, sender=FinancialOperation)
-def update_fund_balance_on_save(sender, instance, **kwargs):
-    """
-    Recalculates the balance of the relevant fund whenever a FinancialOperation
-    is saved. This handles both operations explicitly linked to a fund and
-    implicit cash operations.
-    """
-    target_fund = instance.fund
-    
-    # If the operation is not linked to a specific fund, check if it's a cash operation.
-    if not target_fund and instance.bank_name is None and instance.account_number is None:
-        # This is likely a general cash operation, find the default cash fund.
-        target_fund = Fund.objects.filter(fund_type='CASH').first()
-
-    # If we have a fund to update, recalculate its balance.
-    if target_fund:
-        target_fund.recalculate_balance()
 
 @receiver(post_delete, sender=FinancialOperation)
 def update_fund_balance_on_delete(sender, instance, **kwargs):

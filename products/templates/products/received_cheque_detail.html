@@ -1,0 +1,95 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% block cart_elements %}{% endblock %}
+{% load custom_filters %}
+
+{% block title %}جزئیات چک دریافتی{% endblock %}
+
+{% block content %}
+<div class="list-page-container">
+    <div class="list-header">
+        <h1><i class="bi bi-person-badge"></i> جزئیات چک دریافتی: {{ cheque.sayadi_id }}</h1>
+        <div class="header-actions">
+            <a href="{% url 'products:received_cheque_list' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> بازگشت به لیست
+            </a>
+        </div>
+    </div>
+
+    <div class="glass-card">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table detail-table">
+                        <tr><th>مشتری:</th><td>{{ cheque.customer.get_full_name }}</td></tr>
+                        <tr><th>مبلغ:</th><td>{{ cheque.amount|persian_number_format }} ریال</td></tr>
+                        <tr><th>تاریخ سررسید:</th><td>{{ cheque.due_date|jalali_date }}</td></tr>
+                        <tr><th>وضعیت:</th><td><span class="status-badge {{ cheque.status|lower }}">{{ cheque.get_status_display }}</span></td></tr>
+                        {% if cheque.status == 'SPENT' %}
+                            <tr><th>نام دریافت کننده:</th><td>{{ cheque.recipient_name|default_if_none:"" }}</td></tr>
+                        {% endif %}
+                        <tr><th>بانک:</th><td>{{ cheque.bank_name }}</td></tr>
+                        <tr><th>شعبه:</th><td>{{ cheque.branch_name|default_if_none:"" }}</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table detail-table">
+                        <tr><th>سریال چک:</th><td>{{ cheque.serial|default_if_none:"" }}</td></tr>
+                        <tr><th>سری چک:</th><td>{{ cheque.series|default_if_none:"" }}</td></tr>
+                        <tr><th>شناسه صیادی:</th><td>{{ cheque.sayadi_id }}</td></tr>
+                        <tr><th>صاحب حساب:</th><td>{{ cheque.owner_name }}</td></tr>
+                        <tr><th>کدملی صاحب حساب:</th><td>{{ cheque.national_id|default_if_none:"" }}</td></tr>
+                        <tr><th>شماره حساب:</th><td>{{ cheque.account_number }}</td></tr>
+                        <tr><th>پشت نمره:</th><td>{{ cheque.endorsement|default_if_none:"" }}</td></tr>
+                    </table>
+                </div>
+            </div>
+             <div class="row mt-3">
+                <div class="col-12">
+                    <table class="table detail-table">
+                         <tr>
+                            <th>تاریخ ثبت:</th><td>{{ cheque.created_at|jalali_date_time }}</td>
+                            <th>ثبت کننده:</th><td>{{ cheque.created_by.username }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer text-center">
+            <a href="{% url 'products:received_cheque_edit' cheque_id=cheque.id %}" class="btn btn-warning"><i class="bi bi-pencil"></i> ویرایش</a>
+            <a href="{% url 'products:change_received_cheque_status' cheque_id=cheque.id %}" class="btn btn-info"><i class="bi bi-arrow-repeat"></i> تغییر وضعیت</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .glass-card {
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        padding: 2rem;
+    }
+    .detail-table {
+        width: 100%;
+        font-family: 'Vazir', sans-serif;
+    }
+    .detail-table th {
+        width: 35%;
+        font-weight: 600;
+        background-color: rgba(255, 255, 255, 0.2);
+        border: none;
+    }
+    .detail-table td, .detail-table th {
+        padding: 1rem;
+        vertical-align: top;
+        border-top: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .card-footer {
+        background: transparent;
+        border-top: 1px solid rgba(255, 255, 255, 0.3);
+        padding-top: 1.5rem;
+    }
+</style>
+{% endblock %}

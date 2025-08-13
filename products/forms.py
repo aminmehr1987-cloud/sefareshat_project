@@ -403,6 +403,24 @@ class ReceiptForm(forms.ModelForm):
         
         return cleaned_data
 
+class ReceivedChequeEditForm(forms.ModelForm):
+    class Meta:
+        model = ReceivedCheque
+        fields = ['bank_name', 'branch_name', 'serial', 'series', 'sayadi_id', 'amount', 'owner_name', 'national_id', 'account_number', 'endorsement', 'due_date']
+        widgets = {
+            'bank_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'branch_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'serial': forms.TextInput(attrs={'class': 'form-control'}),
+            'series': forms.TextInput(attrs={'class': 'form-control'}),
+            'sayadi_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control'}),
+            'owner_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'national_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'account_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'endorsement': forms.TextInput(attrs={'class': 'form-control'}),
+            'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+
 class ReceivedChequeStatusChangeForm(forms.ModelForm):
     class Meta:
         model = ReceivedCheque

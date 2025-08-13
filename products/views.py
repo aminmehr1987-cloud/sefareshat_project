@@ -38,7 +38,7 @@ from functools import wraps
 from decimal import Decimal
 from .forms import BankAccountForm
 from .models import Account, BankAccount, ReceivedCheque
-from .forms import ReceivedChequeStatusChangeForm
+from .forms import ReceivedChequeStatusChangeForm, ReceivedChequeEditForm
 
 
 
@@ -4842,6 +4842,30 @@ def change_received_cheque_status(request, cheque_id):
         form = ReceivedChequeStatusChangeForm(instance=cheque)
 
     return render(request, 'products/received_cheque_change_status.html', {
+        'form': form,
+        'cheque': cheque
+    })
+
+@login_required
+@group_required('حسابداری')
+def received_cheque_detail_view(request, cheque_id):
+    cheque = get_object_or_404(ReceivedCheque, id=cheque_id)
+    return render(request, 'products/received_cheque_detail.html', {'cheque': cheque})
+
+@login_required
+@group_required('حسابداری')
+def received_cheque_edit_view(request, cheque_id):
+    cheque = get_object_or_404(ReceivedCheque, id=cheque_id)
+    if request.method == 'POST':
+        form = ReceivedChequeEditForm(request.POST, instance=cheque)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'چک {cheque.sayadi_id} با موفقیت ویرایش شد.')
+            return redirect('products:received_cheque_detail', cheque_id=cheque.id)
+    else:
+        form = ReceivedChequeEditForm(instance=cheque)
+
+    return render(request, 'products/received_cheque_edit.html', {
         'form': form,
         'cheque': cheque
     })
