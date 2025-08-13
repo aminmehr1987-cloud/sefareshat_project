@@ -4268,6 +4268,11 @@ def financial_operation_edit_view(request, operation_id):
                         cheque.branch_name = data.get('branch_name', '')
                         cheque.sayadi_id = data.get('sayadi_id', '')
                         cheque.owner_name = data.get('owner_name', '')
+                        cheque.endorsement = data.get('endorsement', '')
+                        cheque.series = data.get('series', '')
+                        cheque.serial = data.get('serial', '')
+                        cheque.national_id = data.get('national_id', '')
+                        cheque.account_number = data.get('account_number', '')
                         cheque.save()
                         
                         total_cheque_amount += cheque.amount
@@ -4306,10 +4311,15 @@ def financial_operation_edit_view(request, operation_id):
     if operation.payment_method == 'cheque':
         related_cheques = operation.received_cheques.all()
 
+    # Fetch all active banks for the dropdown
+    from .models import Bank
+    banks = Bank.objects.filter(is_active=True).order_by('name')
+
     context = {
         'form': form,
         'operation': operation,
         'related_cheques': related_cheques,
+        'banks': banks,
         'title': 'ویرایش عملیات مالی'
     }
     return render(request, 'financial_operations/operation_edit.html', context)

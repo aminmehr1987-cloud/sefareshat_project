@@ -136,16 +136,16 @@
                                 
 
                                 <div class="form-group">
-                                    <label for="cheque_{{ cheque.id }}_amount">پشت نمره </label>
-                                    <input type="text" name="cheque_{{ cheque.id }}_amount" value="{{ cheque.endorsement|floatformat:0|intcomma }}" class="form-control amount-input">
+                                    <label for="cheque_{{ cheque.id }}_endorsement">پشت نمره </label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_endorsement" value="{{ cheque.endorsement|floatformat:0|intcomma }}" class="form-control amount-input">
                                 </div>
                                 <div class="form-group">
-                                    <label for="cheque_{{ cheque.id }}_owner_name">سری چک</label>
-                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.series }}" class="form-control">
+                                    <label for="cheque_{{ cheque.id }}_series">سری چک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_series" value="{{ cheque.series }}" class="form-control">
                                 </div>
                                 <div class="form-group">
-                                    <label for="cheque_{{ cheque.id }}_owner_name">سریال چک</label>
-                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.serial }}" class="form-control">
+                                    <label for="cheque_{{ cheque.id }}_serial">سریال چک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_serial" value="{{ cheque.serial }}" class="form-control">
                                 </div> 
 
                                 <div class="form-group">
@@ -158,7 +158,14 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="cheque_{{ cheque.id }}_bank_name">نام بانک</label>
-                                    <input type="text" name="cheque_{{ cheque.id }}_bank_name" value="{{ cheque.bank_name }}" class="form-control">
+                                    <select name="cheque_{{ cheque.id }}_bank_name" class="form-control">
+                                        <option value="">---------</option>
+                                        {% for bank in banks %}
+                                            <option value="{{ bank.name }}" {% if bank.name == cheque.bank_name %}selected{% endif %}>
+                                                {{ bank.name }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label for="cheque_{{ cheque.id }}_branch_name">شعبه</label>
@@ -174,10 +181,14 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="cheque_{{ cheque.id }}_owner_name">کد ملی صاحب حساب</label>
-                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.national_id }}" class="form-control">
+                                    <label for="cheque_{{ cheque.id }}_national_id">کد ملی صاحب حساب</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_national_id" value="{{ cheque.national_id }}" class="form-control">
                                 </div> 
-                                 
+                                
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_account_number">شماره حساب</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_account_number" value="{{ cheque.account_number }}" class="form-control">
+                                </div>
                                 
                             </div>
                         </div>

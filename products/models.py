@@ -1800,6 +1800,18 @@ class ReceivedCheque(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_received_cheques', verbose_name="ایجاد کننده")
+    
+    # فیلدهای حذف نرم
+    is_deleted = models.BooleanField(default=False, verbose_name="حذف شده")
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ حذف")
+    deleted_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='deleted_received_cheques',
+        verbose_name="حذف کننده"
+    )
 
     def __str__(self):
         return f"چک صیادی {self.sayadi_id} از {self.customer}"
@@ -1811,6 +1823,35 @@ class ReceivedCheque(models.Model):
 
     def __str__(self):
         return f"رسید {self.id} از {self.customer} به مبلغ {self.amount}"
+    
+    def soft_delete(self, user):
+        """حذف نرم چک دریافتی"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.deleted_by = user
+        self.save()
+    
+    def restore(self):
+        """بازگردانی چک حذف شده"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deleted_by = None
+        self.save()
+    
+    @property
+    def status_display(self):
+        """نمایش وضعیت با در نظر گرفتن حذف نرم"""
+        if self.is_deleted:
+            return "حذف شده"
+        return self.get_status_display()
+    
+    @property
+    def row_class(self):
+        """کلاس CSS برای ردیف بر اساس وضعیت"""
+        if self.is_deleted:
+            return "table-danger"  # قرمز برای حذف شده
+        else:
+            return ""  # مشکی برای عادی
 
 class FinancialOperation(models.Model):
     """
