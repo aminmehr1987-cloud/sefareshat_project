@@ -1363,7 +1363,8 @@ class FinancialOperationEditForm(forms.ModelForm):
         fields = [
             'operation_type', 'amount', 'description', 'customer', 
             'bank_name', 'account_number', 'payment_method', 
-            'reference_number', 'cheque_number', 'cheque_date', 'status'
+            'reference_number', 'cheque_number', 'cheque_date', 'status',
+            'card_reader_device'
         ]
         widgets = {
             'operation_type': forms.Select(attrs={
@@ -1408,6 +1409,7 @@ class FinancialOperationEditForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'وضعیت عملیات'
             }),
+            'card_reader_device': forms.Select(attrs={'class': 'form-control'}),
         }
         labels = {
             'operation_type': 'نوع عملیات',
@@ -1420,6 +1422,7 @@ class FinancialOperationEditForm(forms.ModelForm):
             'reference_number': 'شماره مرجع',
             'cheque_number': 'شماره چک',
             'status': 'وضعیت',
+            'card_reader_device': 'دستگاه کارتخوان',
         }
     
     def __init__(self, *args, **kwargs):
@@ -1434,16 +1437,36 @@ class FinancialOperationEditForm(forms.ModelForm):
                     'readonly': 'readonly'
                 })
                 self.fields['cheque_date'].initial = self.instance.cheque_date.strftime('%Y/%m/%d')
+
+        # Make payment-specific fields not required by default
+        self.fields['bank_name'].required = False
+        self.fields['account_number'].required = False
+        self.fields['reference_number'].required = False
+        self.fields['cheque_number'].required = False
+        self.fields['cheque_date'].required = False
+        self.fields['card_reader_device'].required = False
     
     def clean(self):
         cleaned_data = super().clean()
         date_shamsi = cleaned_data.get('date_shamsi')
+        payment_method = cleaned_data.get('payment_method')
         
         if date_shamsi:
             try:
                 from .views import convert_shamsi_to_gregorian
                 cleaned_data['date'] = convert_shamsi_to_gregorian(date_shamsi)
-            except ValueError as e:
-                raise ValidationError(f"خطا در فرمت تاریخ: {str(e)}")
+            except (ValueError, TypeError):
+                self.add_error('date_shamsi', "فرمت تاریخ نامعتبر است.")
+
+        # Server-side validation for payment-specific fields
+        if payment_method == 'pos':
+            if not cleaned_data.get('card_reader_device'):
+                self.add_error('card_reader_device', 'برای پرداخت با کارتخوان، انتخاب دستگاه الزامی است.')
         
+        elif payment_method == 'bank_transfer':
+            if not cleaned_data.get('bank_name'):
+                self.add_error('bank_name', 'برای حواله بانکی، نام بانک الزامی است.')
+            if not cleaned_data.get('account_number'):
+                self.add_error('account_number', 'برای حواله بانکی، شماره حساب الزامی است.')
+
         return cleaned_data

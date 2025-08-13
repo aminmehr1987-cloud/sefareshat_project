@@ -4229,6 +4229,7 @@ def financial_operation_delete_view(request, operation_id):
 
 @login_required
 @group_required('حسابداری')
+@transaction.atomic
 def financial_operation_edit_view(request, operation_id):
     """
     ویرایش عملیات مالی و به‌روزرسانی موجودی حساب بانکی
@@ -4241,17 +4242,61 @@ def financial_operation_edit_view(request, operation_id):
         form = FinancialOperationEditForm(request.POST, instance=operation)
         if form.is_valid():
             operation = form.save(commit=False)
+            
+            # Handle cheque data if payment method is cheque
+            if operation.payment_method == 'cheque':
+                cheques_data = {}
+                for key, value in request.POST.items():
+                    if key.startswith('cheque_'):
+                        parts = key.split('_')
+                        cheque_id = parts[1]
+                        field_name = '_'.join(parts[2:])
+                        if cheque_id not in cheques_data:
+                            cheques_data[cheque_id] = {}
+                        cheques_data[cheque_id][field_name] = value
+                
+                total_cheque_amount = Decimal('0')
+                for cheque_id, data in cheques_data.items():
+                    try:
+                        cheque = ReceivedCheque.objects.get(id=cheque_id, financial_operation=operation)
+                        
+                        # Update fields
+                        amount_str = data.get('amount', '0').replace(',', '')
+                        cheque.amount = Decimal(amount_str)
+                        cheque.due_date = convert_shamsi_to_gregorian(data.get('due_date'))
+                        cheque.bank_name = data.get('bank_name', '')
+                        cheque.branch_name = data.get('branch_name', '')
+                        cheque.sayadi_id = data.get('sayadi_id', '')
+                        cheque.owner_name = data.get('owner_name', '')
+                        cheque.save()
+                        
+                        total_cheque_amount += cheque.amount
+                    except ReceivedCheque.DoesNotExist:
+                        # Handle case where cheque might not exist or belong to this operation
+                        continue
+                
+                # Update the main operation amount to the sum of its cheques
+                operation.amount = total_cheque_amount
+
             operation.updated_at = timezone.now()
             operation.save()
             
+            # Save the many-to-many data for the form
+            form.save_m2m()
+
             # علامت‌گذاری به عنوان اصلاح شده
             operation.mark_as_modified(request.user)
 
             # اگر عملیات مربوط به یک حساب بانکی بود، موجودی آن حساب را به‌روزرسانی می‌کنیم
             if operation.bank_name and operation.account_number:
                 _update_bank_account_balance(operation.bank_name, operation.account_number)
+            
+            # Update customer balance if linked
+            if operation.customer:
+                customer_balance, created = CustomerBalance.objects.get_or_create(customer=operation.customer)
+                customer_balance.update_balance()
 
-            messages.success(request, f'عملیات مالی {operation.operation_number} با موفقیت ویرایش شد و موجودی به‌روز گردید.')
+            messages.success(request, f'عملیات مالی {operation.operation_number} با موفقیت ویرایش شد و سوابق به‌روز گردید.')
             return redirect('products:financial_operation_detail', operation_id=operation.id)
     else:
         form = FinancialOperationEditForm(instance=operation)
