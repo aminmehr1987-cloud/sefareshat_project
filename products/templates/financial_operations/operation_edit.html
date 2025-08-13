@@ -102,21 +102,9 @@
                             {% endif %}
                         </div>
                         
-                        <div class="form-group">
-                            <label for="{{ form.bank_name.id_for_label }}">نام بانک:</label>
-                            {{ form.bank_name }}
-                            {% if form.bank_name.errors %}
-                                <div class="error-message">{{ form.bank_name.errors.0 }}</div>
-                            {% endif %}
-                        </div>
                         
-                        <div class="form-group">
-                            <label for="{{ form.account_number.id_for_label }}">شماره حساب:</label>
-                            {{ form.account_number }}
-                            {% if form.account_number.errors %}
-                                <div class="error-message">{{ form.account_number.errors.0 }}</div>
-                            {% endif %}
-                        </div>
+                        
+                        
                     </div>
                 </div>
 
@@ -132,31 +120,71 @@
                             {% endif %}
                         </div>
                         
-                        <div class="form-group">
-                            <label for="{{ form.reference_number.id_for_label }}">شماره مرجع:</label>
-                            {{ form.reference_number }}
-                            {% if form.reference_number.errors %}
-                                <div class="error-message">{{ form.reference_number.errors.0 }}</div>
-                            {% endif %}
-                        </div>
                         
-                        <div class="form-group">
-                            <label for="{{ form.cheque_number.id_for_label }}">شماره چک:</label>
-                            {{ form.cheque_number }}
-                            {% if form.cheque_number.errors %}
-                                <div class="error-message">{{ form.cheque_number.errors.0 }}</div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="{{ form.cheque_date.id_for_label }}">تاریخ چک:</label>
-                            {{ form.cheque_date }}
-                            {% if form.cheque_date.errors %}
-                                <div class="error-message">{{ form.cheque_date.errors.0 }}</div>
-                            {% endif %}
-                        </div>
                     </div>
                 </div>
+
+                <!-- اطلاعات چک‌ها -->
+                {% if operation.payment_method == 'cheque' and related_cheques %}
+                <div class="form-section">
+                    <h3><i class="bi bi-wallet2"></i> اطلاعات چک‌ها</h3>
+                    <div id="cheques-container">
+                        {% for cheque in related_cheques %}
+                        <div class="cheque-form-item" id="cheque-{{ cheque.id }}" style="padding-bottom: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid #e0e0e0;">
+                            <h4 style="font-size: 1rem; font-weight: bold; margin-bottom: 1rem; padding-bottom: 0.5rem;">چک شماره {{ forloop.counter }}</h4>
+                            <div class="form-grid">
+                                
+
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_amount">پشت نمره </label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_amount" value="{{ cheque.endorsement|floatformat:0|intcomma }}" class="form-control amount-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_owner_name">سری چک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.series }}" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_owner_name">سریال چک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.serial }}" class="form-control">
+                                </div> 
+
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_amount">مبلغ چک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_amount" value="{{ cheque.amount|floatformat:0|intcomma }}" class="form-control amount-input">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_due_date">تاریخ سررسید</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_due_date" value="{{ cheque.due_date|jalali_date }}" class="form-control persian-datepicker-individual">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_bank_name">نام بانک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_bank_name" value="{{ cheque.bank_name }}" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_branch_name">شعبه</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_branch_name" value="{{ cheque.branch_name|default:'' }}" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_sayadi_id">شناسه صیادی</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_sayadi_id" value="{{ cheque.sayadi_id }}" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_owner_name">صاحب چک</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.owner_name }}" class="form-control">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_owner_name">کد ملی صاحب حساب</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_owner_name" value="{{ cheque.national_id }}" class="form-control">
+                                </div> 
+                                 
+                                
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- وضعیت -->
                 <div class="form-section">
@@ -510,41 +538,39 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Persian Datepicker for date fields
-    $('.persian-datepicker').persianDatepicker({
-        format: 'YYYY/MM/DD',
-        initialValue: false,
-        autoClose: true,
-        calendar: {
-            persian: {
-                locale: 'fa'
+    // Function to initialize a datepicker on a given selector
+    function initDatepicker(selector) {
+        $(selector).persianDatepicker({
+            format: 'YYYY/MM/DD',
+            autoClose: true,
+            observer: true,
+            initialValue: false, // Important: do not set initial value via JS if it's already in the input's `value` attribute
+            calendar: {
+                persian: {
+                    locale: 'fa'
+                }
             }
-        },
-        onSelect: function(unix) {
-            // Convert Persian date to Gregorian for form submission
-            const persianDate = this.getDate();
-            const gregorianDate = persianDate.toCalendar('gregorian').format('YYYY-MM-DD');
-            this.model.inputElement.value = gregorianDate;
-        }
+        });
+    }
+
+    // Initialize the main date picker for the operation
+    initDatepicker('#{{ form.date_shamsi.id_for_label }}');
+    
+    // Initialize date pickers for each individual cheque
+    $('.persian-datepicker-individual').each(function() {
+        initDatepicker(this);
     });
 
-    // Set initial values for date fields if they exist
-    const dateShamsi = document.getElementById('{{ form.date_shamsi.id_for_label }}');
-    const chequeDate = document.getElementById('{{ form.cheque_date.id_for_label }}');
-    
-    if (dateShamsi && dateShamsi.value) {
-        // Convert Gregorian to Persian for display
-        const gregorianDate = new Date(dateShamsi.value);
-        const persianDate = new persianDate(gregorianDate);
-        dateShamsi.value = persianDate.format('YYYY/MM/DD');
-    }
-    
-    if (chequeDate && chequeDate.value) {
-        // Convert Gregorian to Persian for display
-        const gregorianDate = new Date(chequeDate.value);
-        const persianDate = new persianDate(gregorianDate);
-        chequeDate.value = persianDate.format('YYYY/MM/DD');
-    }
+    // Auto-formatting for amount inputs to add commas
+    document.querySelectorAll('.amount-input').forEach(function(input) {
+        input.addEventListener('keyup', function(e) {
+            let value = e.target.value.replace(/,/g, '');
+            if (!isNaN(value) && value.length > 0) {
+                // Format the number with commas
+                e.target.value = parseInt(value, 10).toLocaleString('en-US');
+            }
+        });
+    });
 });
 </script>
 {% endblock %} 
