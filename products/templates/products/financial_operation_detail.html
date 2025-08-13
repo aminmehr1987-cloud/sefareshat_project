@@ -149,17 +149,57 @@
                     <span class="value">{{ operation.reference_number }}</span>
                 </div>
                 {% endif %}
-                {% if operation.cheque_number %}
-                <div class="info-row">
-                    <span class="label">شماره چک:</span>
-                    <span class="value">{{ operation.cheque_number }}</span>
-                </div>
-                {% endif %}
-                {% if operation.cheque_date %}
-                <div class="info-row">
-                    <span class="label">تاریخ چک:</span>
-                    <span class="value">{{ operation.cheque_date|jalali_date }}</span>
-                </div>
+
+                {% if operation.payment_method == 'cheque' %}
+                    {% if operation.received_cheques.all %}
+                        <h4 class="cheque-header">اطلاعات چک‌های دریافتی</h4>
+                        {% for cheque in operation.received_cheques.all %}
+                            <div class="cheque-details">
+                                <div class="info-row">
+                                    <span class="label">شناسه صیادی:</span>
+                                    <span class="value">{{ cheque.sayadi_id }}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="label">مبلغ چک:</span>
+                                    <span class="value">{{ cheque.amount|persian_number_format }} ریال</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="label">تاریخ سررسید:</span>
+                                    <span class="value">{{ cheque.due_date|jalali_date }}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="label">بانک:</span>
+                                    <span class="value">{{ cheque.bank_name }}{% if cheque.branch_name %} - {{ cheque.branch_name }}{% endif %}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="label">صاحب حساب:</span>
+                                    <span class="value">{{ cheque.owner_name }}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="label">شماره حساب:</span>
+                                    <span class="value">{{ cheque.account_number }}</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="label">وضعیت:</span>
+                                    <span class="value">{{ cheque.get_status_display }}</span>
+                                </div>
+                            </div>
+                            {% if not forloop.last %}<hr class="cheque-divider">{% endif %}
+                        {% endfor %}
+                    {% else %}
+                        {% if operation.cheque_number %}
+                        <div class="info-row">
+                            <span class="label">شماره چک:</span>
+                            <span class="value">{{ operation.cheque_number }}</span>
+                        </div>
+                        {% endif %}
+                        {% if operation.cheque_date %}
+                        <div class="info-row">
+                            <span class="label">تاریخ چک:</span>
+                            <span class="value">{{ operation.cheque_date|jalali_date }}</span>
+                        </div>
+                        {% endif %}
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -630,6 +670,27 @@
 .btn-outline-primary:hover {
     background: #3b82f6;
     color: white;
+}
+
+.cheque-header {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #3b82f6;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #eff6ff;
+}
+
+.cheque-details {
+    padding: 1rem 0;
+}
+
+.cheque-divider {
+    border: 0;
+    height: 1px;
+    background-color: #e5e7eb;
+    margin: 1rem 0;
 }
 
 /* Responsive Design */

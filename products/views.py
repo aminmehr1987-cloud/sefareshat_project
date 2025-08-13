@@ -4968,7 +4968,9 @@ def received_cheque_list_view(request):
             Q(customer__first_name__icontains=search_query) |
             Q(customer__last_name__icontains=search_query) |
             Q(owner_name__icontains=search_query) |
-            Q(amount__icontains=search_query)
+            Q(amount__icontains=search_query) |
+            Q(endorsement__icontains=search_query) |
+            Q(serial__icontains=search_query)
         )
     
     if status_filter:

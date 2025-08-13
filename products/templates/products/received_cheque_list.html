@@ -27,7 +27,7 @@
             <div class="filter-row">
                 <div class="filter-group" style="flex-grow: 2;">
                     <label for="q">جستجو:</label>
-                    <input type="text" name="q" id="q" class="form-control" placeholder="شناسه، مشتری، مبلغ..." value="{{ filters.q }}">
+                    <input type="text" name="q" id="q" class="form-control" placeholder="پشت نمره، سریال، شناسه، مشتری..." value="{{ filters.q }}">
                 </div>
                 <div class="filter-group">
                     <label for="status">وضعیت:</label>
@@ -74,12 +74,12 @@
                 <thead>
                     <tr>
                         <th>پشت نمره</th>
-                        <th>مشتری</th>
+                        <th>شماره سریال</th>
+                        <th>مشتری</th> 
                         <th>بانک</th>
                         <th>مبلغ</th>
                         <th>تاریخ سررسید</th>
                         <th>دریافت کننده</th>
-                        <th>تاریخ ثبت</th>
                         <th>وضعیت</th>
                         <th>عملیات</th>
                     </tr>
@@ -88,6 +88,7 @@
                     {% for cheque in page_obj %}
                     <tr>
                         <td>{{ cheque.endorsement|default_if_none:"" }}</td>
+                        <td>{{ cheque.serial|default:"-" }}</td>
                         <td>{{ cheque.customer.get_full_name }}</td>
                         <td>{{ cheque.bank_name }}</td>
                         <td class="amount">{{ cheque.amount|persian_number_format }} ریال</td>
@@ -97,7 +98,7 @@
                                 {{ cheque.recipient_name|default_if_none:"" }}
                             {% endif %}
                         </td>
-                        <td>{{ cheque.created_at|jalali_date_time }}</td>
+                        
                         <td><span class="status-badge {{ cheque.status|lower }}">{{ cheque.get_status_display }}</span></td>
                         <td>
                             <div class="action-buttons">
