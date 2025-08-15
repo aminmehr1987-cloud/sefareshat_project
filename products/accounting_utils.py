@@ -83,8 +83,10 @@ class AccountingVoucherManager:
         Create voucher from financial operation
         ایجاد سند حسابداری از عملیات مالی
         """
-        if Voucher.objects.filter(items__reference_id=str(operation.id)).exists():
-            return Voucher.objects.get(items__reference_id=str(operation.id))
+        existing_voucher = Voucher.objects.filter(items__reference_id=str(operation.id)).first()
+        if existing_voucher:
+            return existing_voucher
+        
         try:
             with transaction.atomic():
                 # اطمینان از وجود financial_year

@@ -69,8 +69,18 @@
                 </div>
             </div>
 
+            <div class="form-row" id="bank_account_row" style="display: none;">
+                <div class="form-group full-width">
+                    <label for="id_bank_account"><i class="bi bi-bank"></i> حساب بانکی</label>
+                    {{ form.bank_account }}
+                    {% if form.bank_account.errors %}
+                        <div class="text-danger">{{ form.bank_account.errors }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
             <div class="form-row" id="card_reader_device_row" style="display: none;">
-                <div class="form-group">
+                <div class="form-group full-width">
                     <label for="id_card_reader_device"><i class="bi bi-credit-card-2-front"></i> دستگاه کارتخوان</label>
                     {{ form.card_reader_device }}
                     {% if form.card_reader_device.errors %}
@@ -733,20 +743,22 @@
 $(document).ready(function() {
     const paymentMethodField = $('#id_payment_method');
     const cardReaderRow = $('#card_reader_device_row');
+    const bankAccountRow = $('#bank_account_row');
     const chequeButtonContainer = $('#cheque-button-container');
 
     function toggleFields() {
         const selectedMethod = paymentMethodField.val();
+        
+        cardReaderRow.hide();
+        bankAccountRow.hide();
+        chequeButtonContainer.hide();
+
         if (selectedMethod === 'pos') {
             cardReaderRow.show();
-        } else {
-            cardReaderRow.hide();
-        }
-
-        if (selectedMethod === 'cheque') {
+        } else if (selectedMethod === 'bank_transfer') {
+            bankAccountRow.show();
+        } else if (selectedMethod === 'cheque') {
             chequeButtonContainer.show();
-        } else {
-            chequeButtonContainer.hide();
         }
     }
 
@@ -938,12 +950,16 @@ function closeCustomerModal() {
 
 // Handle form submission
 window.handleFormSubmit = function(event) {
+    // Disable the button to prevent double submission
+    document.getElementById('submit-operation-btn').disabled = true;
+
     const paymentMethod = document.getElementById('id_payment_method').value;
     if (paymentMethod === 'cheque') {
         const chequesData = document.getElementById('cheques_data_hidden_input').value;
         if (!chequesData || chequesData === '[]') {
             alert('برای ثبت دریافت چکی، حداقل یک چک باید از طریق دکمه "معرفی چک" اضافه شود.');
             event.preventDefault(); // Stop form submission
+            document.getElementById('submit-operation-btn').disabled = false; // Re-enable if validation fails
             return false;
         }
     }

@@ -4382,6 +4382,25 @@ def receive_from_customer_view(request):
                     if not operation.description:
                         operation.description = f"دریافت از {operation.customer.get_full_name()} با دستگاه پوز {device.name}"
                 
+                elif operation.payment_method == 'bank_transfer':
+                    bank_account = form.cleaned_data.get('bank_account')
+                    if not bank_account:
+                        form.add_error('bank_account', 'برای پرداخت با حواله بانکی، انتخاب حساب الزامی است.')
+                        customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        banks = Bank.objects.filter(is_active=True).order_by('name')
+                        return render(request, 'financial_operations/receive_from_customer.html', {
+                            'form': form,
+                            'customers': customers,
+                            'banks': banks
+                        })
+                    
+                    operation.fund = None
+                    operation.bank_name = bank_account.bank.name
+                    operation.account_number = bank_account.account_number
+                    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
+                    if not operation.description:
+                        operation.description = f"دریافت از {operation.customer.get_full_name()} با حواله به حساب {bank_account.title}"
+                
                 elif operation.payment_method == 'cheque':
                     cheques_data_json = request.POST.get('cheques_data')
                     if not cheques_data_json:
@@ -4445,7 +4464,10 @@ def receive_from_customer_view(request):
                 
                 # ذخیره پیام در session برای نمایش در صفحه تأیید
                 request.session['success_message'] = success_message
-                request.session['operation_type'] = 'receive_from_customer'
+                if operation.payment_method == 'bank_transfer':
+                    request.session['operation_type'] = 'bank_transfer'
+                else:
+                    request.session['operation_type'] = 'receive_from_customer'
                 return redirect('products:operation_confirmation')
                 
             except Exception as e:
