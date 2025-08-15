@@ -93,6 +93,21 @@
                 {% endif %}
             </div>
             
+            <!-- Cheque Operations - Hidden by default -->
+            <div id="cheque_operations_row" class="form-row" style="display: none;">
+                <div class="form-group">
+                    <button type="button" class="btn btn-info" id="spend_received_cheque_btn">
+                        <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
+                    </button>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-warning" id="issue_new_cheque_btn">
+                        <i class="bi bi-pencil-square"></i> صدور چک جدید
+                    </button>
+                </div>
+            </div>
+            <input type="hidden" name="spent_cheque_ids" id="id_spent_cheque_ids">
+            
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i> ثبت عملیات
@@ -104,6 +119,41 @@
         </form>
     </div>
 </div>
+
+<!-- Spend Received Cheque Modal -->
+<div id="spendChequeModal" class="customer-modal">
+    <div class="customer-modal-content" style="max-width: 1000px;">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">انتخاب چک‌های دریافتی برای خرج کردن</span>
+            <span class="close-modal" onclick="closeSpendChequeModal()">×</span>
+        </div>
+        <div class="table-responsive">
+            <table class="customers-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAllCheques"></th>
+                        <th>پشت نمره</th>
+                        <th>سریال چک</th>
+                        <th>تاریخ سررسید</th>
+                        <th>شناسه صیاد</th>
+                        <th>نام مشتری</th>
+                        <th>مبلغ</th>
+                    </tr>
+                </thead>
+                <tbody id="spendableChequesList">
+                    <!-- Spendable cheques will be populated here by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="customer-modal-footer" style="margin-top: 20px; text-align: left; border-top: 1px solid #ddd; padding-top: 10px;">
+            <strong>مجموع انتخاب شده: </strong> <span id="selectedChequesTotal">0</span> ریال
+            <br>
+            <strong>رأس چک‌ها: </strong> <span id="selectedChequesAvgDate">-</span>
+            <button type="button" class="btn btn-primary" id="confirmChequeSelectionBtn" style="margin-top: 10px;">تایید انتخاب</button>
+        </div>
+    </div>
+</div>
+
 
 <!-- Customer Selection Modal -->
 <div id="customerModal" class="customer-modal">
@@ -552,6 +602,113 @@
 
 <script>
 $(document).ready(function() {
+    // --- Cheque Operations Logic ---
+    const paymentMethodSelect = document.getElementById('id_payment_method');
+    const chequeOperationsRow = document.getElementById('cheque_operations_row');
+    const spendChequeBtn = document.getElementById('spend_received_cheque_btn');
+    const spendChequeModal = document.getElementById('spendChequeModal');
+
+    function toggleChequeOperations() {
+        if (paymentMethodSelect.value === 'cheque') {
+            chequeOperationsRow.style.display = 'grid'; // Use grid to match other rows
+        } else {
+            chequeOperationsRow.style.display = 'none';
+        }
+    }
+
+    // Initial check
+    toggleChequeOperations();
+
+    // Listener for changes
+    paymentMethodSelect.addEventListener('change', toggleChequeOperations);
+
+    // Modal open/close logic
+    spendChequeBtn.addEventListener('click', function() {
+        fetch("{% url 'products:get_spendable_cheques' %}")
+            .then(response => response.json())
+            .then(data => {
+                const chequeListBody = document.getElementById('spendableChequesList');
+                chequeListBody.innerHTML = ''; // Clear previous data
+                data.cheques.forEach(cheque => {
+                    const row = `
+                        <tr>
+                            <td><input type="checkbox" class="cheque-select" value="${cheque.id}" data-amount="${cheque.amount}" data-date="${cheque.due_date}"></td>
+                            <td>${cheque.endorsement}</td>
+                            <td>${cheque.serial}</td>
+                            <td>${cheque.due_date}</td>
+                            <td>${cheque.sayadi_id}</td>
+                            <td>${cheque.customer_name}</td>
+                            <td>${new Intl.NumberFormat('fa-IR').format(cheque.amount)}</td>
+                        </tr>
+                    `;
+                    chequeListBody.insertAdjacentHTML('beforeend', row);
+                });
+                spendChequeModal.style.display = 'block';
+            })
+            .catch(error => console.error('Error fetching spendable cheques:', error));
+    });
+
+    // Add event listener to the modal for calculations
+    spendChequeModal.addEventListener('change', function(e) {
+        if (e.target.classList.contains('cheque-select') || e.target.id === 'selectAllCheques') {
+            updateSelectedCheques();
+        }
+    });
+
+    document.getElementById('selectAllCheques').addEventListener('change', function(e) {
+        const checkboxes = spendChequeModal.querySelectorAll('.cheque-select');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = e.target.checked;
+        });
+        updateSelectedCheques();
+    });
+
+    function updateSelectedCheques() {
+        let totalAmount = 0;
+        let totalDays = 0;
+        let totalWeightedAmount = 0;
+        const selectedCheckboxes = spendChequeModal.querySelectorAll('.cheque-select:checked');
+        
+        selectedCheckboxes.forEach(checkbox => {
+            const amount = parseFloat(checkbox.dataset.amount);
+            const dateStr = checkbox.dataset.date;
+            const days = moment(dateStr, 'jYYYY/jMM/jDD').diff(moment(), 'days');
+
+            totalAmount += amount;
+            if (days > 0) {
+                totalWeightedAmount += amount * days;
+            }
+        });
+
+        document.getElementById('selectedChequesTotal').textContent = new Intl.NumberFormat('fa-IR').format(totalAmount);
+        
+        if (totalAmount > 0 && totalWeightedAmount > 0) {
+            const avgDays = Math.round(totalWeightedAmount / totalAmount);
+            const avgDate = moment().add(avgDays, 'days').format('jYYYY/jMM/jDD');
+            document.getElementById('selectedChequesAvgDate').textContent = avgDate;
+        } else {
+            document.getElementById('selectedChequesAvgDate').textContent = '-';
+        }
+    }
+
+    document.getElementById('confirmChequeSelectionBtn').addEventListener('click', function() {
+        const selectedChequeIds = Array.from(spendChequeModal.querySelectorAll('.cheque-select:checked')).map(cb => cb.value);
+        const totalAmount = parseFloat(document.getElementById('selectedChequesTotal').textContent.replace(/,/g, ''));
+
+        document.getElementById('id_spent_cheque_ids').value = selectedChequeIds.join(',');
+        document.getElementById('id_amount').value = totalAmount;
+        
+        closeSpendChequeModal();
+    });
+
+    // Close modal via 'x' button
+    window.closeSpendChequeModal = function() {
+        spendChequeModal.style.display = 'none';
+    }
+
+    // --- End Cheque Operations Logic ---
+
+
     // Persian Datepicker initialization
     $("#id_date_shamsi").pDatepicker({
         format: 'YYYY/MM/DD',

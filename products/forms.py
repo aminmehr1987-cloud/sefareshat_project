@@ -746,17 +746,9 @@ class ReceiveFromCustomerForm(forms.ModelForm):
         required=True
     )
     
-    bank_account = forms.ModelChoiceField(
-        queryset=BankAccount.objects.filter(is_active=True),
-        label="حساب بانکی",
-        required=False,
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        empty_label="یک حساب بانکی انتخاب کنید"
-    )
-
     class Meta:
         model = FinancialOperation
-        fields = ['operation_type', 'customer', 'amount', 'payment_method', 'card_reader_device', 'bank_account', 'description']
+        fields = ['operation_type', 'customer', 'amount', 'payment_method', 'card_reader_device', 'description']
         widgets = {
             'operation_type': forms.HiddenInput(),
             'customer': forms.Select(attrs={'class': 'form-control'}),
@@ -777,26 +769,10 @@ class ReceiveFromCustomerForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['operation_type'].initial = 'RECEIVE_FROM_CUSTOMER'
-        self.fields['bank_account'].label = "حساب بانکی مقصد"
-
         
         # Set current date as initial value
         current_date = jdatetime.datetime.now().strftime('%Y/%m/%d')
         self.fields['date_shamsi'].initial = current_date
-
-    def clean(self):
-        cleaned_data = super().clean()
-        payment_method = cleaned_data.get('payment_method')
-        
-        if payment_method == 'pos':
-            if not cleaned_data.get('card_reader_device'):
-                self.add_error('card_reader_device', 'برای پرداخت با پوز، انتخاب دستگاه الزامی است.')
-        
-        if payment_method == 'bank_transfer':
-            if not cleaned_data.get('bank_account'):
-                self.add_error('bank_account', 'برای پرداخت با حواله بانکی، انتخاب حساب الزامی است.')
-
-        return cleaned_data
 
 
 class PayToCustomerForm(forms.ModelForm):
@@ -836,6 +812,13 @@ class PayToCustomerForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['operation_type'].initial = 'PAY_TO_CUSTOMER'
         self.fields['operation_type'].widget = forms.HiddenInput()
+        
+        # Filter payment method choices
+        payment_method_choices = [
+            ('cash', 'نقدی'),
+            ('cheque', 'چک'),
+        ]
+        self.fields['payment_method'].choices = payment_method_choices
         
         # Set current date as initial value
         import jdatetime

@@ -1770,7 +1770,8 @@ class Receipt(models.Model):
 
 
 class ReceivedCheque(models.Model):
-    financial_operation = models.ForeignKey('FinancialOperation', on_delete=models.CASCADE, related_name='received_cheques', null=True, blank=True, verbose_name="عملیات مالی")
+    financial_operation = models.ForeignKey('FinancialOperation', on_delete=models.CASCADE, related_name='received_cheques', null=True, blank=True, verbose_name="عملیات مالی دریافت")
+    spending_operation = models.ForeignKey('FinancialOperation', on_delete=models.SET_NULL, null=True, blank=True, related_name='spent_cheques', verbose_name="عملیات خرج چک")
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='received_cheques', verbose_name="مشتری")
     
     endorsement = models.CharField(max_length=255, blank=True, null=True, verbose_name="پشت نمره")

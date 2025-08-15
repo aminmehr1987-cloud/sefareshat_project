@@ -4382,25 +4382,6 @@ def receive_from_customer_view(request):
                     if not operation.description:
                         operation.description = f"دریافت از {operation.customer.get_full_name()} با دستگاه پوز {device.name}"
                 
-                elif operation.payment_method == 'bank_transfer':
-                    bank_account = form.cleaned_data.get('bank_account')
-                    if not bank_account:
-                        form.add_error('bank_account', 'برای پرداخت با حواله بانکی، انتخاب حساب الزامی است.')
-                        customers = Customer.objects.all().order_by('first_name', 'last_name')
-                        banks = Bank.objects.filter(is_active=True).order_by('name')
-                        return render(request, 'financial_operations/receive_from_customer.html', {
-                            'form': form,
-                            'customers': customers,
-                            'banks': banks
-                        })
-                    
-                    operation.fund = None
-                    operation.bank_name = bank_account.bank.name
-                    operation.account_number = bank_account.account_number
-                    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
-                    if not operation.description:
-                        operation.description = f"دریافت از {operation.customer.get_full_name()} با حواله به حساب {bank_account.title}"
-                
                 elif operation.payment_method == 'cheque':
                     cheques_data_json = request.POST.get('cheques_data')
                     if not cheques_data_json:
@@ -4464,10 +4445,7 @@ def receive_from_customer_view(request):
                 
                 # ذخیره پیام در session برای نمایش در صفحه تأیید
                 request.session['success_message'] = success_message
-                if operation.payment_method == 'bank_transfer':
-                    request.session['operation_type'] = 'bank_transfer'
-                else:
-                    request.session['operation_type'] = 'receive_from_customer'
+                request.session['operation_type'] = 'receive_from_customer'
                 return redirect('products:operation_confirmation')
                 
             except Exception as e:
@@ -4512,8 +4490,35 @@ def pay_to_customer_view(request):
                 if cash_fund:
                     operation.fund = cash_fund
             
-            operation.save()
-            
+            # Handle spent cheques if payment method is cheque
+            if operation.payment_method == 'cheque':
+                spent_cheque_ids_str = request.POST.get('spent_cheque_ids')
+                if spent_cheque_ids_str:
+                    spent_cheque_ids = [int(id) for id in spent_cheque_ids_str.split(',') if id]
+                    
+                    # Get the selected cheques and calculate the total amount
+                    spent_cheques = ReceivedCheque.objects.filter(id__in=spent_cheque_ids)
+                    total_cheque_amount = spent_cheques.aggregate(total=Sum('amount'))['total'] or 0
+                    
+                    # Override the form amount with the sum of cheques
+                    operation.amount = total_cheque_amount
+                    
+                    # Save the operation first to get an ID
+                    operation.save()
+                    
+                    # Update the spent cheques
+                    for cheque in spent_cheques:
+                        cheque.status = 'SPENT'
+                        cheque.recipient_name = operation.customer.get_full_name()
+                        cheque.spending_operation = operation
+                        cheque.save()
+                else:
+                    # This case would be for issuing a new cheque, which will be handled in a future step.
+                    # For now, we just save the operation as is.
+                    operation.save()
+            else:
+                operation.save()
+
             # The signal will now handle voucher creation automatically.
             
             # به‌روزرسانی موجودی مشتری
@@ -5028,6 +5033,33 @@ def received_cheque_list_view(request):
     return render(request, 'products/received_cheque_list.html', context)
     
     return render(request, 'products/customer_balance_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def get_spendable_cheques_view(request):
+    """
+    API endpoint to get a list of received cheques that can be spent.
+    """
+    spendable_cheques = ReceivedCheque.objects.filter(
+        status='RECEIVED', 
+        is_deleted=False
+    ).select_related('customer').order_by('due_date')
+    
+    data = [
+        {
+            'id': cheque.id,
+            'endorsement': cheque.endorsement or '',
+            'serial': cheque.serial or '',
+            'due_date': jdatetime.date.fromgregorian(date=cheque.due_date).strftime('%Y/%m/%d') if cheque.due_date else '',
+            'sayadi_id': cheque.sayadi_id or '',
+            'customer_name': cheque.customer.get_full_name() if cheque.customer else '',
+            'amount': cheque.amount
+        }
+        for cheque in spendable_cheques
+    ]
+    
+    return JsonResponse({'cheques': data})
 
 
 # Helper functions
