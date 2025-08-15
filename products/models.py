@@ -1620,6 +1620,7 @@ class Check(models.Model):
     ]
 
     checkbook = models.ForeignKey(CheckBook, null=True, blank=True, on_delete=models.PROTECT, verbose_name="دسته چک (برای چک‌های پرداختی)")
+    issuing_operation = models.ForeignKey('FinancialOperation', on_delete=models.SET_NULL, null=True, blank=True, related_name='issued_checks', verbose_name="عملیات صدور چک")
     number = models.CharField(max_length=50, verbose_name="شماره/سریال چک")
     series = models.CharField(max_length=50, blank=True, null=True, verbose_name="سری چک")
     amount = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="مبلغ")

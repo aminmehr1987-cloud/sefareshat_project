@@ -3711,6 +3711,33 @@ def capital_investment_view(request):
 
 @login_required
 @group_required('حسابداری')
+def get_spendable_cheques_view(request):
+    """
+    API endpoint to get a list of received cheques that can be spent.
+    """
+    spendable_cheques = ReceivedCheque.objects.filter(
+        status='RECEIVED', 
+        is_deleted=False
+    ).select_related('customer').order_by('due_date')
+    
+    data = [
+        {
+            'id': cheque.id,
+            'endorsement': cheque.endorsement or '',
+            'serial': cheque.serial or '',
+            'due_date': jdatetime.date.fromgregorian(date=cheque.due_date).strftime('%Y/%m/%d') if cheque.due_date else '',
+            'sayadi_id': cheque.sayadi_id or '',
+            'customer_name': cheque.customer.get_full_name() if cheque.customer else '',
+            'amount': cheque.amount
+        }
+        for cheque in spendable_cheques
+    ]
+    
+    return JsonResponse({'cheques': data})
+
+
+@login_required
+@group_required('حسابداری')
 @transaction.atomic
 def receive_from_bank_view(request):
     """
@@ -4492,31 +4519,46 @@ def pay_to_customer_view(request):
             
             # Handle spent cheques if payment method is cheque
             if operation.payment_method == 'cheque':
+                # For cheque operations, save the operation first to get an ID for linking
+                operation.save()
+
+                # Handle spending of received cheques
                 spent_cheque_ids_str = request.POST.get('spent_cheque_ids')
                 if spent_cheque_ids_str:
                     spent_cheque_ids = [int(id) for id in spent_cheque_ids_str.split(',') if id]
-                    
-                    # Get the selected cheques and calculate the total amount
                     spent_cheques = ReceivedCheque.objects.filter(id__in=spent_cheque_ids)
-                    total_cheque_amount = spent_cheques.aggregate(total=Sum('amount'))['total'] or 0
-                    
-                    # Override the form amount with the sum of cheques
-                    operation.amount = total_cheque_amount
-                    
-                    # Save the operation first to get an ID
-                    operation.save()
-                    
-                    # Update the spent cheques
                     for cheque in spent_cheques:
                         cheque.status = 'SPENT'
                         cheque.recipient_name = operation.customer.get_full_name()
                         cheque.spending_operation = operation
                         cheque.save()
-                else:
-                    # This case would be for issuing a new cheque, which will be handled in a future step.
-                    # For now, we just save the operation as is.
-                    operation.save()
+
+                # Handle issuing of new cheques
+                issued_cheques_json = request.POST.get('issued_cheques_data')
+                if issued_cheques_json:
+                    issued_cheques = json.loads(issued_cheques_json)
+                    for cheque_data in issued_cheques:
+                        try:
+                            checkbook = CheckBook.objects.get(id=cheque_data['checkbook_id'])
+                            # Find the next available unused check and lock it
+                            check_to_issue = Check.objects.filter(checkbook=checkbook, status='UNUSED').order_by('number').select_for_update().first()
+
+                            if not check_to_issue:
+                                messages.error(request, f"دسته چک {checkbook.serial} برگ سفید ندارد.")
+                                # The transaction will be rolled back automatically on return
+                                return redirect('products:pay_to_customer')
+
+                            check_to_issue.amount = Decimal(cheque_data['amount'])
+                            check_to_issue.date = convert_shamsi_to_gregorian(cheque_data['due_date'])
+                            check_to_issue.payee = operation.customer.get_full_name()
+                            check_to_issue.status = 'ISSUED'
+                            check_to_issue.issuing_operation = operation
+                            check_to_issue.save()
+                        except CheckBook.DoesNotExist:
+                            messages.error(request, "دسته چک انتخاب شده معتبر نیست.")
+                            return redirect('products:pay_to_customer')
             else:
+                # For other payment methods like 'cash'
                 operation.save()
 
             # The signal will now handle voucher creation automatically.
@@ -5060,6 +5102,30 @@ def get_spendable_cheques_view(request):
     ]
     
     return JsonResponse({'cheques': data})
+
+
+@login_required
+@group_required('حسابداری')
+def get_checkbooks_view(request):
+    """
+    API endpoint to get a list of active checkbooks with their details.
+    """
+    active_checkbooks = CheckBook.objects.filter(is_active=True).select_related(
+        'bank_account', 'bank_account__bank'
+    ).order_by('bank_account__bank__name', 'serial')
+    
+    data = []
+    for cb in active_checkbooks:
+        remaining_checks = Check.objects.filter(checkbook=cb, status='UNUSED').count()
+        data.append({
+            'id': cb.id,
+            'serial': cb.serial,
+            'bank_account_title': cb.bank_account.title,
+            'bank_name': cb.bank_account.bank.name,
+            'remaining_checks': remaining_checks,
+        })
+    
+    return JsonResponse({'checkbooks': data})
 
 
 # Helper functions

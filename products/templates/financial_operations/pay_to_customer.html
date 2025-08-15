@@ -107,6 +107,7 @@
                 </div>
             </div>
             <input type="hidden" name="spent_cheque_ids" id="id_spent_cheque_ids">
+            <input type="hidden" name="issued_cheques_data" id="id_issued_cheques_data">
             
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
@@ -150,6 +151,38 @@
             <br>
             <strong>رأس چک‌ها: </strong> <span id="selectedChequesAvgDate">-</span>
             <button type="button" class="btn btn-primary" id="confirmChequeSelectionBtn" style="margin-top: 10px;">تایید انتخاب</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Issue New Cheque Modal -->
+<div id="issueChequeModal" class="customer-modal">
+    <div class="customer-modal-content" style="max-width: 1000px;">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">صدور چک جدید</span>
+            <span class="close-modal" onclick="closeIssueChequeModal()">×</span>
+        </div>
+        <div id="newChequesContainer" class="table-responsive">
+            <table class="customers-table">
+                <thead>
+                    <tr>
+                        <th>دسته چک</th>
+                        <th>مبلغ</th>
+                        <th>تاریخ سررسید</th>
+                        <th><button type="button" class="btn btn-sm btn-success" id="addNewChequeRowBtn"><i class="bi bi-plus"></i></button></th>
+                    </tr>
+                </thead>
+                <tbody id="newChequesList">
+                    <!-- New cheque rows will be populated here by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="customer-modal-footer" style="margin-top: 20px; text-align: left; border-top: 1px solid #ddd; padding-top: 10px;">
+            <strong>مجموع چک‌های جدید: </strong> <span id="issuedChequesTotal">0</span> ریال
+            <br>
+            <strong>رأس چک‌ها: </strong> <span id="issuedChequesAvgDate">-</span>
+            <button type="button" class="btn btn-primary" id="confirmIssueChequeBtn" style="margin-top: 10px;">تایید صدور چک</button>
         </div>
     </div>
 </div>
@@ -707,6 +740,124 @@ $(document).ready(function() {
     }
 
     // --- End Cheque Operations Logic ---
+
+
+    // --- Issue New Cheque Logic ---
+    const issueChequeBtn = document.getElementById('issue_new_cheque_btn');
+    const issueChequeModal = document.getElementById('issueChequeModal');
+    const newChequesList = document.getElementById('newChequesList');
+    const addNewChequeRowBtn = document.getElementById('addNewChequeRowBtn');
+    let checkbookOptions = '';
+
+    issueChequeBtn.addEventListener('click', function() {
+        if (checkbookOptions) {
+            issueChequeModal.style.display = 'block';
+            if (newChequesList.children.length === 0) {
+                addNewChequeRow();
+            }
+        } else {
+            fetch("{% url 'products:get_checkbooks' %}")
+                .then(response => response.json())
+                .then(data => {
+                    checkbookOptions = data.checkbooks.map(cb => 
+                        `<option value="${cb.id}">${cb.bank_account_title} (${cb.bank_name}) - ${cb.remaining_checks} برگ</option>`
+                    ).join('');
+                    issueChequeModal.style.display = 'block';
+                    if (newChequesList.children.length === 0) {
+                        addNewChequeRow();
+                    }
+                })
+                .catch(error => console.error('Error fetching checkbooks:', error));
+        }
+    });
+
+    function addNewChequeRow() {
+        const rowId = `new-cheque-${Date.now()}`;
+        const row = document.createElement('tr');
+        row.id = rowId;
+        row.innerHTML = `
+            <td><select class="form-control checkbook-select">${checkbookOptions}</select></td>
+            <td><input type="text" class="form-control amount-input" placeholder="مبلغ"></td>
+            <td><input type="text" class="form-control date-input" placeholder="تاریخ سررسید"></td>
+            <td><button type="button" class="btn btn-sm btn-danger" onclick="document.getElementById('${rowId}').remove(); updateIssuedCheques();"><i class="bi bi-trash"></i></button></td>
+        `;
+        newChequesList.appendChild(row);
+        
+        // Initialize datepicker for the new row
+        $(`#${rowId} .date-input`).pDatepicker({
+            format: 'YYYY/MM/DD',
+            autoClose: true,
+            persianDigit: true,
+            onSelect: updateIssuedCheques
+        });
+
+        // Add event listeners for calculation
+        row.querySelector('.amount-input').addEventListener('input', updateIssuedCheques);
+        row.querySelector('.checkbook-select').addEventListener('change', updateIssuedCheques);
+    }
+
+    addNewChequeRowBtn.addEventListener('click', addNewChequeRow);
+
+    function updateIssuedCheques() {
+        let totalAmount = 0;
+        let totalWeightedAmount = 0;
+        const newChequeRows = newChequesList.querySelectorAll('tr');
+
+        newChequeRows.forEach(row => {
+            const amountInput = row.querySelector('.amount-input').value.replace(/,/g, '');
+            const amount = parseFloat(amountInput) || 0;
+            const dateStr = row.querySelector('.date-input').value;
+            
+            if (amount > 0 && dateStr) {
+                 const days = moment(dateStr, 'jYYYY/jMM/jDD').diff(moment(), 'days');
+                totalAmount += amount;
+                if (days > 0) {
+                    totalWeightedAmount += amount * days;
+                }
+            }
+        });
+
+        document.getElementById('issuedChequesTotal').textContent = new Intl.NumberFormat('fa-IR').format(totalAmount);
+        
+        if (totalAmount > 0 && totalWeightedAmount > 0) {
+            const avgDays = Math.round(totalWeightedAmount / totalAmount);
+            const avgDate = moment().add(avgDays, 'days').format('jYYYY/jMM/jDD');
+            document.getElementById('issuedChequesAvgDate').textContent = avgDate;
+        } else {
+            document.getElementById('issuedChequesAvgDate').textContent = '-';
+        }
+    }
+
+    document.getElementById('confirmIssueChequeBtn').addEventListener('click', function() {
+        const issuedChequesData = [];
+        const newChequeRows = newChequesList.querySelectorAll('tr');
+        let totalAmount = 0;
+
+        newChequeRows.forEach(row => {
+            const checkbookId = row.querySelector('.checkbook-select').value;
+            const amount = row.querySelector('.amount-input').value.replace(/,/g, '');
+            const dueDate = row.querySelector('.date-input').value;
+
+            if (checkbookId && amount && dueDate) {
+                const amountFloat = parseFloat(amount);
+                issuedChequesData.push({
+                    checkbook_id: checkbookId,
+                    amount: amountFloat,
+                    due_date: dueDate
+                });
+                totalAmount += amountFloat;
+            }
+        });
+
+        document.getElementById('id_issued_cheques_data').value = JSON.stringify(issuedChequesData);
+        document.getElementById('id_amount').value = totalAmount; // Update main form amount
+        closeIssueChequeModal();
+    });
+    
+    window.closeIssueChequeModal = function() {
+        issueChequeModal.style.display = 'none';
+    }
+    // --- End Issue New Cheque Logic ---
 
 
     // Persian Datepicker initialization
