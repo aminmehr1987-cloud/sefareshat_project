@@ -1620,7 +1620,6 @@ class Check(models.Model):
     ]
 
     checkbook = models.ForeignKey(CheckBook, null=True, blank=True, on_delete=models.PROTECT, verbose_name="دسته چک (برای چک‌های پرداختی)")
-    issuing_operation = models.ForeignKey('FinancialOperation', on_delete=models.SET_NULL, null=True, blank=True, related_name='issued_checks', verbose_name="عملیات صدور چک")
     number = models.CharField(max_length=50, verbose_name="شماره/سریال چک")
     series = models.CharField(max_length=50, blank=True, null=True, verbose_name="سری چک")
     amount = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="مبلغ")
@@ -1758,6 +1757,7 @@ class Receipt(models.Model):
         ('cash', 'نقدی'),
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
+        ('spend_cheque', 'خرج چک'),
         ('pos', 'دستگاه POS'),
     ], verbose_name="روش پرداخت")
     description = models.TextField(blank=True, verbose_name="توضیحات")
@@ -1771,8 +1771,7 @@ class Receipt(models.Model):
 
 
 class ReceivedCheque(models.Model):
-    financial_operation = models.ForeignKey('FinancialOperation', on_delete=models.CASCADE, related_name='received_cheques', null=True, blank=True, verbose_name="عملیات مالی دریافت")
-    spending_operation = models.ForeignKey('FinancialOperation', on_delete=models.SET_NULL, null=True, blank=True, related_name='spent_cheques', verbose_name="عملیات خرج چک")
+    financial_operation = models.ForeignKey('FinancialOperation', on_delete=models.CASCADE, related_name='received_cheques', null=True, blank=True, verbose_name="عملیات مالی")
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='received_cheques', verbose_name="مشتری")
     
     endorsement = models.CharField(max_length=255, blank=True, null=True, verbose_name="پشت نمره")
@@ -1897,9 +1896,16 @@ class FinancialOperation(models.Model):
         ('cash', 'نقدی'),
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
+        ('spend_cheque', 'خرج چک'),
         ('pos', 'دستگاه POS'),
     ], verbose_name="روش پرداخت")
     card_reader_device = models.ForeignKey('CardReaderDevice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دستگاه کارت‌خوان")
+    spent_cheques = models.ManyToManyField(
+        'ReceivedCheque',
+        related_name='spending_operations',
+        blank=True,
+        verbose_name="چک‌های خرج شده"
+    )
     
     # اطلاعات اضافی
     reference_number = models.CharField(max_length=100, blank=True, verbose_name="شماره مرجع")
