@@ -78,7 +78,15 @@
                 </div>
                 <div class="form-group">
                     <label for="id_payment_method"><i class="bi bi-credit-card"></i> روش پرداخت</label>
-                    {{ form.payment_method }}
+                    <div class="input-group">
+                        {{ form.payment_method }}
+                        <button type="button" class="btn btn-warning" id="issueCheckBtn" style="display: none;" onclick="openIssueCheckModal()">
+                            <i class="bi bi-journal-plus"></i> صدور چک جدید
+                        </button>
+                        <button type="button" class="btn btn-info" id="spendReceivedCheckBtn" style="display: none;" onclick="openSpendReceivedCheckModal()">
+                            <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
+                        </button>
+                    </div>
                     {% if form.payment_method.errors %}
                         <div class="text-danger">{{ form.payment_method.errors }}</div>
                     {% endif %}
@@ -93,22 +101,6 @@
                 {% endif %}
             </div>
             
-            <!-- Cheque Operations - Hidden by default -->
-            <div id="cheque_operations_row" class="form-row" style="display: none;">
-                <div class="form-group">
-                    <button type="button" class="btn btn-info" id="spend_received_cheque_btn">
-                        <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
-                    </button>
-                </div>
-                <div class="form-group">
-                    <button type="button" class="btn btn-warning" id="issue_new_cheque_btn">
-                        <i class="bi bi-pencil-square"></i> صدور چک جدید
-                    </button>
-                </div>
-            </div>
-            <input type="hidden" name="spent_cheque_ids" id="id_spent_cheque_ids">
-            <input type="hidden" name="issued_cheques_data" id="id_issued_cheques_data">
-            
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-check-circle"></i> ثبت عملیات
@@ -120,73 +112,6 @@
         </form>
     </div>
 </div>
-
-<!-- Spend Received Cheque Modal -->
-<div id="spendChequeModal" class="customer-modal">
-    <div class="customer-modal-content" style="max-width: 1000px;">
-        <div class="customer-modal-header">
-            <span class="customer-modal-title">انتخاب چک‌های دریافتی برای خرج کردن</span>
-            <span class="close-modal" onclick="closeSpendChequeModal()">×</span>
-        </div>
-        <div class="table-responsive">
-            <table class="customers-table">
-                <thead>
-                    <tr>
-                        <th><input type="checkbox" id="selectAllCheques"></th>
-                        <th>پشت نمره</th>
-                        <th>سریال چک</th>
-                        <th>تاریخ سررسید</th>
-                        <th>شناسه صیاد</th>
-                        <th>نام مشتری</th>
-                        <th>مبلغ</th>
-                    </tr>
-                </thead>
-                <tbody id="spendableChequesList">
-                    <!-- Spendable cheques will be populated here by JS -->
-                </tbody>
-            </table>
-        </div>
-        <div class="customer-modal-footer" style="margin-top: 20px; text-align: left; border-top: 1px solid #ddd; padding-top: 10px;">
-            <strong>مجموع انتخاب شده: </strong> <span id="selectedChequesTotal">0</span> ریال
-            <br>
-            <strong>رأس چک‌ها: </strong> <span id="selectedChequesAvgDate">-</span>
-            <button type="button" class="btn btn-primary" id="confirmChequeSelectionBtn" style="margin-top: 10px;">تایید انتخاب</button>
-        </div>
-    </div>
-</div>
-
-
-<!-- Issue New Cheque Modal -->
-<div id="issueChequeModal" class="customer-modal">
-    <div class="customer-modal-content" style="max-width: 1000px;">
-        <div class="customer-modal-header">
-            <span class="customer-modal-title">صدور چک جدید</span>
-            <span class="close-modal" onclick="closeIssueChequeModal()">×</span>
-        </div>
-        <div id="newChequesContainer" class="table-responsive">
-            <table class="customers-table">
-                <thead>
-                    <tr>
-                        <th>دسته چک</th>
-                        <th>مبلغ</th>
-                        <th>تاریخ سررسید</th>
-                        <th><button type="button" class="btn btn-sm btn-success" id="addNewChequeRowBtn"><i class="bi bi-plus"></i></button></th>
-                    </tr>
-                </thead>
-                <tbody id="newChequesList">
-                    <!-- New cheque rows will be populated here by JS -->
-                </tbody>
-            </table>
-        </div>
-        <div class="customer-modal-footer" style="margin-top: 20px; text-align: left; border-top: 1px solid #ddd; padding-top: 10px;">
-            <strong>مجموع چک‌های جدید: </strong> <span id="issuedChequesTotal">0</span> ریال
-            <br>
-            <strong>رأس چک‌ها: </strong> <span id="issuedChequesAvgDate">-</span>
-            <button type="button" class="btn btn-primary" id="confirmIssueChequeBtn" style="margin-top: 10px;">تایید صدور چک</button>
-        </div>
-    </div>
-</div>
-
 
 <!-- Customer Selection Modal -->
 <div id="customerModal" class="customer-modal">
@@ -214,7 +139,106 @@
     </div>
 </div>
 
+<!-- Issue Check Modal -->
+<div id="issueCheckModal" class="customer-modal" style="display: none;">
+    <div class="customer-modal-content">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">صدور چک جدید</span>
+            <span class="close-modal" onclick="closeIssueCheckModal()">×</span>
+        </div>
+        <form id="issueCheckForm" method="POST" action="{% url 'products:issue_check' %}">
+            {% csrf_token %}
+            {{ issue_check_form.customer }}
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_cheque_bank_account">حساب بانکی</label>
+                    {{ issue_check_form.cheque_bank_account }}
+                </div>
+                <div class="form-group">
+                    <label for="id_checkbook">دسته چک</label>
+                    {{ issue_check_form.checkbook }}
+                </div>
+            </div>
+            <div class="form-row">
+                 <div class="form-group">
+                    <label for="id_check_number">شماره چک</label>
+                    {{ issue_check_form.check_number }}
+                </div>
+                <div class="form-group">
+                    <label for="id_cheque_amount">مبلغ چک</label>
+                    {{ issue_check_form.cheque_amount }}
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="id_cheque_due_date">تاریخ سررسید</label>
+                    {{ issue_check_form.cheque_due_date }}
+                </div>
+                <div class="form-group">
+                    <label for="id_cheque_payee">در وجه</label>
+                    {{ issue_check_form.cheque_payee }}
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">ثبت چک</button>
+                <button type="button" class="btn btn-secondary" onclick="closeIssueCheckModal()">انصراف</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Spend Received Check Modal -->
+<div id="spendReceivedCheckModal" class="customer-modal" style="display: none;">
+    <div class="customer-modal-content">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">خرج چک دریافتی</span>
+            <span class="close-modal" onclick="closeSpendReceivedCheckModal()">×</span>
+        </div>
+        <input type="text" id="receivedCheckSearch" class="customer-search-box" placeholder="جستجوی چک..." onkeyup="searchReceivedChecks()">
+        <div class="table-responsive">
+            <table class="customers-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAllChecks"></th>
+                        <th>پشت نمره</th>
+                        <th>سریال چک</th>
+                        <th>شناسه صیادی</th>
+                        <th>بانک</th>
+                        <th>مبلغ</th>
+                        <th>تاریخ سررسید</th>
+                        <th>مشتری (صاحب چک)</th>
+                    </tr>
+                </thead>
+                <tbody id="receivedCheckList">
+                    <!-- Received checks will be populated here by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-summary">
+            <p>تعداد چک‌های انتخاب شده: <span id="selectedChecksCount">0</span></p>
+            <p>جمع مبالغ: <span id="selectedChecksTotal">0</span></p>
+            <p>رأس روز: <span id="selectedChecksAvgDueDate">-</span></p>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" onclick="confirmSpendChecks()">خرج کردن چک‌های انتخاب شده</button>
+            <button type="button" class="btn btn-secondary" onclick="closeSpendReceivedCheckModal()">انصراف</button>
+        </div>
+    </div>
+</div>
+
 <style>
+.modal-summary {
+    padding: 1rem;
+    margin-top: 1rem;
+    background-color: #f3f4f6;
+    border-top: 1px solid #e5e7eb;
+    border-radius: 0 0 15px 15px;
+    text-align: right;
+}
+.modal-summary p {
+    margin: 0.5rem 0;
+    font-weight: bold;
+}
 @font-face {
     font-family: 'BHoma';
     src: url('/static/fonts/BHoma.ttf') format('truetype');
@@ -635,231 +659,6 @@
 
 <script>
 $(document).ready(function() {
-    // --- Cheque Operations Logic ---
-    const paymentMethodSelect = document.getElementById('id_payment_method');
-    const chequeOperationsRow = document.getElementById('cheque_operations_row');
-    const spendChequeBtn = document.getElementById('spend_received_cheque_btn');
-    const spendChequeModal = document.getElementById('spendChequeModal');
-
-    function toggleChequeOperations() {
-        if (paymentMethodSelect.value === 'cheque') {
-            chequeOperationsRow.style.display = 'grid'; // Use grid to match other rows
-        } else {
-            chequeOperationsRow.style.display = 'none';
-        }
-    }
-
-    // Initial check
-    toggleChequeOperations();
-
-    // Listener for changes
-    paymentMethodSelect.addEventListener('change', toggleChequeOperations);
-
-    // Modal open/close logic
-    spendChequeBtn.addEventListener('click', function() {
-        fetch("{% url 'products:get_spendable_cheques' %}")
-            .then(response => response.json())
-            .then(data => {
-                const chequeListBody = document.getElementById('spendableChequesList');
-                chequeListBody.innerHTML = ''; // Clear previous data
-                data.cheques.forEach(cheque => {
-                    const row = `
-                        <tr>
-                            <td><input type="checkbox" class="cheque-select" value="${cheque.id}" data-amount="${cheque.amount}" data-date="${cheque.due_date}"></td>
-                            <td>${cheque.endorsement}</td>
-                            <td>${cheque.serial}</td>
-                            <td>${cheque.due_date}</td>
-                            <td>${cheque.sayadi_id}</td>
-                            <td>${cheque.customer_name}</td>
-                            <td>${new Intl.NumberFormat('fa-IR').format(cheque.amount)}</td>
-                        </tr>
-                    `;
-                    chequeListBody.insertAdjacentHTML('beforeend', row);
-                });
-                spendChequeModal.style.display = 'block';
-            })
-            .catch(error => console.error('Error fetching spendable cheques:', error));
-    });
-
-    // Add event listener to the modal for calculations
-    spendChequeModal.addEventListener('change', function(e) {
-        if (e.target.classList.contains('cheque-select') || e.target.id === 'selectAllCheques') {
-            updateSelectedCheques();
-        }
-    });
-
-    document.getElementById('selectAllCheques').addEventListener('change', function(e) {
-        const checkboxes = spendChequeModal.querySelectorAll('.cheque-select');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = e.target.checked;
-        });
-        updateSelectedCheques();
-    });
-
-    function updateSelectedCheques() {
-        let totalAmount = 0;
-        let totalDays = 0;
-        let totalWeightedAmount = 0;
-        const selectedCheckboxes = spendChequeModal.querySelectorAll('.cheque-select:checked');
-        
-        selectedCheckboxes.forEach(checkbox => {
-            const amount = parseFloat(checkbox.dataset.amount);
-            const dateStr = checkbox.dataset.date;
-            const days = moment(dateStr, 'jYYYY/jMM/jDD').diff(moment(), 'days');
-
-            totalAmount += amount;
-            if (days > 0) {
-                totalWeightedAmount += amount * days;
-            }
-        });
-
-        document.getElementById('selectedChequesTotal').textContent = new Intl.NumberFormat('fa-IR').format(totalAmount);
-        
-        if (totalAmount > 0 && totalWeightedAmount > 0) {
-            const avgDays = Math.round(totalWeightedAmount / totalAmount);
-            const avgDate = moment().add(avgDays, 'days').format('jYYYY/jMM/jDD');
-            document.getElementById('selectedChequesAvgDate').textContent = avgDate;
-        } else {
-            document.getElementById('selectedChequesAvgDate').textContent = '-';
-        }
-    }
-
-    document.getElementById('confirmChequeSelectionBtn').addEventListener('click', function() {
-        const selectedChequeIds = Array.from(spendChequeModal.querySelectorAll('.cheque-select:checked')).map(cb => cb.value);
-        const totalAmount = parseFloat(document.getElementById('selectedChequesTotal').textContent.replace(/,/g, ''));
-
-        document.getElementById('id_spent_cheque_ids').value = selectedChequeIds.join(',');
-        document.getElementById('id_amount').value = totalAmount;
-        
-        closeSpendChequeModal();
-    });
-
-    // Close modal via 'x' button
-    window.closeSpendChequeModal = function() {
-        spendChequeModal.style.display = 'none';
-    }
-
-    // --- End Cheque Operations Logic ---
-
-
-    // --- Issue New Cheque Logic ---
-    const issueChequeBtn = document.getElementById('issue_new_cheque_btn');
-    const issueChequeModal = document.getElementById('issueChequeModal');
-    const newChequesList = document.getElementById('newChequesList');
-    const addNewChequeRowBtn = document.getElementById('addNewChequeRowBtn');
-    let checkbookOptions = '';
-
-    issueChequeBtn.addEventListener('click', function() {
-        if (checkbookOptions) {
-            issueChequeModal.style.display = 'block';
-            if (newChequesList.children.length === 0) {
-                addNewChequeRow();
-            }
-        } else {
-            fetch("{% url 'products:get_checkbooks' %}")
-                .then(response => response.json())
-                .then(data => {
-                    checkbookOptions = data.checkbooks.map(cb => 
-                        `<option value="${cb.id}">${cb.bank_account_title} (${cb.bank_name}) - ${cb.remaining_checks} برگ</option>`
-                    ).join('');
-                    issueChequeModal.style.display = 'block';
-                    if (newChequesList.children.length === 0) {
-                        addNewChequeRow();
-                    }
-                })
-                .catch(error => console.error('Error fetching checkbooks:', error));
-        }
-    });
-
-    function addNewChequeRow() {
-        const rowId = `new-cheque-${Date.now()}`;
-        const row = document.createElement('tr');
-        row.id = rowId;
-        row.innerHTML = `
-            <td><select class="form-control checkbook-select">${checkbookOptions}</select></td>
-            <td><input type="text" class="form-control amount-input" placeholder="مبلغ"></td>
-            <td><input type="text" class="form-control date-input" placeholder="تاریخ سررسید"></td>
-            <td><button type="button" class="btn btn-sm btn-danger" onclick="document.getElementById('${rowId}').remove(); updateIssuedCheques();"><i class="bi bi-trash"></i></button></td>
-        `;
-        newChequesList.appendChild(row);
-        
-        // Initialize datepicker for the new row
-        $(`#${rowId} .date-input`).pDatepicker({
-            format: 'YYYY/MM/DD',
-            autoClose: true,
-            persianDigit: true,
-            onSelect: updateIssuedCheques
-        });
-
-        // Add event listeners for calculation
-        row.querySelector('.amount-input').addEventListener('input', updateIssuedCheques);
-        row.querySelector('.checkbook-select').addEventListener('change', updateIssuedCheques);
-    }
-
-    addNewChequeRowBtn.addEventListener('click', addNewChequeRow);
-
-    function updateIssuedCheques() {
-        let totalAmount = 0;
-        let totalWeightedAmount = 0;
-        const newChequeRows = newChequesList.querySelectorAll('tr');
-
-        newChequeRows.forEach(row => {
-            const amountInput = row.querySelector('.amount-input').value.replace(/,/g, '');
-            const amount = parseFloat(amountInput) || 0;
-            const dateStr = row.querySelector('.date-input').value;
-            
-            if (amount > 0 && dateStr) {
-                 const days = moment(dateStr, 'jYYYY/jMM/jDD').diff(moment(), 'days');
-                totalAmount += amount;
-                if (days > 0) {
-                    totalWeightedAmount += amount * days;
-                }
-            }
-        });
-
-        document.getElementById('issuedChequesTotal').textContent = new Intl.NumberFormat('fa-IR').format(totalAmount);
-        
-        if (totalAmount > 0 && totalWeightedAmount > 0) {
-            const avgDays = Math.round(totalWeightedAmount / totalAmount);
-            const avgDate = moment().add(avgDays, 'days').format('jYYYY/jMM/jDD');
-            document.getElementById('issuedChequesAvgDate').textContent = avgDate;
-        } else {
-            document.getElementById('issuedChequesAvgDate').textContent = '-';
-        }
-    }
-
-    document.getElementById('confirmIssueChequeBtn').addEventListener('click', function() {
-        const issuedChequesData = [];
-        const newChequeRows = newChequesList.querySelectorAll('tr');
-        let totalAmount = 0;
-
-        newChequeRows.forEach(row => {
-            const checkbookId = row.querySelector('.checkbook-select').value;
-            const amount = row.querySelector('.amount-input').value.replace(/,/g, '');
-            const dueDate = row.querySelector('.date-input').value;
-
-            if (checkbookId && amount && dueDate) {
-                const amountFloat = parseFloat(amount);
-                issuedChequesData.push({
-                    checkbook_id: checkbookId,
-                    amount: amountFloat,
-                    due_date: dueDate
-                });
-                totalAmount += amountFloat;
-            }
-        });
-
-        document.getElementById('id_issued_cheques_data').value = JSON.stringify(issuedChequesData);
-        document.getElementById('id_amount').value = totalAmount; // Update main form amount
-        closeIssueChequeModal();
-    });
-    
-    window.closeIssueChequeModal = function() {
-        issueChequeModal.style.display = 'none';
-    }
-    // --- End Issue New Cheque Logic ---
-
-
     // Persian Datepicker initialization
     $("#id_date_shamsi").pDatepicker({
         format: 'YYYY/MM/DD',
@@ -1022,6 +821,227 @@ function openCustomerModal() {
 
 function closeCustomerModal() {
     document.getElementById('customerModal').style.display = 'none';
+}
+
+function openIssueCheckModal() {
+    // Pre-fill payee name from the selected customer
+    const customerDisplay = document.getElementById('customer_display').value;
+    document.getElementById('id_cheque_payee').value = customerDisplay;
+
+    // Pre-fill amount from the main form
+    const amount = document.getElementById('id_amount').value;
+    document.getElementById('id_cheque_amount').value = amount;
+
+    // Pass customer ID to the modal form
+    const customerId = document.getElementById('id_customer').value;
+    document.querySelector('#issueCheckForm #id_customer').value = customerId;
+    
+    document.getElementById('issueCheckModal').style.display = 'block';
+}
+
+function closeIssueCheckModal() {
+    document.getElementById('issueCheckModal').style.display = 'none';
+}
+
+function submitIssueCheckForm() {
+    // This function is now handled by the form's submit event listener
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // ... (existing datepicker and customer modal code)
+
+    const bankAccountSelect = document.getElementById('id_cheque_bank_account');
+    const checkbookSelect = document.getElementById('id_checkbook');
+    const checkNumberSelect = document.getElementById('id_check_number');
+    const issueCheckForm = document.getElementById('issueCheckForm');
+
+    bankAccountSelect.addEventListener('change', function() {
+        const bankAccountId = this.value;
+        checkbookSelect.innerHTML = '<option value="">...درحال بارگذاری</option>';
+        checkbookSelect.disabled = true;
+        checkNumberSelect.innerHTML = '<option value="">...</option>';
+        checkNumberSelect.disabled = true;
+
+        if (bankAccountId) {
+            fetch(`/api/get-checkbooks/?bank_account_id=${bankAccountId}`)
+                .then(response => response.json())
+                .then(data => {
+                    checkbookSelect.innerHTML = '<option value="">---------</option>';
+                    data.forEach(cb => {
+                        const option = document.createElement('option');
+                        option.value = cb.id;
+                        option.textContent = cb.name;
+                        checkbookSelect.appendChild(option);
+                    });
+                    checkbookSelect.disabled = false;
+                });
+        }
+    });
+
+    checkbookSelect.addEventListener('change', function() {
+        const checkbookId = this.value;
+        checkNumberSelect.innerHTML = '<option value="">...درحال بارگذاری</option>';
+        checkNumberSelect.disabled = true;
+
+        if (checkbookId) {
+            fetch(`/api/get-unused-checks/?checkbook_id=${checkbookId}`)
+                .then(response => response.json())
+                .then(data => {
+                    checkNumberSelect.innerHTML = '<option value="">---------</option>';
+                    data.forEach(c => {
+                        const option = document.createElement('option');
+                        option.value = c.id;
+                        option.textContent = c.name;
+                        checkNumberSelect.appendChild(option);
+                    });
+                    checkNumberSelect.disabled = false;
+                });
+        }
+    });
+    
+    issueCheckForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const customerId = document.getElementById('id_customer').value;
+        formData.append('customer', customerId);
+
+        fetch(this.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                closeIssueCheckModal();
+                // Optionally, you can reset the main form or update it
+            } else {
+                let errorMessage = 'لطفا خطاهای زیر را برطرف کنید:\n';
+                const errors = JSON.parse(data.errors);
+                for (const field in errors) {
+                    errorMessage += `${errors[field][0].message}\n`;
+                }
+                alert(errorMessage);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('یک خطای پیش‌بینی نشده رخ داد.');
+        });
+    });
+
+    $("#id_cheque_due_date").pDatepicker({
+        format: 'YYYY/MM/DD',
+        autoClose: true,
+    });
+});
+
+document.getElementById('id_payment_method').addEventListener('change', function() {
+    const issueCheckBtn = document.getElementById('issueCheckBtn');
+    const spendReceivedCheckBtn = document.getElementById('spendReceivedCheckBtn');
+    if (this.value === 'cheque') {
+        issueCheckBtn.style.display = 'block';
+        spendReceivedCheckBtn.style.display = 'block';
+    } else {
+        issueCheckBtn.style.display = 'none';
+        spendReceivedCheckBtn.style.display = 'none';
+    }
+});
+
+function openSpendReceivedCheckModal() {
+    // TODO: Fetch and populate received checks
+    document.getElementById('spendReceivedCheckModal').style.display = 'block';
+}
+
+function closeSpendReceivedCheckModal() {
+    document.getElementById('spendReceivedCheckModal').style.display = 'none';
+}
+
+function searchReceivedChecks() {
+    const searchTerm = document.getElementById('receivedCheckSearch').value.toLowerCase();
+    const filteredChecks = allReceivedChecks.filter(check =>
+        check.number.toLowerCase().includes(searchTerm) ||
+        check.bank.toLowerCase().includes(searchTerm) ||
+        String(check.amount).includes(searchTerm) ||
+        check.payee.toLowerCase().includes(searchTerm)
+    );
+    renderReceivedCheckList(filteredChecks);
+}
+
+function selectReceivedCheck(checkId) {
+    const customerId = document.getElementById('id_customer').value;
+    if (!customerId) {
+        alert('لطفا ابتدا مشتری را انتخاب کنید.');
+        return;
+    }
+
+    fetch("{% url 'products:spend_received_check' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            check_id: checkId,
+            customer_id: customerId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            closeSpendReceivedCheckModal();
+            const amountInput = document.getElementById('id_amount');
+            const check = allReceivedChecks.find(c => c.id === checkId);
+            if (check) {
+                amountInput.value = check.amount;
+            }
+            document.getElementById('id_description').value += `\nخرج چک دریافتی به شماره سریال ${check.number}`;
+        } else {
+            alert('خطا: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('یک خطای پیش‌بینی نشده رخ داد.');
+    });
+}
+
+let allReceivedChecks = [];
+
+function openSpendReceivedCheckModal() {
+    fetch("{% url 'products:get_received_checks' %}")
+        .then(response => response.json())
+        .then(data => {
+            allReceivedChecks = data;
+            renderReceivedCheckList(allReceivedChecks);
+            document.getElementById('spendReceivedCheckModal').style.display = 'block';
+        });
+}
+
+function renderReceivedCheckList(checks) {
+    const checkList = document.getElementById('receivedCheckList');
+    checkList.innerHTML = '';
+    if (checks.length === 0) {
+        checkList.innerHTML = '<tr><td colspan="6" style="text-align: center;">هیچ چک دریافتی برای خرج کردن یافت نشد.</td></tr>';
+        return;
+    }
+    checks.forEach(check => {
+        const row = `
+            <tr>
+                <td>${check.number}</td>
+                <td>${check.bank}</td>
+                <td>${check.amount.toLocaleString()}</td>
+                <td>${check.due_date}</td>
+                <td>${check.payee}</td>
+                <td><button class="btn btn-sm btn-success" onclick="selectReceivedCheck(${check.id})">خرج کن</button></td>
+            </tr>
+        `;
+        checkList.innerHTML += row;
+    });
 }
 </script>
 {% endblock %}

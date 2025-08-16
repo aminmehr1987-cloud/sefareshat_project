@@ -33,11 +33,11 @@ from django.views.generic import ListView, DetailView, CreateView
 from .models import FinancialYear, Currency, Receipt
 from .forms import FinancialYearForm, CurrencyForm, ReceiptForm
 from .models import Fund, FinancialOperation, CustomerBalance, PettyCashOperation
-from .forms import FundForm, FinancialOperationForm, PettyCashOperationForm, ReceiveFromCustomerForm, PayToCustomerForm, BankOperationForm, BankTransferForm, CashOperationForm, CapitalInvestmentForm
+from .forms import FundForm, FinancialOperationForm, PettyCashOperationForm, ReceiveFromCustomerForm, PayToCustomerForm, BankOperationForm, BankTransferForm, CashOperationForm, CapitalInvestmentForm, IssueCheckForm
 from functools import wraps
 from decimal import Decimal
 from .forms import BankAccountForm
-from .models import Account, BankAccount, ReceivedCheque
+from .models import Account, BankAccount, ReceivedCheque, CheckBook, Check
 from .forms import ReceivedChequeStatusChangeForm, ReceivedChequeEditForm
 
 
@@ -616,6 +616,46 @@ def group_required(group_name):
                 return redirect('products:login')
         return _wrapped_view
     return decorator
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+@transaction.atomic
+def spend_received_check_view(request):
+    try:
+        data = json.loads(request.body)
+        check_id = data.get('check_id')
+        customer_id = data.get('customer_id')
+
+        check = get_object_or_404(ReceivedCheque, id=check_id, status='RECEIVED')
+        customer = get_object_or_404(Customer, id=customer_id)
+
+        # Update the check status
+        check.status = 'SPENT'
+        check.save()
+        
+        # Create the financial operation
+        operation = FinancialOperation.objects.create(
+            operation_type='PAY_TO_CUSTOMER',
+            customer=customer,
+            amount=check.amount,
+            payment_method='cheque',
+            date=timezone.now().date(),
+            description=f"خرج چک دریافتی به شماره سریال {check.serial} به {customer.get_full_name()}",
+            cheque_number=check.serial,
+            cheque_date=check.due_date,
+            created_by=request.user,
+            status='CONFIRMED',
+            confirmed_by=request.user,
+            confirmed_at=timezone.now()
+        )
+        
+        # The signal will handle voucher creation and balance updates.
+
+        return JsonResponse({'success': True, 'message': 'چک با موفقیت خرج شد.'})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'خطا در خرج چک: {str(e)}'}, status=500)
 
 @login_required
 @group_required('حسابداری')
@@ -3711,33 +3751,6 @@ def capital_investment_view(request):
 
 @login_required
 @group_required('حسابداری')
-def get_spendable_cheques_view(request):
-    """
-    API endpoint to get a list of received cheques that can be spent.
-    """
-    spendable_cheques = ReceivedCheque.objects.filter(
-        status='RECEIVED', 
-        is_deleted=False
-    ).select_related('customer').order_by('due_date')
-    
-    data = [
-        {
-            'id': cheque.id,
-            'endorsement': cheque.endorsement or '',
-            'serial': cheque.serial or '',
-            'due_date': jdatetime.date.fromgregorian(date=cheque.due_date).strftime('%Y/%m/%d') if cheque.due_date else '',
-            'sayadi_id': cheque.sayadi_id or '',
-            'customer_name': cheque.customer.get_full_name() if cheque.customer else '',
-            'amount': cheque.amount
-        }
-        for cheque in spendable_cheques
-    ]
-    
-    return JsonResponse({'cheques': data})
-
-
-@login_required
-@group_required('حسابداری')
 @transaction.atomic
 def receive_from_bank_view(request):
     """
@@ -4501,6 +4514,8 @@ def pay_to_customer_view(request):
     پرداخت به مشتری - با منطق کامل
     """
     if request.method == 'POST':
+        # This view will now only handle the main form submission (cash, pos, etc.)
+        # The check issuance will be handled by a separate AJAX view.
         form = PayToCustomerForm(request.POST)
         if form.is_valid():
             operation = form.save(commit=False)
@@ -4511,79 +4526,34 @@ def pay_to_customer_view(request):
             operation.confirmed_by = request.user
             operation.confirmed_at = timezone.now()
 
-            # Explicitly link cash operations to the cash fund
             if operation.payment_method == 'cash':
                 cash_fund = Fund.objects.filter(fund_type='CASH').first()
                 if cash_fund:
                     operation.fund = cash_fund
             
-            # Handle spent cheques if payment method is cheque
-            if operation.payment_method == 'cheque':
-                # For cheque operations, save the operation first to get an ID for linking
-                operation.save()
-
-                # Handle spending of received cheques
-                spent_cheque_ids_str = request.POST.get('spent_cheque_ids')
-                if spent_cheque_ids_str:
-                    spent_cheque_ids = [int(id) for id in spent_cheque_ids_str.split(',') if id]
-                    spent_cheques = ReceivedCheque.objects.filter(id__in=spent_cheque_ids)
-                    for cheque in spent_cheques:
-                        cheque.status = 'SPENT'
-                        cheque.recipient_name = operation.customer.get_full_name()
-                        cheque.spending_operation = operation
-                        cheque.save()
-
-                # Handle issuing of new cheques
-                issued_cheques_json = request.POST.get('issued_cheques_data')
-                if issued_cheques_json:
-                    issued_cheques = json.loads(issued_cheques_json)
-                    for cheque_data in issued_cheques:
-                        try:
-                            checkbook = CheckBook.objects.get(id=cheque_data['checkbook_id'])
-                            # Find the next available unused check and lock it
-                            check_to_issue = Check.objects.filter(checkbook=checkbook, status='UNUSED').order_by('number').select_for_update().first()
-
-                            if not check_to_issue:
-                                messages.error(request, f"دسته چک {checkbook.serial} برگ سفید ندارد.")
-                                # The transaction will be rolled back automatically on return
-                                return redirect('products:pay_to_customer')
-
-                            check_to_issue.amount = Decimal(cheque_data['amount'])
-                            check_to_issue.date = convert_shamsi_to_gregorian(cheque_data['due_date'])
-                            check_to_issue.payee = operation.customer.get_full_name()
-                            check_to_issue.status = 'ISSUED'
-                            check_to_issue.issuing_operation = operation
-                            check_to_issue.save()
-                        except CheckBook.DoesNotExist:
-                            messages.error(request, "دسته چک انتخاب شده معتبر نیست.")
-                            return redirect('products:pay_to_customer')
-            else:
-                # For other payment methods like 'cash'
-                operation.save()
-
-            # The signal will now handle voucher creation automatically.
+            operation.save()
             
-            # به‌روزرسانی موجودی مشتری
             customer_balance, created = CustomerBalance.objects.get_or_create(
-                customer=operation.customer,
-                defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+                customer=operation.customer
             )
             customer_balance.update_balance()
             
-            # نمایش پیام تأیید
             success_message = 'عملیات پرداخت به مشتری با موفقیت ثبت شد.'
-            
-            # ذخیره پیام در session برای نمایش در صفحه تأیید
             request.session['success_message'] = success_message
             request.session['operation_type'] = 'pay_to_customer'
             return redirect('products:operation_confirmation')
     else:
         form = PayToCustomerForm()
-    
+
+    issue_check_form = IssueCheckForm()
     customers = Customer.objects.all().order_by('first_name', 'last_name')
+    bank_accounts = BankAccount.objects.filter(is_active=True)
+
     return render(request, 'financial_operations/pay_to_customer.html', {
         'form': form,
-        'customers': customers
+        'issue_check_form': issue_check_form,
+        'customers': customers,
+        'bank_accounts': bank_accounts,
     })
 
 
@@ -4959,6 +4929,88 @@ def customer_balance_detail_view(request, customer_id):
 
 
 @login_required
+def get_received_checks(request):
+    checks = ReceivedCheque.objects.filter(status='RECEIVED').select_related('customer').order_by('due_date')
+    data = [{
+        'id': check.id,
+        'number': check.serial,
+        'bank': check.bank_name,
+        'amount': check.amount,
+        'due_date': jdatetime.date.fromgregorian(date=check.due_date).strftime('%Y/%m/%d'),
+        'customer': check.customer.get_full_name() if check.customer else '',
+        'endorsement': check.endorsement,
+        'sayadi_id': check.sayadi_id,
+    } for check in checks]
+    return JsonResponse(data, safe=False)
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+@transaction.atomic
+def issue_check_view(request):
+    """
+    Handles the submission of the check issuance form.
+    """
+    form = IssueCheckForm(request.POST)
+    if form.is_valid():
+        try:
+            customer = form.cleaned_data['customer']
+            check = form.cleaned_data['check_number']
+            amount = form.cleaned_data['cheque_amount']
+            due_date_shamsi = form.cleaned_data['cheque_due_date']
+            payee_name = form.cleaned_data['cheque_payee']
+            
+            # Convert due date
+            due_date = convert_shamsi_to_gregorian(due_date_shamsi)
+            
+            # Update the check
+            check.status = 'ISSUED'
+            check.amount = amount
+            check.date = due_date
+            check.payee = payee_name
+            check.save()
+
+            # Create the financial operation
+            operation = FinancialOperation.objects.create(
+                operation_type='PAY_TO_CUSTOMER',
+                customer=customer,
+                amount=amount,
+                payment_method='cheque',
+                date=timezone.now().date(),
+                description=f'پرداخت چک به شماره {check.number} به {payee_name}',
+                cheque_number=check.number,
+                cheque_date=due_date,
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            # The signal will handle voucher creation and balance updates.
+
+            return JsonResponse({'success': True, 'message': 'چک با موفقیت صادر شد.'})
+
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'خطا در صدور چک: {str(e)}'}, status=500)
+    else:
+        return JsonResponse({'success': False, 'errors': form.errors.as_json()}, status=400)
+
+@login_required
+def get_checkbooks_for_bank_account(request):
+    bank_account_id = request.GET.get('bank_account_id')
+    checkbooks = CheckBook.objects.filter(bank_account_id=bank_account_id, is_active=True)
+    data = [{'id': cb.id, 'name': f"{cb.serial} ({cb.bank_account.bank.name})"} for cb in checkbooks]
+    return JsonResponse(data, safe=False)
+
+@login_required
+def get_unused_checks_for_checkbook(request):
+    checkbook_id = request.GET.get('checkbook_id')
+    checks = Check.objects.filter(checkbook_id=checkbook_id, status='UNUSED').order_by('number')
+    data = [{'id': c.id, 'name': c.number} for c in checks]
+    return JsonResponse(data, safe=False)
+
+
+@login_required
 @group_required('حسابداری')
 def change_received_cheque_status(request, cheque_id):
     cheque = get_object_or_404(ReceivedCheque, id=cheque_id)
@@ -5075,57 +5127,6 @@ def received_cheque_list_view(request):
     return render(request, 'products/received_cheque_list.html', context)
     
     return render(request, 'products/customer_balance_detail.html', context)
-
-
-@login_required
-@group_required('حسابداری')
-def get_spendable_cheques_view(request):
-    """
-    API endpoint to get a list of received cheques that can be spent.
-    """
-    spendable_cheques = ReceivedCheque.objects.filter(
-        status='RECEIVED', 
-        is_deleted=False
-    ).select_related('customer').order_by('due_date')
-    
-    data = [
-        {
-            'id': cheque.id,
-            'endorsement': cheque.endorsement or '',
-            'serial': cheque.serial or '',
-            'due_date': jdatetime.date.fromgregorian(date=cheque.due_date).strftime('%Y/%m/%d') if cheque.due_date else '',
-            'sayadi_id': cheque.sayadi_id or '',
-            'customer_name': cheque.customer.get_full_name() if cheque.customer else '',
-            'amount': cheque.amount
-        }
-        for cheque in spendable_cheques
-    ]
-    
-    return JsonResponse({'cheques': data})
-
-
-@login_required
-@group_required('حسابداری')
-def get_checkbooks_view(request):
-    """
-    API endpoint to get a list of active checkbooks with their details.
-    """
-    active_checkbooks = CheckBook.objects.filter(is_active=True).select_related(
-        'bank_account', 'bank_account__bank'
-    ).order_by('bank_account__bank__name', 'serial')
-    
-    data = []
-    for cb in active_checkbooks:
-        remaining_checks = Check.objects.filter(checkbook=cb, status='UNUSED').count()
-        data.append({
-            'id': cb.id,
-            'serial': cb.serial,
-            'bank_account_title': cb.bank_account.title,
-            'bank_name': cb.bank_account.bank.name,
-            'remaining_checks': remaining_checks,
-        })
-    
-    return JsonResponse({'checkbooks': data})
 
 
 # Helper functions
@@ -6571,3 +6572,5 @@ def fund_transactions_view(request, fund_id):
     except Exception as e:
         messages.error(request, f'خطا در بارگذاری گردش صندوق: {str(e)}')
         return redirect('products:fund_list')
+
+        

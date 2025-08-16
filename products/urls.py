@@ -162,6 +162,14 @@ urlpatterns = [
     path('accounting/received-cheques/<int:cheque_id>/change-status/', views.change_received_cheque_status, name='change_received_cheque_status'),
     path('accounting/received-cheques/<int:cheque_id>/detail/', views.received_cheque_detail_view, name='received_cheque_detail'),
     path('accounting/received-cheques/<int:cheque_id>/edit/', views.received_cheque_edit_view, name='received_cheque_edit'),
-    path('api/accounting/spendable-cheques/', views.get_spendable_cheques_view, name='get_spendable_cheques'),
-    path('api/accounting/checkbooks/', views.get_checkbooks_view, name='get_checkbooks'),
+    
+    # URLs for check issuance
+    path('accounting/issue-check/', views.issue_check_view, name='issue_check'),
+    path('api/get-checkbooks/', views.get_checkbooks_for_bank_account, name='get_checkbooks_for_bank_account'),
+    path('api/get-unused-checks/', views.get_unused_checks_for_checkbook, name='get_unused_checks_for_checkbook'),
+    
+    # URLs for spending received checks
+    path('api/get-received-checks/', views.get_received_checks, name='get_received_checks'),
+    path('accounting/spend-received-check/', views.spend_received_check_view, name='spend_received_check'),
+    
 ]

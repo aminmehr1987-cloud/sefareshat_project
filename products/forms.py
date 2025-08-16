@@ -813,13 +813,6 @@ class PayToCustomerForm(forms.ModelForm):
         self.fields['operation_type'].initial = 'PAY_TO_CUSTOMER'
         self.fields['operation_type'].widget = forms.HiddenInput()
         
-        # Filter payment method choices
-        payment_method_choices = [
-            ('cash', 'نقدی'),
-            ('cheque', 'چک'),
-        ]
-        self.fields['payment_method'].choices = payment_method_choices
-        
         # Set current date as initial value
         import jdatetime
         current_date = jdatetime.datetime.now().strftime('%Y/%m/%d')
@@ -1054,6 +1047,40 @@ class CapitalInvestmentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['operation_type'].initial = 'CAPITAL_INVESTMENT'
 
+
+class IssueCheckForm(forms.Form):
+    customer = forms.ModelChoiceField(
+        queryset=Customer.objects.all(), 
+        widget=forms.HiddenInput()
+    )
+    cheque_bank_account = forms.ModelChoiceField(
+        queryset=BankAccount.objects.filter(is_active=True),
+        label="حساب بانکی",
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        empty_label="یک حساب بانکی انتخاب کنید"
+    )
+    checkbook = forms.ModelChoiceField(
+        queryset=CheckBook.objects.none(),
+        label="دسته چک",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    check_number = forms.ModelChoiceField(
+        queryset=Check.objects.none(),
+        label="شماره چک",
+        widget=forms.Select(attrs={'class': 'form-control'})
+    )
+    cheque_amount = forms.DecimalField(
+        label="مبلغ چک",
+        widget=forms.NumberInput(attrs={'class': 'form-control'})
+    )
+    cheque_due_date = forms.CharField(
+        label="تاریخ سررسید",
+        widget=forms.TextInput(attrs={'class': 'form-control persian-datepicker', 'placeholder': 'YYYY/MM/DD'})
+    )
+    cheque_payee = forms.CharField(
+        label="در وجه",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'readonly': True})
+    )
 
 class BankAccountForm(forms.ModelForm):
     """
