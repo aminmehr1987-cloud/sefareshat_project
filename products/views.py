@@ -4548,12 +4548,17 @@ def pay_to_customer_view(request):
     issue_check_form = IssueCheckForm()
     customers = Customer.objects.all().order_by('first_name', 'last_name')
     bank_accounts = BankAccount.objects.filter(is_active=True)
+    
+    # Serialize bank accounts for JS
+    bank_accounts_list = list(bank_accounts.values('id', 'title'))
+    bank_accounts_json = json.dumps(bank_accounts_list)
 
     return render(request, 'financial_operations/pay_to_customer.html', {
         'form': form,
         'issue_check_form': issue_check_form,
         'customers': customers,
         'bank_accounts': bank_accounts,
+        'bank_accounts_json': bank_accounts_json,
     })
 
 
@@ -4949,51 +4954,67 @@ def get_received_checks(request):
 @transaction.atomic
 def issue_check_view(request):
     """
-    Handles the submission of the check issuance form.
+    Handles the submission of multiple checks from the modal.
     """
-    form = IssueCheckForm(request.POST)
-    if form.is_valid():
-        try:
-            customer = form.cleaned_data['customer']
-            check = form.cleaned_data['check_number']
-            amount = form.cleaned_data['cheque_amount']
-            due_date_shamsi = form.cleaned_data['cheque_due_date']
-            payee_name = form.cleaned_data['cheque_payee']
-            
-            # Convert due date
-            due_date = convert_shamsi_to_gregorian(due_date_shamsi)
+    try:
+        data = json.loads(request.body)
+        customer_id = data.get('customer')
+        payee_name = data.get('payee')
+        checks_data = data.get('checks', [])
+
+        if not customer_id or not payee_name or not checks_data:
+            return JsonResponse({'success': False, 'message': 'اطلاعات ارسالی ناقص است.'}, status=400)
+
+        customer = get_object_or_404(Customer, id=customer_id)
+        total_amount = Decimal('0')
+        issued_check_numbers = []
+
+        for check_data in checks_data:
+            check_id = check_data.get('check_number')
+            amount_str = check_data.get('amount', '0').replace(',', '')
+            amount = Decimal(amount_str)
+            due_date_shamsi = check_data.get('due_date')
+            series = check_data.get('series')
+            sayadi_id = check_data.get('sayadi_id')
+
+            if not all([check_id, amount, due_date_shamsi]):
+                return JsonResponse({'success': False, 'message': 'اطلاعات یکی از چک‌ها ناقص است.'}, status=400)
+
+            check = get_object_or_404(Check, id=check_id, status='UNUSED')
             
             # Update the check
             check.status = 'ISSUED'
             check.amount = amount
-            check.date = due_date
+            check.date = convert_shamsi_to_gregorian(due_date_shamsi)
             check.payee = payee_name
+            check.series = series
+            check.sayadi_id = sayadi_id
             check.save()
+            
+            total_amount += amount
+            issued_check_numbers.append(check.number)
 
-            # Create the financial operation
-            operation = FinancialOperation.objects.create(
+        # Create a single financial operation for the batch of checks
+        if total_amount > 0:
+            FinancialOperation.objects.create(
                 operation_type='PAY_TO_CUSTOMER',
                 customer=customer,
-                amount=amount,
+                amount=total_amount,
                 payment_method='cheque',
                 date=timezone.now().date(),
-                description=f'پرداخت چک به شماره {check.number} به {payee_name}',
-                cheque_number=check.number,
-                cheque_date=due_date,
+                description=f'پرداخت طی چک‌های شماره: {", ".join(issued_check_numbers)} به {payee_name}',
                 created_by=request.user,
                 status='CONFIRMED',
                 confirmed_by=request.user,
                 confirmed_at=timezone.now()
             )
-            
-            # The signal will handle voucher creation and balance updates.
+        
+        return JsonResponse({'success': True, 'message': f'{len(issued_check_numbers)} فقره چک با موفقیت صادر شد.'})
 
-            return JsonResponse({'success': True, 'message': 'چک با موفقیت صادر شد.'})
-
-        except Exception as e:
-            return JsonResponse({'success': False, 'message': f'خطا در صدور چک: {str(e)}'}, status=500)
-    else:
-        return JsonResponse({'success': False, 'errors': form.errors.as_json()}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'درخواست نامعتبر.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'خطا در صدور چک: {str(e)}'}, status=500)
 
 @login_required
 def get_checkbooks_for_bank_account(request):

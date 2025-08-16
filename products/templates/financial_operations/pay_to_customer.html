@@ -147,46 +147,55 @@
 
 <!-- Issue Check Modal -->
 <div id="issueCheckModal" class="customer-modal" style="display: none;">
-    <div class="customer-modal-content">
+    <div class="customer-modal-content" style="max-width: 95%; width: 1400px;">
         <div class="customer-modal-header">
             <span class="customer-modal-title">صدور چک جدید</span>
             <span class="close-modal" onclick="closeIssueCheckModal()">×</span>
         </div>
         <form id="issueCheckForm" method="POST" action="{% url 'products:issue_check' %}">
             {% csrf_token %}
-            {{ issue_check_form.customer }}
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="id_cheque_bank_account">حساب بانکی</label>
-                    {{ issue_check_form.cheque_bank_account }}
+            <input type="hidden" name="customer" id="modal_customer_id">
+            <input type="hidden" name="payee" id="modal_payee_name">
+            <input type="hidden" name="checks_data" id="checks_data_hidden_input">
+
+            <div class="form-group mb-3">
+                <label for="id_cheque_payee">در وجه</label>
+                <input type="text" id="id_cheque_payee" class="form-control" readonly>
+            </div>
+
+            <div id="check-form-container">
+                <table class="cheque-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">حساب بانکی</th>
+                            <th style="width: 15%;">دسته چک</th>
+                            <th style="width: 10%;">شماره چک</th>
+                            <th style="width: 10%;">سری چک</th>
+                            <th style="width: 15%;">شناسه صیادی</th>
+                            <th style="width: 15%;">مبلغ</th>
+                            <th style="width: 15%;">تاریخ سررسید</th>
+                            <th style="width: 5%;">حذف</th>
+                        </tr>
+                    </thead>
+                    <tbody id="check-list-body">
+                        <!-- Rows will be added here dynamically by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="cheque-summary">
+                 <div class="summary-box">
+                    <label>رأس چک (روز):</label>
+                    <input type="text" id="cheques_avg_due_date" class="form-control" readonly>
                 </div>
-                <div class="form-group">
-                    <label for="id_checkbook">دسته چک</label>
-                    {{ issue_check_form.checkbook }}
+                <div class="summary-box">
+                    <label>جمع کل چک‌ها:</label>
+                    <input type="text" id="cheques_total_amount" class="form-control" readonly>
                 </div>
             </div>
-            <div class="form-row">
-                 <div class="form-group">
-                    <label for="id_check_number">شماره چک</label>
-                    {{ issue_check_form.check_number }}
-                </div>
-                <div class="form-group">
-                    <label for="id_cheque_amount">مبلغ چک</label>
-                    {{ issue_check_form.cheque_amount }}
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="id_cheque_due_date">تاریخ سررسید</label>
-                    {{ issue_check_form.cheque_due_date }}
-                </div>
-                <div class="form-group">
-                    <label for="id_cheque_payee">در وجه</label>
-                    {{ issue_check_form.cheque_payee }}
-                </div>
-            </div>
+
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">ثبت چک</button>
+                <button type="button" class="btn btn-primary" onclick="submitIssuedChecks()">ثبت چک‌ها</button>
                 <button type="button" class="btn btn-secondary" onclick="closeIssueCheckModal()">انصراف</button>
             </div>
         </form>
@@ -867,17 +876,17 @@ function closeCustomerModal() {
 }
 
 function openIssueCheckModal() {
-    // Pre-fill payee name from the selected customer
+    // Pre-fill payee name from the selected customer in the main form
     const customerDisplay = document.getElementById('customer_display').value;
+    if (!customerDisplay) {
+        alert('لطفا ابتدا مشتری را انتخاب کنید.');
+        return;
+    }
     document.getElementById('id_cheque_payee').value = customerDisplay;
 
-    // Pre-fill amount from the main form
-    const amount = document.getElementById('id_amount').value;
-    document.getElementById('id_cheque_amount').value = amount;
-
-    // Pass customer ID to the modal form
+    // Pass customer ID to the modal's hidden input
     const customerId = document.getElementById('id_customer').value;
-    document.querySelector('#issueCheckForm #id_customer').value = customerId;
+    document.getElementById('modal_customer_id').value = customerId;
     
     document.getElementById('issueCheckModal').style.display = 'block';
 }
@@ -885,102 +894,6 @@ function openIssueCheckModal() {
 function closeIssueCheckModal() {
     document.getElementById('issueCheckModal').style.display = 'none';
 }
-
-function submitIssueCheckForm() {
-    // This function is now handled by the form's submit event listener
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-    // ... (existing datepicker and customer modal code)
-
-    const bankAccountSelect = document.getElementById('id_cheque_bank_account');
-    const checkbookSelect = document.getElementById('id_checkbook');
-    const checkNumberSelect = document.getElementById('id_check_number');
-    const issueCheckForm = document.getElementById('issueCheckForm');
-
-    bankAccountSelect.addEventListener('change', function() {
-        const bankAccountId = this.value;
-        checkbookSelect.innerHTML = '<option value="">...در حال بارگذاری</option>';
-        checkbookSelect.disabled = true;
-        checkNumberSelect.innerHTML = '<option value="">...</option>';
-        checkNumberSelect.disabled = true;
-
-        if (bankAccountId) {
-            fetch(`/api/get-checkbooks/?bank_account_id=${bankAccountId}`)
-                .then(response => response.json())
-                .then(data => {
-                    checkbookSelect.innerHTML = '<option value="">---------</option>';
-                    data.forEach(cb => {
-                        const option = document.createElement('option');
-                        option.value = cb.id;
-                        option.textContent = cb.name;
-                        checkbookSelect.appendChild(option);
-                    });
-                    checkbookSelect.disabled = false;
-                });
-        }
-    });
-
-    checkbookSelect.addEventListener('change', function() {
-        const checkbookId = this.value;
-        checkNumberSelect.innerHTML = '<option value="">...در حال بارگذاری</option>';
-        checkNumberSelect.disabled = true;
-
-        if (checkbookId) {
-            fetch(`/api/get-unused-checks/?checkbook_id=${checkbookId}`)
-                .then(response => response.json())
-                .then(data => {
-                    checkNumberSelect.innerHTML = '<option value="">---------</option>';
-                    data.forEach(c => {
-                        const option = document.createElement('option');
-                        option.value = c.id;
-                        option.textContent = c.name;
-                        checkNumberSelect.appendChild(option);
-                    });
-                    checkNumberSelect.disabled = false;
-                });
-        }
-    });
-    
-    issueCheckForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        const customerId = document.getElementById('id_customer').value;
-        formData.append('customer', customerId);
-
-        fetch(this.action, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert(data.message);
-                closeIssueCheckModal();
-                // Optionally, you can reset the main form or update it
-            } else {
-                let errorMessage = 'لطفا خطاهای زیر را برطرف کنید:\n';
-                const errors = JSON.parse(data.errors);
-                for (const field in errors) {
-                    errorMessage += `${errors[field][0].message}\n`;
-                }
-                alert(errorMessage);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('یک خطای پیش‌بینی نشده رخ داد.');
-        });
-    });
-
-    $("#id_cheque_due_date").pDatepicker({
-        format: 'YYYY/MM/DD',
-        autoClose: true,
-    });
-});
 
 // Payment method change handler
 document.getElementById('id_payment_method').addEventListener('change', function() {
@@ -1084,5 +997,265 @@ function renderReceivedCheckList(checks) {
         checkList.innerHTML += row;
     });
 }
+
+// New JS for multi-check issuance (table-based)
+document.addEventListener('DOMContentLoaded', function() {
+    const bankAccountsData = JSON.parse('{{ bank_accounts_json|escapejs }}');
+    const container = document.getElementById('check-list-body');
+
+    // Helper function to convert Persian/Arabic digits to English digits
+    function toEnglishDigits(str) {
+        if (!str) return '';
+        return str.toString().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+    }
+    
+    // Helper function to format amount input with thousand separators
+    function formatAmountInput(input) {
+        let value = toEnglishDigits(input.value).replace(/[^0-9]/g, '');
+        if (value) {
+            try {
+                const numericValue = BigInt(value);
+                input.value = numericValue.toLocaleString('fa-IR');
+            } catch (e) {
+                input.value = value;
+            }
+        } else {
+            input.value = '';
+        }
+    }
+
+    // Helper function to parse amount from formatted string
+    function parseAmountFromFormattedString(formattedValue) {
+        if (!formattedValue) return '';
+        return toEnglishDigits(formattedValue).replace(/[^0-9]/g, '');
+    }
+
+    function addIssuedCheckRow() {
+        const newRow = document.createElement('tr');
+        const rowIndex = container.rows.length;
+
+        newRow.innerHTML = `
+            <td>
+                <select name="cheque_bank_account_${rowIndex}" class="form-control cheque-input cheque-bank-account">
+                    <option value="">---------</option>
+                </select>
+            </td>
+            <td><select name="checkbook_${rowIndex}" class="form-control cheque-input checkbook" disabled><option value="">-</option></select></td>
+            <td><select name="check_number_${rowIndex}" class="form-control cheque-input check_number" disabled><option value="">-</option></select></td>
+            <td><input type="text" name="series_${rowIndex}" class="form-control cheque-input"></td>
+            <td><input type="text" name="sayadi_id_${rowIndex}" class="form-control cheque-input" maxlength="16"></td>
+            <td><input type="text" inputmode="numeric" name="cheque_amount_${rowIndex}" class="form-control cheque-input cheque-amount" value="0"></td>
+            <td><input type="text" name="cheque_due_date_${rowIndex}" class="form-control cheque-input cheque-due-date" placeholder="YYYY/MM/DD"></td>
+            <td><button type="button" class="btn btn-outline-danger btn-sm remove-check-row" title="حذف"><i class="bi bi-trash3-fill"></i></button></td>
+        `;
+        container.appendChild(newRow);
+
+        // Populate bank account dropdown
+        const bankAccountSelect = newRow.querySelector('.cheque-bank-account');
+        bankAccountsData.forEach(acc => {
+            const option = document.createElement('option');
+            option.value = acc.id;
+            option.textContent = acc.title;
+            bankAccountSelect.appendChild(option);
+        });
+
+        // Add event listeners for the new row
+        addEventListenersToIssuedCheckRow(newRow);
+        
+        // Focus on the first input of the new row
+        setTimeout(() => {
+            newRow.querySelector('.cheque-input').focus();
+        }, 50);
+    }
+
+    function addEventListenersToIssuedCheckRow(row) {
+        const inputs = Array.from(row.querySelectorAll('.cheque-input'));
+        inputs.forEach((input, index) => {
+            input.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (index === inputs.length - 1) {
+                        addIssuedCheckRow();
+                    } else {
+                        inputs[index + 1].focus();
+                    }
+                }
+            });
+        });
+
+        row.querySelector('.cheque-amount').addEventListener('input', function() {
+            formatAmountInput(this);
+            updateIssuedCheckSummary();
+        });
+        
+        row.querySelector('.cheque-due-date').addEventListener('change', updateIssuedCheckSummary);
+        
+        row.querySelector('.remove-check-row').addEventListener('click', function() {
+            row.remove();
+            updateIssuedCheckSummary();
+        });
+
+        row.querySelector('.cheque-bank-account').addEventListener('change', function() {
+            const bankAccountId = this.value;
+            const checkbookSelect = row.querySelector('.checkbook');
+            const checkNumberSelect = row.querySelector('.check_number');
+            
+            checkbookSelect.innerHTML = '<option value="">...</option>';
+            checkbookSelect.disabled = true;
+            checkNumberSelect.innerHTML = '<option value="">-</option>';
+            checkNumberSelect.disabled = true;
+
+            if (bankAccountId) {
+                fetch(`/api/get-checkbooks/?bank_account_id=${bankAccountId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        checkbookSelect.innerHTML = '<option value="">-</option>';
+                        data.forEach(cb => {
+                            const option = document.createElement('option');
+                            option.value = cb.id;
+                            option.textContent = cb.name;
+                            checkbookSelect.appendChild(option);
+                        });
+                        checkbookSelect.disabled = false;
+                    });
+            }
+        });
+
+        row.querySelector('.checkbook').addEventListener('change', function() {
+            const checkbookId = this.value;
+            const checkNumberSelect = row.querySelector('.check_number');
+            
+            checkNumberSelect.innerHTML = '<option value="">...</option>';
+            checkNumberSelect.disabled = true;
+
+            if (checkbookId) {
+                fetch(`/api/get-unused-checks/?checkbook_id=${checkbookId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        checkNumberSelect.innerHTML = '<option value="">-</option>';
+                        data.forEach(c => {
+                            const option = document.createElement('option');
+                            option.value = c.id;
+                            option.textContent = c.name;
+                            checkNumberSelect.appendChild(option);
+                        });
+                        checkNumberSelect.disabled = false;
+                    });
+            }
+        });
+
+        // Initialize datepicker
+        $(row.querySelector('.cheque-due-date')).pDatepicker({
+            format: 'YYYY/MM/DD',
+            autoClose: true,
+        });
+    }
+
+    function updateIssuedCheckSummary() {
+        let totalAmount = 0;
+        let weightedSum = 0;
+        const today = moment();
+
+        container.querySelectorAll('tr').forEach(row => {
+            const amountInput = row.querySelector('.cheque-amount');
+            const dateInput = row.querySelector('.cheque-due-date');
+            const amount = parseFloat(parseAmountFromFormattedString(amountInput.value)) || 0;
+            totalAmount += amount;
+
+            if (dateInput.value) {
+                const dueDate = moment(dateInput.value, 'jYYYY/jMM/jDD', true);
+                if (dueDate.isValid()) {
+                    const daysDiff = dueDate.diff(today, 'days');
+                    weightedSum += amount * daysDiff;
+                }
+            }
+        });
+
+        document.getElementById('cheques_total_amount').value = totalAmount.toLocaleString('fa-IR');
+        
+        if (totalAmount > 0) {
+            const avgDays = Math.round(weightedSum / totalAmount);
+            document.getElementById('cheques_avg_due_date').value = avgDays;
+        } else {
+            document.getElementById('cheques_avg_due_date').value = '0';
+        }
+    }
+
+    window.openIssueCheckModal = function() {
+        const customerDisplay = document.getElementById('customer_display').value;
+        if (!customerDisplay) {
+            alert('لطفا ابتدا مشتری را انتخاب کنید.');
+            return;
+        }
+        document.getElementById('id_cheque_payee').value = customerDisplay;
+        document.getElementById('modal_customer_id').value = document.getElementById('id_customer').value;
+        document.getElementById('modal_payee_name').value = customerDisplay;
+        
+        document.getElementById('issueCheckModal').style.display = 'block';
+        if (container.rows.length === 0) {
+            addIssuedCheckRow();
+        }
+    };
+
+    window.closeIssueCheckModal = function() {
+        document.getElementById('issueCheckModal').style.display = 'none';
+    };
+
+    window.submitIssuedChecks = function() {
+        const checks = [];
+        let hasError = false;
+        container.querySelectorAll('tr').forEach(row => {
+            const check = {
+                check_number: row.querySelector('.check_number').value,
+                series: row.querySelector('input[name^="series"]').value,
+                sayadi_id: row.querySelector('input[name^="sayadi_id"]').value,
+                amount: parseAmountFromFormattedString(row.querySelector('.cheque-amount').value),
+                due_date: row.querySelector('.cheque-due-date').value,
+            };
+
+            if (!check.check_number || !check.amount || !check.due_date) {
+                hasError = true;
+            }
+            checks.push(check);
+        });
+
+        if (hasError) {
+            alert('لطفا تمامی فیلدهای الزامی (شماره چک، مبلغ، تاریخ) را برای همه چک‌ها پر کنید.');
+            return;
+        }
+        
+        const form = document.getElementById('issueCheckForm');
+        const formData = {
+            customer: document.getElementById('modal_customer_id').value,
+            payee: document.getElementById('modal_payee_name').value,
+            checks: checks
+        };
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': form.querySelector('input[name="csrfmiddlewaretoken"]').value
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                closeIssueCheckModal();
+                const totalAmount = checks.reduce((sum, ch) => sum + parseFloat(ch.amount), 0);
+                document.getElementById('id_amount').value = totalAmount.toLocaleString();
+                document.getElementById('id_description').value += `\n(پرداخت طی ${checks.length} فقره چک)`;
+            } else {
+                alert('خطا: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error submitting checks:', error);
+            alert('یک خطای پیش‌بینی نشده در هنگام ثبت چک‌ها رخ داد.');
+        });
+    };
+});
 </script>
 {% endblock %}

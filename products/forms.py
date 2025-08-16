@@ -1091,6 +1091,16 @@ class IssueCheckForm(forms.Form):
         label="در وجه",
         widget=forms.TextInput(attrs={'class': 'form-control', 'readonly': True})
     )
+    series = forms.CharField(
+        label="سری چک",
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    sayadi_id = forms.CharField(
+        label="شناسه صیادی",
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'maxlength': 16})
+    )
 
 class BankAccountForm(forms.ModelForm):
     """
