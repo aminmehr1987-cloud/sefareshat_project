@@ -80,16 +80,22 @@
                     <label for="id_payment_method"><i class="bi bi-credit-card"></i> روش پرداخت</label>
                     <div class="input-group">
                         {{ form.payment_method }}
-                        <button type="button" class="btn btn-warning" id="issueCheckBtn" style="display: none;" onclick="openIssueCheckModal()">
-                            <i class="bi bi-journal-plus"></i> صدور چک جدید
-                        </button>
-                        <button type="button" class="btn btn-info" id="spendReceivedCheckBtn" style="display: none;" onclick="openSpendReceivedCheckModal()">
-                            <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
-                        </button>
                     </div>
                     {% if form.payment_method.errors %}
                         <div class="text-danger">{{ form.payment_method.errors }}</div>
                     {% endif %}
+                </div>
+            </div>
+            
+            <!-- دکمه های چک در همین سطر -->
+            <div class="form-row">
+                <div id="cheque-actions" class="cheque-buttons-container" style="display: none;">
+                    <button type="button" class="btn btn-warning" onclick="openIssueCheckModal()">
+                        <i class="bi bi-journal-plus"></i> صدور چک جدید
+                    </button>
+                    <button type="button" class="btn btn-info" onclick="openSpendReceivedCheckModal()">
+                        <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
+                    </button>
                 </div>
             </div>
             
@@ -239,6 +245,16 @@
     margin: 0.5rem 0;
     font-weight: bold;
 }
+
+/* استایل جدید برای دکمه‌های چک */
+.cheque-buttons-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: center;
+    grid-column: 1 / -1; /* پهن کردن در تمام عرض */
+}
+
 @font-face {
     font-family: 'BHoma';
     src: url('/static/fonts/BHoma.ttf') format('truetype');
@@ -577,6 +593,28 @@
     box-shadow: 0 5px 15px rgba(107, 114, 128, 0.4);
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+}
+
+.btn-warning:hover {
+    background: linear-gradient(135deg, #d97706, #b45309);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(245, 158, 11, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    color: white;
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #0891b2, #0e7490);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(6, 182, 212, 0.4);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .financial-operation-container {
@@ -595,6 +633,11 @@
     .form-row {
         grid-template-columns: 1fr;
         gap: 1rem;
+    }
+    
+    .cheque-buttons-container {
+        flex-direction: column;
+        gap: 0.5rem;
     }
     
     .form-actions {
@@ -857,7 +900,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     bankAccountSelect.addEventListener('change', function() {
         const bankAccountId = this.value;
-        checkbookSelect.innerHTML = '<option value="">...درحال بارگذاری</option>';
+        checkbookSelect.innerHTML = '<option value="">...در حال بارگذاری</option>';
         checkbookSelect.disabled = true;
         checkNumberSelect.innerHTML = '<option value="">...</option>';
         checkNumberSelect.disabled = true;
@@ -880,7 +923,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     checkbookSelect.addEventListener('change', function() {
         const checkbookId = this.value;
-        checkNumberSelect.innerHTML = '<option value="">...درحال بارگذاری</option>';
+        checkNumberSelect.innerHTML = '<option value="">...در حال بارگذاری</option>';
         checkNumberSelect.disabled = true;
 
         if (checkbookId) {
@@ -939,15 +982,13 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Payment method change handler
 document.getElementById('id_payment_method').addEventListener('change', function() {
-    const issueCheckBtn = document.getElementById('issueCheckBtn');
-    const spendReceivedCheckBtn = document.getElementById('spendReceivedCheckBtn');
+    const chequeActions = document.getElementById('cheque-actions');
     if (this.value === 'cheque') {
-        issueCheckBtn.style.display = 'block';
-        spendReceivedCheckBtn.style.display = 'block';
+        chequeActions.style.display = 'flex';
     } else {
-        issueCheckBtn.style.display = 'none';
-        spendReceivedCheckBtn.style.display = 'none';
+        chequeActions.style.display = 'none';
     }
 });
 

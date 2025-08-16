@@ -774,6 +774,10 @@ class ReceiveFromCustomerForm(forms.ModelForm):
         current_date = jdatetime.datetime.now().strftime('%Y/%m/%d')
         self.fields['date_shamsi'].initial = current_date
 
+        # Filter payment_method choices to exclude 'spend_cheque'
+        payment_method_choices = [choice for choice in self.fields['payment_method'].choices if choice[0] != 'spend_cheque']
+        self.fields['payment_method'].choices = payment_method_choices
+
 
 class PayToCustomerForm(forms.ModelForm):
     """
