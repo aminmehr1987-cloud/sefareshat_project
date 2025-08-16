@@ -624,36 +624,45 @@ def group_required(group_name):
 def spend_received_check_view(request):
     try:
         data = json.loads(request.body)
-        check_id = data.get('check_id')
+        check_ids = data.get('check_ids')
         customer_id = data.get('customer_id')
 
-        check = get_object_or_404(ReceivedCheque, id=check_id, status='RECEIVED')
-        customer = get_object_or_404(Customer, id=customer_id)
+        if not check_ids or not isinstance(check_ids, list):
+            return JsonResponse({'success': False, 'message': 'لیست شناسه‌های چک نامعتبر است.'}, status=400)
 
-        # Update the check status
-        check.status = 'SPENT'
-        check.save()
+        checks = ReceivedCheque.objects.filter(id__in=check_ids, status='RECEIVED')
         
-        # Create the financial operation
-        operation = FinancialOperation.objects.create(
+        if len(checks) != len(check_ids):
+             return JsonResponse({'success': False, 'message': 'یک یا چند چک یافت نشد یا وضعیت آن‌ها برای خرج کردن مناسب نیست.'}, status=404)
+
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        total_amount = sum(check.amount for check in checks)
+        check_serials = ", ".join(check.serial for check in checks)
+
+        # Update all checks at once
+        checks.update(status='SPENT')
+        
+        # Create a single financial operation for the total amount
+        FinancialOperation.objects.create(
             operation_type='PAY_TO_CUSTOMER',
             customer=customer,
-            amount=check.amount,
+            amount=total_amount,
             payment_method='cheque',
             date=timezone.now().date(),
-            description=f"خرج چک دریافتی به شماره سریال {check.serial} به {customer.get_full_name()}",
-            cheque_number=check.serial,
-            cheque_date=check.due_date,
+            description=f"خرج {len(checks)} فقره چک دریافتی به شماره سریال‌های {check_serials} به {customer.get_full_name()}",
             created_by=request.user,
             status='CONFIRMED',
             confirmed_by=request.user,
             confirmed_at=timezone.now()
         )
         
-        # The signal will handle voucher creation and balance updates.
+        # The signal will handle voucher creation and balance updates for the single operation.
 
-        return JsonResponse({'success': True, 'message': 'چک با موفقیت خرج شد.'})
+        return JsonResponse({'success': True, 'message': f'{len(checks)} چک با موفقیت خرج شد.'})
 
+    except Customer.DoesNotExist:
+        return JsonResponse({'success': False, 'message': 'مشتری یافت نشد.'}, status=404)
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'خطا در خرج چک: {str(e)}'}, status=500)
 

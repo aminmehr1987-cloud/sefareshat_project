@@ -185,15 +185,19 @@
                 </table>
             </div>
 
-            <!-- بخش خلاصه چک‌ها با فاصله مناسب -->
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd; display: flex; justify-content: center; gap: 2rem;">
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                    <div style="margin-bottom: 12px; font-weight: bold; color: #374151;">راس چک (روز):</div>
-                    <input type="text" id="cheques_avg_due_date" class="form-control" readonly style="width: 200px;">
+            <!-- بخش خلاصه چک‌ها -->
+            <div class="checks-summary">
+                <div class="summary-item">
+                    <div class="summary-label">تعداد چک‌های انتخاب شده:</div>
+                    <div class="summary-value" id="selectedChecksCount">0</div>
                 </div>
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                    <div style="margin-bottom: 12px; font-weight: bold; color: #374151;">جمع کل چک‌ها:</div>
-                    <input type="text" id="cheques_total_amount" class="form-control" readonly style="width: 200px;">
+                <div class="summary-item">
+                    <div class="summary-label">جمع مبالغ:</div>
+                    <div class="summary-value" id="selectedChecksTotal">0</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">راس روز:</div>
+                    <div class="summary-value" id="selectedChecksAvgDueDate">-</div>
                 </div>
             </div>
 
@@ -207,24 +211,48 @@
 
 <!-- Spend Received Check Modal -->
 <div id="spendReceivedCheckModal" class="customer-modal" style="display: none;">
-    <div class="customer-modal-content">
+    <div class="customer-modal-content" style="max-width: 95%; width: 1400px;">
         <div class="customer-modal-header">
             <span class="customer-modal-title">خرج چک دریافتی</span>
             <span class="close-modal" onclick="closeSpendReceivedCheckModal()">×</span>
         </div>
-        <input type="text" id="receivedCheckSearch" class="customer-search-box" placeholder="جستجوی چک..." onkeyup="searchReceivedChecks()">
-        <div class="table-responsive">
-            <table class="customers-table">
+        
+        <div class="payee-container">
+            <div class="form-group mb-3">
+                <label for="id_check_recipient">در وجه</label>
+                <input type="text" id="id_check_recipient" class="form-control" readonly>
+                
+            </div>
+        </div>
+
+        <div class="search-container mb-3">
+            <div class="input-group">
+                <input type="text" id="receivedCheckSearch" class="form-control" 
+                       placeholder="جستجوی چک بر اساس شماره، بانک، شناسه صیادی یا مشخصات مشتری...">
+                <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                </span>
+            </div>
+            
+        </div>
+
+        <div class="table-responsive form-card">
+            <table class="cheque-table">
                 <thead>
                     <tr>
-                        <th><input type="checkbox" id="selectAllChecks"></th>
-                        <th>پشت نمره</th>
-                        <th>سریال چک</th>
-                        <th>شناسه صیادی</th>
-                        <th>بانک</th>
-                        <th>مبلغ</th>
-                        <th>تاریخ سررسید</th>
-                        <th>مشتری (صاحب چک)</th>
+                        <th style="width: 5%;">
+                            <div class="form-check">
+                                <input type="checkbox" id="selectAllReceivedChecks" class="form-check-input">
+                                <label class="form-check-label" for="selectAllReceivedChecks">همه</label>
+                            </div>
+                        </th>
+                        <th style="width: 15%;">مشتری (صاحب چک)</th>
+                        <th style="width: 10%;">سریال چک</th>
+                        <th style="width: 10%;">پشت نمره</th>
+                        <th style="width: 15%;">شناسه صیادی</th>
+                        <th style="width: 15%;">بانک</th>
+                        <th style="width: 15%;">مبلغ</th>
+                        <th style="width: 15%;">تاریخ سررسید</th>
                     </tr>
                 </thead>
                 <tbody id="receivedCheckList">
@@ -232,30 +260,194 @@
                 </tbody>
             </table>
         </div>
-        <div class="modal-summary">
-            <p>تعداد چک‌های انتخاب شده: <span id="selectedChecksCount">0</span></p>
-            <p>جمع مبالغ: <span id="selectedChecksTotal">0</span></p>
-            <p>رأس روز: <span id="selectedChecksAvgDueDate">-</span></p>
+
+        <div class="checks-summary">
+            <div class="summary-item">
+                <div class="summary-label">تعداد چک‌های انتخاب شده</div>
+                <div class="summary-value" id="selectedChecksCount">0</div>
+                <small class="form-text text-muted"></small>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">جمع مبالغ</div>
+                <div class="summary-value" id="selectedChecksTotal">0</div>
+                <small class="form-text text-muted"></small>
+            </div>
+            <div class="summary-item">
+                <div class="summary-label">راس روز</div>
+                <div class="summary-value" id="selectedChecksAvgDueDate">-</div>
+                <small class="form-text text-muted"></small>
+            </div>
         </div>
+
         <div class="form-actions">
-            <button type="button" class="btn btn-primary" onclick="confirmSpendChecks()">خرج کردن چک‌های انتخاب شده</button>
-            <button type="button" class="btn btn-secondary" onclick="closeSpendReceivedCheckModal()">انصراف</button>
+            <button type="button" class="btn btn-primary" onclick="confirmSpendChecks()">
+                <i class="bi bi-check-circle"></i> خرج کردن چک‌های انتخاب شده
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="closeSpendReceivedCheckModal()">
+                <i class="bi bi-x-circle"></i> انصراف
+            </button>
         </div>
     </div>
 </div>
 
 <style>
-.modal-summary {
-    padding: 1rem;
-    margin-top: 1rem;
-    background-color: #f3f4f6;
-    border-top: 1px solid #e5e7eb;
-    border-radius: 0 0 15px 15px;
-    text-align: right;
+
+/* Form Text Styles */
+.form-text {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+    display: block;
 }
-.modal-summary p {
-    margin: 0.5rem 0;
+
+/* Checkbox in Table */
+.form-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+}
+
+.form-check-input {
+    width: 1.2rem;
+    height: 1.2rem;
+    margin: 0;
+    cursor: pointer;
+}
+
+.form-check-label {
+    font-size: 0.875rem;
+    color: #374151;
+    cursor: pointer;
+}
+
+/* Table Cell with Checkbox */
+.cheque-table td:first-child,
+.cheque-table th:first-child {
+    text-align: center;
+}
+
+.cheque-table tbody tr {
+    cursor: pointer;
+}
+
+.cheque-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Check Summary */
+.checks-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background-color: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+    background-color: white;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.summary-label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+    white-space: nowrap;
+}
+
+.summary-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #1f2937;
+    min-width: 80px;
+    text-align: left;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .checks-summary {
+        grid-template-columns: 1fr;
+    }
+}
+
+.checks-grid-header {
+    display: grid;
+    grid-template-columns: 50px 1fr 120px 120px 150px 150px 120px 120px;
+    gap: 10px;
+    padding: 15px 10px;
+    background: linear-gradient(135deg, #3b82f6, #1e40af);
+    color: white;
     font-weight: bold;
+    border-radius: 10px 10px 0 0;
+    margin-bottom: 2px;
+}
+
+.checks-grid-body {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 2px solid #e5e7eb;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+}
+
+.check-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 120px 120px 150px 150px 120px 120px;
+    gap: 10px;
+    padding: 12px 10px;
+    border-bottom: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    background: white;
+}
+
+.check-row:hover {
+    background: #f1f5f9;
+    transform: translateX(-2px);
+    box-shadow: 2px 0 8px rgba(59, 130, 246, 0.2);
+}
+
+.check-row.selected {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe) !important;
+    border-left: 4px solid #3b82f6;
+    font-weight: 600;
+}
+
+.check-row:last-child {
+    border-bottom: none;
+}
+
+.grid-cell {
+    display: flex;
+    align-items: center;
+    padding: 5px;
+    font-size: 0.9rem;
+    word-wrap: break-word;
+    overflow: hidden;
+}
+
+.grid-header {
+    justify-content: center;
+    text-align: center;
+    font-weight: bold;
+}
+
+.grid-cell input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
 }
 
 .payee-container {
@@ -667,44 +859,15 @@
     }
     
     .customer-modal-content {
-        width: 95%;
-        margin: 10% auto;
-        padding: 15px;
-    }
-    
-    .customer-search-box {
-        width: 100%;
-        margin-right: 0;
-    }
-}
-
-@media (max-width: 480px) {
-    .financial-operation-container {
-        padding: 0.5rem;
-    }
-    
-    .operation-header h2 {
-        font-size: 1.3rem;
-    }
-    
-    .form-card {
-        padding: 1rem;
-    }
-    
-    .form-control {
-        padding: 0.6rem 0.8rem;
-        font-size: 0.9rem;
-    }
-    
-    .btn {
-        padding: 0.6rem 1rem;
-        font-size: 0.9rem;
-    }
-    
-    .customer-modal-content {
         width: 98%;
         margin: 5% auto;
         padding: 10px;
+    }
+    
+    .checks-grid-header,
+    .check-row {
+        grid-template-columns: 30px 1fr 80px 80px 100px 100px 80px 80px;
+        font-size: 0.75rem;
     }
 }
 </style>
@@ -913,9 +1076,24 @@ document.getElementById('id_payment_method').addEventListener('change', function
     }
 });
 
+let allReceivedChecks = [];
+
 function openSpendReceivedCheckModal() {
-    // TODO: Fetch and populate received checks
-    document.getElementById('spendReceivedCheckModal').style.display = 'block';
+    document.getElementById('id_check_recipient').value = document.getElementById('customer_display').value;
+    const customerId = document.getElementById('id_customer').value;
+    if (!customerId) {
+        alert('لطفا ابتدا مشتری را انتخاب کنید.');
+        return;
+    }
+    fetch("{% url 'products:get_received_checks' %}")
+        .then(response => response.json())
+        .then(data => {
+            allReceivedChecks = data;
+            renderReceivedCheckList(allReceivedChecks);
+            document.getElementById('spendReceivedCheckModal').style.display = 'block';
+            // Reset summary on open
+            updateSelectedChecksSummary();
+        });
 }
 
 function closeSpendReceivedCheckModal() {
@@ -925,20 +1103,124 @@ function closeSpendReceivedCheckModal() {
 function searchReceivedChecks() {
     const searchTerm = document.getElementById('receivedCheckSearch').value.toLowerCase();
     const filteredChecks = allReceivedChecks.filter(check =>
-        check.number.toLowerCase().includes(searchTerm) ||
-        check.bank.toLowerCase().includes(searchTerm) ||
-        String(check.amount).includes(searchTerm) ||
-        check.payee.toLowerCase().includes(searchTerm)
+        (check.number && check.number.toLowerCase().includes(searchTerm)) ||
+        (check.bank && check.bank.toLowerCase().includes(searchTerm)) ||
+        (check.sayadi_id && check.sayadi_id.toLowerCase().includes(searchTerm)) ||
+        (check.customer && check.customer.toLowerCase().includes(searchTerm)) ||
+        String(check.amount).includes(searchTerm)
     );
     renderReceivedCheckList(filteredChecks);
 }
 
-function selectReceivedCheck(checkId) {
-    const customerId = document.getElementById('id_customer').value;
-    if (!customerId) {
-        alert('لطفا ابتدا مشتری را انتخاب کنید.');
+function renderReceivedCheckList(checks) {
+    const checkListBody = document.getElementById('receivedCheckList');
+    checkListBody.innerHTML = '';
+    
+    if (checks.length === 0) {
+        checkListBody.innerHTML = '<tr><td colspan="8" class="text-center p-4">هیچ چک دریافتی برای خرج کردن یافت نشد.</td></tr>';
         return;
     }
+
+    checks.forEach(check => {
+        const row = document.createElement('tr');
+        row.onclick = function(e) {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = this.querySelector('.received-check-checkbox');
+                checkbox.checked = !checkbox.checked;
+                updateSelectedChecksSummary();
+            }
+        };
+        
+        row.innerHTML = `
+            <td>
+                <div class="form-check">
+                    <input type="checkbox" 
+                           class="form-check-input received-check-checkbox" 
+                           value="${check.id}" 
+                           data-amount="${check.amount}" 
+                           data-due-date="${check.due_date}"
+                           onclick="event.stopPropagation()">
+                </div>
+            </td>
+            <td>${check.customer || ''}</td>
+            <td>${check.number || ''}</td>
+            <td>${check.endorsement || ''}</td>
+            <td>${check.sayadi_id || ''}</td>
+            <td>${check.bank || ''}</td>
+            <td>${check.amount.toLocaleString()}</td>
+            <td>${check.due_date || ''}</td>
+        `;
+        
+        checkListBody.appendChild(row);
+    });
+
+    // انتخاب همه چک‌ها
+    document.getElementById('selectAllReceivedChecks').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.received-check-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        updateSelectedChecksSummary();
+    });
+}
+
+function updateRowSelection(row, isSelected) {
+    if (isSelected) {
+        row.classList.add('selected');
+    } else {
+        row.classList.remove('selected');
+    }
+}
+
+function updateSelectedChecksSummary() {
+    const selectedCheckboxes = document.querySelectorAll('.received-check-checkbox:checked');
+    let count = 0;
+    let totalAmount = 0;
+    let weightedSum = 0;
+    const today = moment();
+
+    selectedCheckboxes.forEach(checkbox => {
+        count++;
+        const amount = parseFloat(checkbox.dataset.amount);
+        totalAmount += amount;
+
+        const dueDateStr = checkbox.dataset.dueDate;
+        if (dueDateStr) {
+            // Assuming due_date is in 'YYYY/MM/DD' format from the backend
+            const dueDate = moment(dueDateStr, 'jYYYY/jMM/jDD');
+            if (dueDate.isValid()) {
+                const daysDiff = dueDate.diff(today, 'days');
+                weightedSum += amount * daysDiff;
+            }
+        }
+    });
+
+    document.getElementById('selectedChecksCount').textContent = count;
+    document.getElementById('selectedChecksTotal').textContent = totalAmount.toLocaleString();
+
+    if (totalAmount > 0) {
+        const avgDays = Math.round(weightedSum / totalAmount);
+        document.getElementById('selectedChecksAvgDueDate').textContent = avgDays;
+    } else {
+        document.getElementById('selectedChecksAvgDueDate').textContent = '-';
+    }
+}
+
+function confirmSpendChecks() {
+    const selectedCheckboxes = document.querySelectorAll('.received-check-checkbox:checked');
+    const customerId = document.getElementById('id_customer').value;
+
+    if (selectedCheckboxes.length === 0) {
+        alert('لطفا حداقل یک چک را برای خرج کردن انتخاب کنید.');
+        return;
+    }
+    if (!customerId) {
+        alert('گیرنده چک (مشتری) در فرم اصلی مشخص نشده است.');
+        return;
+    }
+
+    const checkIds = Array.from(selectedCheckboxes).map(cb => cb.value);
+    const totalAmount = Array.from(selectedCheckboxes).reduce((sum, cb) => sum + parseFloat(cb.dataset.amount), 0);
 
     fetch("{% url 'products:spend_received_check' %}", {
         method: 'POST',
@@ -947,7 +1229,7 @@ function selectReceivedCheck(checkId) {
             'X-CSRFToken': '{{ csrf_token }}'
         },
         body: JSON.stringify({
-            check_id: checkId,
+            check_ids: checkIds,
             customer_id: customerId
         })
     })
@@ -956,12 +1238,11 @@ function selectReceivedCheck(checkId) {
         if (data.success) {
             alert(data.message);
             closeSpendReceivedCheckModal();
-            const amountInput = document.getElementById('id_amount');
-            const check = allReceivedChecks.find(c => c.id === checkId);
-            if (check) {
-                amountInput.value = check.amount;
-            }
-            document.getElementById('id_description').value += `\nخرج چک دریافتی به شماره سریال ${check.number}`;
+            // Update the main form
+            document.getElementById('id_amount').value = totalAmount.toLocaleString();
+            let description = document.getElementById('id_description').value;
+            description += `\n(خرج ${checkIds.length} فقره چک دریافتی به مبلغ کل ${totalAmount.toLocaleString()})`;
+            document.getElementById('id_description').value = description;
         } else {
             alert('خطا: ' + data.message);
         }
@@ -972,39 +1253,17 @@ function selectReceivedCheck(checkId) {
     });
 }
 
-let allReceivedChecks = [];
-
-function openSpendReceivedCheckModal() {
-    fetch("{% url 'products:get_received_checks' %}")
-        .then(response => response.json())
-        .then(data => {
-            allReceivedChecks = data;
-            renderReceivedCheckList(allReceivedChecks);
-            document.getElementById('spendReceivedCheckModal').style.display = 'block';
-        });
-}
-
-function renderReceivedCheckList(checks) {
-    const checkList = document.getElementById('receivedCheckList');
-    checkList.innerHTML = '';
-    if (checks.length === 0) {
-        checkList.innerHTML = '<tr><td colspan="6" style="text-align: center;">هیچ چک دریافتی برای خرج کردن یافت نشد.</td></tr>';
-        return;
-    }
-    checks.forEach(check => {
-        const row = `
-            <tr>
-                <td>${check.number}</td>
-                <td>${check.bank}</td>
-                <td>${check.amount.toLocaleString()}</td>
-                <td>${check.due_date}</td>
-                <td>${check.payee}</td>
-                <td><button class="btn btn-sm btn-success" onclick="selectReceivedCheck(${check.id})">خرج کن</button></td>
-            </tr>
-        `;
-        checkList.innerHTML += row;
+// Add listener for "Select All" checkbox
+document.getElementById('selectAllReceivedChecks').addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('.received-check-checkbox');
+    const rows = document.querySelectorAll('.check-row');
+    
+    checkboxes.forEach((checkbox, index) => {
+        checkbox.checked = this.checked;
+        updateRowSelection(rows[index], this.checked);
     });
-}
+    updateSelectedChecksSummary();
+});
 
 // New JS for multi-check issuance (table-based)
 document.addEventListener('DOMContentLoaded', function() {
@@ -1266,4 +1525,50 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 });
 </script>
-{% endblock %}
+{% endblock %}content {
+        width: 95%;
+        margin: 10% auto;
+        padding: 15px;
+    }
+    
+    .customer-search-box {
+        width: 100%;
+        margin-right: 0;
+    }
+    
+    .checks-summary-box {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .checks-grid-header,
+    .check-row {
+        grid-template-columns: 40px 1fr 100px 100px 120px 120px 100px 100px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .financial-operation-container {
+        padding: 0.5rem;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.3rem;
+    }
+    
+    .form-card {
+        padding: 1rem;
+    }
+    
+    .form-control {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .customer-modal-
