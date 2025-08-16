@@ -158,9 +158,11 @@
             <input type="hidden" name="payee" id="modal_payee_name">
             <input type="hidden" name="checks_data" id="checks_data_hidden_input">
 
-            <div class="form-group mb-3">
-                <label for="id_cheque_payee">در وجه</label>
-                <input type="text" id="id_cheque_payee" class="form-control" readonly>
+            <div class="payee-container">
+                <div class="form-group mb-3">
+                    <label for="id_cheque_payee">در وجه</label>
+                    <input type="text" id="id_cheque_payee" class="form-control" readonly>
+                </div>
             </div>
 
             <div id="check-form-container">
@@ -183,14 +185,15 @@
                 </table>
             </div>
 
-            <div class="cheque-summary">
-                 <div class="summary-box">
-                    <label>رأس چک (روز):</label>
-                    <input type="text" id="cheques_avg_due_date" class="form-control" readonly>
+            <!-- بخش خلاصه چک‌ها با فاصله مناسب -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd; display: flex; justify-content: center; gap: 2rem;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="margin-bottom: 12px; font-weight: bold; color: #374151;">راس چک (روز):</div>
+                    <input type="text" id="cheques_avg_due_date" class="form-control" readonly style="width: 200px;">
                 </div>
-                <div class="summary-box">
-                    <label>جمع کل چک‌ها:</label>
-                    <input type="text" id="cheques_total_amount" class="form-control" readonly>
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <div style="margin-bottom: 12px; font-weight: bold; color: #374151;">جمع کل چک‌ها:</div>
+                    <input type="text" id="cheques_total_amount" class="form-control" readonly style="width: 200px;">
                 </div>
             </div>
 
@@ -253,6 +256,11 @@
 .modal-summary p {
     margin: 0.5rem 0;
     font-weight: bold;
+}
+
+.payee-container {
+    max-width: 400px;
+    margin: 0 auto 1.5rem auto;
 }
 
 /* استایل جدید برای دکمه‌های چک */
@@ -811,19 +819,19 @@ function renderCustomerList(customersToRender) {
         
         customerRow.innerHTML = `
             <td>${customer.name}</td>
-                    <td>${customer.last_name}</td>
-                    <td>${customer.store_name || ''}</td>
-                    <td>${customer.mobile || ''}</td>
+            <td>${customer.last_name}</td>
+            <td>${customer.store_name || ''}</td>
+            <td>${customer.mobile || ''}</td>
             <td>${customer.phone || ''}</td>
             <td style="text-align: center;">
                 <button type="button" class="select-customer-btn" onclick="selectCustomerById(${customer.id})">
                     انتخاب
                 </button>
-                    </td>
-                `;
+            </td>
+        `;
         
         customerList.appendChild(customerRow);
-            });
+    });
 }
 
 function searchCustomers() {
@@ -859,7 +867,7 @@ function selectCustomer(customer) {
     document.getElementById('id_customer').value = customer.id;
     
     // Close the modal
-                closeCustomerModal();
+    closeCustomerModal();
     
     // Clear search
     document.getElementById('customerSearch').value = '';
@@ -869,7 +877,7 @@ function selectCustomer(customer) {
 function openCustomerModal() {
     document.getElementById('customerModal').style.display = 'block';
     document.getElementById('customerSearch').focus();
-    }
+}
 
 function closeCustomerModal() {
     document.getElementById('customerModal').style.display = 'none';
