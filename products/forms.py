@@ -818,6 +818,12 @@ class PayToCustomerForm(forms.ModelForm):
         current_date = jdatetime.datetime.now().strftime('%Y/%m/%d')
         self.fields['date_shamsi'].initial = current_date
 
+        # Filter payment_method choices
+        self.fields['payment_method'].choices = [
+            ('cash', 'نقدی'),
+            ('cheque', 'چک'),
+        ]
+
 
 class BankOperationForm(forms.ModelForm):
     """

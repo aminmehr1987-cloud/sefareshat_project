@@ -1757,7 +1757,6 @@ class Receipt(models.Model):
         ('cash', 'نقدی'),
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
-        ('spend_cheque', 'خرج چک'),
         ('pos', 'دستگاه POS'),
     ], verbose_name="روش پرداخت")
     description = models.TextField(blank=True, verbose_name="توضیحات")
