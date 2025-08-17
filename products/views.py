@@ -38,7 +38,7 @@ from functools import wraps
 from decimal import Decimal
 from .forms import BankAccountForm
 from .models import Account, BankAccount, ReceivedCheque, CheckBook, Check
-from .forms import ReceivedChequeStatusChangeForm, ReceivedChequeEditForm
+from .forms import ReceivedChequeStatusChangeForm, ReceivedChequeEditForm, IssuedCheckEditForm
 
 
 
@@ -770,8 +770,6 @@ def purchase_invoice_view(request):
             return redirect(request.path)
 
     return render(request, 'products/purchase_invoice.html', {'today': today, 'customers': customers})
-
-
 @login_required
 def warehouse_panel(request):
     try:
@@ -1503,7 +1501,6 @@ def get_orders(request):
         return JsonResponse({'orders': orders_data})
     except Exception as e:
         return JsonResponse({'message': 'خطا در دریافت سفارش‌ها', 'error': str(e)}, status=500)
-
 @login_required
 @require_POST
 def update_order_status(request):
@@ -2288,7 +2285,6 @@ def search_customers(request):
     except Exception as e:
         print(f"خطا در جستجوی مشتریان: {str(e)}")  # برای دیباگ
         return JsonResponse({'error': str(e)}, status=500)
-
 @login_required
 @user_passes_test(is_manager)
 @require_POST
@@ -3059,7 +3055,6 @@ def get_product(request):
         except Product.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'کالا یافت نشد'}, status=404)
     return JsonResponse({'success': False, 'message': 'درخواست نامعتبر'}, status=400)
-
 @csrf_exempt
 @login_required
 @group_required('حسابداری')
@@ -3856,7 +3851,6 @@ def bank_transfer_view(request):
     حواله بانکی
     """
     return render(request, 'financial_operations/bank_transfer.html')
-
 @login_required
 @group_required('حسابداری')
 def cash_withdrawal_view(request):
@@ -4613,8 +4607,6 @@ def bank_operation_view(request, operation_type):
         'form': form,
         'title': title
     })
-
-
 @login_required
 @group_required('حسابداری')
 @transaction.atomic
@@ -5375,7 +5367,6 @@ def get_profit_loss_data(request):
         'operational_expenses': operational_expenses,
         'net_profit': net_profit,
     }
-
 def get_sales_by_product_data(request):
     """داده‌های فروش به تفکیک کالا - نسخه بهبود یافته"""
     from django.db.models import Sum, Count, Avg, F, ExpressionWrapper, DecimalField
@@ -6126,7 +6117,6 @@ def get_customer_statements_data(request):
         'end_date': end_date,
         'customer_statements': customer_statements,
     }
-
 @login_required
 @group_required('حسابداری')
 @transaction.atomic
@@ -6336,6 +6326,52 @@ def issued_checks_report_view(request, checkbook_id):
     }
     
     return render(request, 'products/issued_checks_report.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+@transaction.atomic
+def issued_check_edit_view(request, check_id):
+    check = get_object_or_404(Check, id=check_id)
+    if not check.checkbook:
+        messages.error(request, 'این چک پرداختی نیست یا به دسته چک تعلق ندارد.')
+        return redirect('products:accounting_panel')
+
+    if request.method == 'POST':
+        form = IssuedCheckEditForm(request.POST, instance=check)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f'چک شماره {check.number} با موفقیت ویرایش شد.')
+            return redirect('products:checkbook_detail', checkbook_id=check.checkbook.id)
+    else:
+        form = IssuedCheckEditForm(instance=check)
+
+    return render(request, 'products/issued_check_edit.html', {
+        'form': form,
+        'check': check,
+    })
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+@transaction.atomic
+def issued_check_delete_view(request, check_id):
+    check = get_object_or_404(Check, id=check_id)
+    if not check.checkbook:
+        messages.error(request, 'این چک پرداختی نیست یا به دسته چک تعلق ندارد.')
+        return redirect('products:accounting_panel')
+
+    allowed_statuses = ['UNUSED', 'ISSUED', 'VOID']
+    if check.status not in allowed_statuses:
+        messages.error(request, 'حذف این چک در وضعیت فعلی مجاز نیست.')
+        return redirect('products:checkbook_detail', checkbook_id=check.checkbook.id)
+
+    checkbook_id = check.checkbook.id
+    check_number = check.number
+    check.delete()
+    messages.success(request, f'چک شماره {check_number} با موفقیت حذف شد.')
+    return redirect('products:checkbook_detail', checkbook_id=checkbook_id)
 
 
 @login_required
@@ -6615,5 +6651,3 @@ def fund_transactions_view(request, fund_id):
     except Exception as e:
         messages.error(request, f'خطا در بارگذاری گردش صندوق: {str(e)}')
         return redirect('products:fund_list')
-
-        

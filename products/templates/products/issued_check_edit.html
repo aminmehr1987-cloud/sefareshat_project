@@ -1,0 +1,136 @@
+{% extends "products/base.html" %}
+{% load custom_filters %}
+{% block cart_elements %}{% endblock %}
+
+{% block title %}ویرایش چک پرداختی{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<style>
+    .datepicker-container { direction: rtl !important; top: 100% !important; right: 0 !important; left: auto !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cheque-edit-container">
+    <div class="dashboard-header">
+        <h1><i class="bi bi-pencil-square"></i> ویرایش چک پرداختی: {{ check.number }}</h1>
+        <div class="header-actions">
+            <a href="{% url 'products:checkbook_detail' check.checkbook.id %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> انصراف و بازگشت
+            </a>
+        </div>
+    </div>
+
+    <div class="edit-form-card glass-card">
+        <div class="form-header">
+            <div class="form-icon">
+                <i class="bi bi-journal-check"></i>
+            </div>
+            <div class="form-title">
+                <h2>اطلاعات چک پرداختی</h2>
+                <p>ویرایش اطلاعات چک پرداختی</p>
+            </div>
+        </div>
+
+        <form method="post" class="modern-form">
+            {% csrf_token %}
+            <div class="form-grid">
+                {% for field in form %}
+                <div class="form-field glass-field">
+                    <label for="{{ field.id_for_label }}" class="field-label">
+                        {{ field.label }}
+                    </label>
+                    <div class="field-wrapper">
+                        {{ field }}
+                    </div>
+                    {% if field.errors %}
+                        <div class="field-error">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            {{ field.errors|first }}
+                        </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-save">
+                    <i class="bi bi-check-circle"></i> 
+                    ذخیره تغییرات
+                </button>
+                <a href="{% url 'products:checkbook_detail' check.checkbook.id %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-circle"></i> 
+                    انصراف
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+@font-face { font-family: 'BHoma'; src: url('/static/fonts/BHoma.ttf') format('truetype'); }
+.cheque-edit-container { max-width: 1200px; margin: 0 auto; padding: 2rem; font-family: 'BHoma', sans-serif; min-height: 100vh; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 2px solid #e5e7eb; }
+.dashboard-header h1 { color: #1f2937; font-size: 2rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+.header-actions { display: flex; gap: 1rem; }
+.glass-card { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37); border-radius: 20px; transition: all 0.3s ease; }
+.edit-form-card { padding: 2.5rem; margin: 0 auto; position: relative; overflow: hidden; }
+.edit-form-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b, #ef4444); border-radius: 20px 20px 0 0; }
+.form-header { display: flex; align-items: center; margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255, 255, 255, 0.2); }
+.form-icon { width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; margin-left: 1.5rem; font-size: 2rem; color: white; box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3); }
+.form-title h2 { color: #1f2937; font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem 0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+.form-title p { color: #6b7280; margin: 0; font-size: 1rem; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; width: 100%; overflow: hidden; }
+.form-field { position: relative; width: 100%; box-sizing: border-box; }
+.glass-field { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(5px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 1.25rem; transition: all 0.3s ease; }
+.glass-field:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); transform: translateY(-2px); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); }
+.glass-field:focus-within { background: rgba(255, 255, 255, 0.1); border-color: rgba(59, 130, 246, 0.5); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+.field-label { display: block; font-weight: 600; color: #1f2937; margin-bottom: 0.75rem; font-size: 0.95rem; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+.field-wrapper { position: relative; }
+.field-wrapper input, .field-wrapper select, .field-wrapper textarea { width: 100%; padding: 0.75rem 1rem; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; background: rgba(255, 255, 255, 0.9); font-size: 1rem; font-family: 'BHoma', sans-serif; transition: all 0.3s ease; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05); box-sizing: border-box; }
+.field-error { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem; padding: 0.75rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; color: #dc2626; font-size: 0.875rem; backdrop-filter: blur(5px); }
+.form-actions { display: flex; justify-content: center; gap: 1rem; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.2); }
+.btn { padding: 0.75rem 2rem; border: none; border-radius: 12px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; font-family: 'BHoma', sans-serif; position: relative; overflow: hidden; }
+.btn::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent); transition: left 0.5s ease; }
+.btn:hover::before { left: 100%; }
+.btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+.btn-primary:hover { background: linear-gradient(135deg, #2563eb, #1d4ed8); transform: translateY(-3px); box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5); }
+.btn-save { min-width: 180px; font-size: 1.1rem; padding: 1rem 2.5rem; }
+.btn-secondary { background: linear-gradient(135deg, #6b7280, #4b5563); color: white; box-shadow: 0 4px 15px rgba(107, 114, 128, 0.3); }
+.btn-secondary:hover { background: linear-gradient(135deg, #4b5563, #374151); transform: translateY(-3px); box-shadow: 0 8px 25px rgba(107, 114, 128, 0.4); }
+.btn-outline-secondary { background: rgba(107, 114, 128, 0.1); color: #6b7280; border: 2px solid rgba(107, 114, 128, 0.3); backdrop-filter: blur(5px); }
+.btn-outline-secondary:hover { background: rgba(107, 114, 128, 0.2); color: #4b5563; border-color: rgba(107, 114, 128, 0.5); transform: translateY(-2px); }
+@media (max-width: 768px) { .cheque-edit-container { padding: 1rem; } .dashboard-header { flex-direction: column; gap: 1rem; text-align: center; } .dashboard-header h1 { font-size: 1.5rem; } .edit-form-card { padding: 1.5rem; } .form-header { flex-direction: column; text-align: center; gap: 1rem; } .form-icon { margin: 0; width: 60px; height: 60px; font-size: 1.5rem; } .form-grid { grid-template-columns: 1fr; gap: 1rem; } .form-actions { flex-direction: column; align-items: stretch; } .btn { padding: 0.875rem 1.5rem; text-align: center; justify-content: center; } }
+@media (max-width: 480px) { .cheque-edit-container { padding: 0.5rem; } .edit-form-card { padding: 1rem; border-radius: 15px; } .glass-field { padding: 1rem; } .field-wrapper input, .field-wrapper select, .field-wrapper textarea { padding: 0.625rem 0.875rem; font-size: 0.95rem; } }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(30px);} to { opacity: 1; transform: translateY(0);} }
+.edit-form-card { animation: fadeInUp 0.6s ease-out; }
+.glass-field { animation: fadeInUp 0.6s ease-out; }
+.glass-field:nth-child(odd) { animation-delay: 0.1s; }
+.glass-field:nth-child(even) { animation-delay: 0.2s; }
+</style>
+
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    $('.persian-date').persianDatepicker({
+        calendar: { persian: { locale: 'fa' } },
+        format: 'YYYY/MM/DD',
+        initialValue: true,
+        autoClose: true,
+        minDate: new persianDate().subtract('year', 10).valueOf(),
+        maxDate: new persianDate().add('year', 2).valueOf(),
+        timePicker: { enabled: false },
+        dayPicker: { enabled: true },
+        monthPicker: { enabled: true },
+        yearPicker: { enabled: true },
+        responsive: true
+    });
+});
+</script>
+{% endblock %}

@@ -1524,3 +1524,64 @@ class FinancialOperationEditForm(forms.ModelForm):
                 self.add_error('account_number', 'برای حواله بانکی، شماره حساب الزامی است.')
 
         return cleaned_data
+
+class IssuedCheckEditForm(forms.ModelForm):
+    date_shamsi = forms.CharField(
+        label="تاریخ سررسید",
+        widget=forms.TextInput(attrs={'class': 'form-control persian-date', 'placeholder': 'YYYY/MM/DD'}),
+        required=True
+    )
+
+    class Meta:
+        model = Check
+        fields = ['payee', 'amount', 'series', 'sayadi_id', 'description']
+        widgets = {
+            'payee': forms.TextInput(attrs={'class': 'form-control'}),
+            'amount': forms.NumberInput(attrs={'class': 'form-control'}),
+            'series': forms.TextInput(attrs={'class': 'form-control'}),
+            'sayadi_id': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 16}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+        labels = {
+            'payee': 'در وجه',
+            'amount': 'مبلغ',
+            'series': 'سری چک',
+            'sayadi_id': 'شناسه صیادی',
+            'description': 'توضیحات',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk and getattr(self.instance, 'date', None):
+            try:
+                self.fields['date_shamsi'].initial = jdatetime.date.fromgregorian(date=self.instance.date).strftime('%Y/%m/%d')
+            except Exception:
+                pass
+
+    def clean(self):
+        cleaned_data = super().clean()
+        date_str = cleaned_data.get('date_shamsi')
+        if isinstance(date_str, str):
+            try:
+                year, month, day = map(int, date_str.split('/'))
+                jdate = jdatetime.date(year, month, day)
+                cleaned_data['date'] = jdate.togregorian()
+            except (ValueError, TypeError):
+                raise ValidationError("فرمت تاریخ نامعتبر است. لطفاً از انتخابگر تاریخ استفاده کنید.", code='invalid_date_format')
+        return cleaned_data
+
+    def clean_sayadi_id(self):
+        sayadi_id = self.cleaned_data.get('sayadi_id')
+        if sayadi_id:
+            if not str(sayadi_id).isdigit() or len(str(sayadi_id)) != 16:
+                raise ValidationError("شناسه صیادی باید یک عدد 16 رقمی باشد.")
+        return sayadi_id
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        date_value = self.cleaned_data.get('date')
+        if date_value:
+            instance.date = date_value
+        if commit:
+            instance.save()
+        return instance

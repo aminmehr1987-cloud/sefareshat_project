@@ -183,6 +183,12 @@
                                     <span class="label">وضعیت:</span>
                                     <span class="value">{{ cheque.get_status_display }}</span>
                                 </div>
+                                {% if cheque.status == 'SPENT' and cheque.recipient_name %}
+                                <div class="info-row">
+                                    <span class="label">دریافت‌کننده چک خرج‌شده:</span>
+                                    <span class="value">{{ cheque.recipient_name }}</span>
+                                </div>
+                                {% endif %}
                             </div>
                             {% if not forloop.last %}<hr class="cheque-divider">{% endif %}
                         {% endfor %}

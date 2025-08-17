@@ -189,6 +189,11 @@
                                     <label for="cheque_{{ cheque.id }}_account_number">شماره حساب</label>
                                     <input type="text" name="cheque_{{ cheque.id }}_account_number" value="{{ cheque.account_number }}" class="form-control">
                                 </div>
+
+                                <div class="form-group">
+                                    <label for="cheque_{{ cheque.id }}_recipient_name">نام دریافت‌کننده (در صورت خرج چک)</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_recipient_name" value="{{ cheque.recipient_name|default:'' }}" class="form-control">
+                                </div>
                                 
                             </div>
                         </div>

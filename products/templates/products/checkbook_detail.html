@@ -189,7 +189,7 @@
   
   .checks-header {
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr 1fr;
     gap: 10px;
     padding: 15px;
     background: linear-gradient(135deg, #17a2b8, #138496);
@@ -200,7 +200,7 @@
   
   .check-row {
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr 1fr;
     gap: 10px;
     padding: 15px;
     border-bottom: 1px solid rgba(0,0,0,0.1);
@@ -285,6 +285,30 @@
     background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
     color: #757575;
   }
+
+  .action-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn {
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    background: transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+  }
+  .btn-sm { padding: 4px 8px; font-size: 0.8rem; }
+  .btn-outline-warning { color: #f59e0b; border-color: #f59e0b; }
+  .btn-outline-warning:hover { background: #f59e0b; color: #fff; }
+  .btn-outline-danger { color: #ef4444; border-color: #ef4444; }
+  .btn-outline-danger:hover { background: #ef4444; color: #fff; }
 </style>
 
 <div class="checkbook-detail-container">
@@ -385,6 +409,7 @@
           <div class="check-col">تاریخ سررسید</div>
           <div class="check-col">وضعیت</div>
           <div class="check-col">توضیحات</div>
+          <div class="check-col">عملیات</div>
         </div>
         
         {% for check in checks %}
@@ -406,6 +431,19 @@
             </div>
             <div class="check-col">
               <span class="check-description">{{ check.description|default:"-"|truncatechars:30 }}</span>
+            </div>
+            <div class="check-col">
+              <div class="action-buttons">
+                <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{% url 'products:issued_check_delete' check.id %}" style="display:inline;" onsubmit="return confirm('حذف این چک انجام شود؟');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         {% endfor %}

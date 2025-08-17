@@ -167,6 +167,8 @@ urlpatterns = [
     path('accounting/issue-check/', views.issue_check_view, name='issue_check'),
     path('api/get-checkbooks/', views.get_checkbooks_for_bank_account, name='get_checkbooks_for_bank_account'),
     path('api/get-unused-checks/', views.get_unused_checks_for_checkbook, name='get_unused_checks_for_checkbook'),
+    path('accounting/issued-checks/<int:check_id>/edit/', views.issued_check_edit_view, name='issued_check_edit'),
+    path('accounting/issued-checks/<int:check_id>/delete/', views.issued_check_delete_view, name='issued_check_delete'),
     
     # URLs for spending received checks
     path('api/get-received-checks/', views.get_received_checks, name='get_received_checks'),
