@@ -799,10 +799,10 @@ class PayToCustomerForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.HiddenInput(),
             'customer': forms.Select(attrs={'class': 'form-control'}),
-            'amount': forms.NumberInput(attrs={
+            'amount': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'مبلغ را وارد کنید',
-                'step': '0.01'
+                'inputmode': 'numeric'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={

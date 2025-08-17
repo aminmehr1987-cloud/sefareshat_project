@@ -4310,9 +4310,20 @@ def financial_operation_edit_view(request, operation_id):
                         cheque = ReceivedCheque.objects.get(id=cheque_id, financial_operation=operation)
                         
                         # Update fields
-                        amount_str = data.get('amount', '0').replace(',', '')
+                        amount_value = data.get('amount', '0')
+                        # Convert to string first, then remove commas
+                        amount_str = str(amount_value).replace(',', '')
                         cheque.amount = Decimal(amount_str)
-                        cheque.due_date = convert_shamsi_to_gregorian(data.get('due_date'))
+                        
+                        # Handle date conversion safely
+                        due_date_str = data.get('due_date', '')
+                        if due_date_str:
+                            try:
+                                cheque.due_date = convert_shamsi_to_gregorian(due_date_str)
+                            except Exception as e:
+                                print(f"Error converting date {due_date_str}: {e}")
+                                # Keep the original date if conversion fails
+                        
                         cheque.bank_name = data.get('bank_name', '')
                         cheque.branch_name = data.get('branch_name', '')
                         cheque.sayadi_id = data.get('sayadi_id', '')
@@ -4980,7 +4991,9 @@ def issue_check_view(request):
 
         for check_data in checks_data:
             check_id = check_data.get('check_number')
-            amount_str = check_data.get('amount', '0').replace(',', '')
+            amount_value = check_data.get('amount', '0')
+            # Convert to string first, then remove commas
+            amount_str = str(amount_value).replace(',', '')
             amount = Decimal(amount_str)
             due_date_shamsi = check_data.get('due_date')
             series = check_data.get('series')

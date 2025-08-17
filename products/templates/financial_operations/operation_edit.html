@@ -136,8 +136,8 @@
                                 
 
                                 <div class="form-group">
-                                    <label for="cheque_{{ cheque.id }}_endorsement">پشت نمره </label>
-                                    <input type="text" name="cheque_{{ cheque.id }}_endorsement" value="{{ cheque.endorsement|floatformat:0|intcomma }}" class="form-control amount-input">
+                                    <label for="cheque_{{ cheque.id }}_endorsement">پشت نمره</label>
+                                    <input type="text" name="cheque_{{ cheque.id }}_endorsement" value="{{ cheque.endorsement|default:'' }}" class="form-control">
                                 </div>
                                 <div class="form-group">
                                     <label for="cheque_{{ cheque.id }}_series">سری چک</label>

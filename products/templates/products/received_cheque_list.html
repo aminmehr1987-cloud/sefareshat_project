@@ -94,8 +94,10 @@
                         <td class="amount">{{ cheque.amount|persian_number_format }} ریال</td>
                         <td>{{ cheque.due_date|jalali_date }}</td>
                         <td>
-                            {% if cheque.status == 'SPENT' %}
-                                {{ cheque.recipient_name|default_if_none:"" }}
+                            {% if cheque.status == 'SPENT' and cheque.recipient_name %}
+                                {{ cheque.recipient_name }}
+                            {% else %}
+                                -
                             {% endif %}
                         </td>
                         

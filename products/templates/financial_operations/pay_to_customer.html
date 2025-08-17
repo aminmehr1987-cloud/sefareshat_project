@@ -33,10 +33,6 @@
             {% csrf_token %}
             {{ form.operation_type }}
             
-            <!-- Hidden fields for temporary check data -->
-            <input type="hidden" id="temp_issued_checks_data" name="temp_issued_checks" value="">
-            <input type="hidden" id="temp_spent_checks_data" name="temp_spent_checks" value="">
-            
             <!-- نمایش خطاهای فرم -->
             {% if form.errors %}
             <div class="alert alert-danger">
@@ -92,41 +88,37 @@
             </div>
             
             <!-- دکمه های چک در همین سطر -->
-            <div class="form-row">
-                <div id="cheque-actions" class="cheque-buttons-container" style="display: none;">
-                    <div class="check-button-group">
-                        <button type="button" class="btn btn-warning" onclick="openIssueCheckModal()">
-                            <i class="bi bi-journal-plus"></i> صدور چک جدید
-                        </button>
-                        <div id="issued-checks-summary" class="check-summary" style="display: none;">
-                            <div class="summary-item">
-                                <i class="bi bi-check-circle-fill text-success"></i>
-                                <span id="issued-checks-count">0</span> چک جدید
-                            </div>
-                            <div class="summary-item">
-                                <i class="bi bi-currency-exchange"></i>
-                                <span id="issued-checks-total">0</span> ریال
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="check-button-group">
-                        <button type="button" class="btn btn-info" onclick="openSpendReceivedCheckModal()">
-                            <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
-                        </button>
-                        <div id="spent-checks-summary" class="check-summary" style="display: none;">
-                            <div class="summary-item">
-                                <i class="bi bi-check-circle-fill text-info"></i>
-                                <span id="spent-checks-count">0</span> چک خرجی
-                            </div>
-                            <div class="summary-item">
-                                <i class="bi bi-currency-exchange"></i>
-                                <span id="spent-checks-total">0</span> ریال
-                            </div>
-                        </div>
-                    </div>
+            <div class="form-row" id="cheque-actions" style="display: none;">
+                <button type="button" class="btn btn-warning cheque-btn" onclick="openIssueCheckModal()" style="width: 100%;">
+                    <i class="bi bi-journal-plus"></i> صدور چک جدید
+                </button>
+                <button type="button" class="btn btn-info cheque-btn" onclick="openSpendReceivedCheckModal()" style="width: 100%;">
+                    <i class="bi bi-box-arrow-up-right"></i> خرج چک دریافتی
+                </button>
+            </div>
+            
+            <!-- خلاصه چک‌ها در یک سطر -->
+            <div class="form-row" id="mini-summaries-row" style="display: none; position: relative;">
+                <!-- خلاصه چک‌های خرجی -->
+                <div class="mini-summary" id="spent-cheques-mini-summary" style="display: none; position: absolute; top: 0; left: 0; width: calc(50% - 0.5rem); box-sizing: border-box;">
+                    <span class="mini-summary-text">
+                        <i class="bi bi-check-circle"></i>
+                        <span id="spent-cheques-mini-count">0</span> چک خرجی - 
+                        <span id="spent-cheques-mini-amount">0</span>
+                    </span>
+                </div>
+                
+                <!-- خلاصه چک‌های جدید -->
+                <div class="mini-summary" id="new-cheques-mini-summary" style="display: none; position: absolute; top: 0; right: 0; width: calc(50% - 0.5rem); box-sizing: border-box;">
+                    <span class="mini-summary-text">
+                        <i class="bi bi-check-circle"></i>
+                        <span id="new-cheques-mini-count">0</span> چک جدید - 
+                        <span id="new-cheques-mini-amount">0</span>
+                    </span>
                 </div>
             </div>
+            
+
             
             <div class="form-group full-width">
                 <label for="id_description"><i class="bi bi-text-paragraph"></i> توضیحات</label>
@@ -150,7 +142,7 @@
 
 <!-- Customer Selection Modal -->
 <div id="customerModal" class="customer-modal">
-    <div class="customer-modal-content">
+    <div class="customer-modal-content" style="max-width: 95%; width: 1400px;">
         <div class="customer-modal-header">
             <span class="customer-modal-title">انتخاب مشتری</span>
             <span class="close-modal" onclick="closeCustomerModal()">×</span>
@@ -468,44 +460,6 @@
     margin-left: auto;
 }
 
-/* Check Button Group Styles */
-.check-button-group {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-
-.check-summary {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 0.875rem;
-    min-width: 180px;
-}
-
-.check-summary .summary-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-}
-
-.check-summary .summary-item:last-child {
-    margin-bottom: 0;
-}
-
-.check-summary .summary-item i {
-    font-size: 14px;
-}
-
-.cheque-buttons-container {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-}
-
 .search-input {
     font-size: 0.875rem;
     border-radius: 4px;
@@ -718,12 +672,118 @@
 }
 
 /* استایل جدید برای دکمه‌های چک */
-.cheque-buttons-container {
+.cheque-btn {
+    width: 100%;
+    height: 38px !important; /* همان ارتفاع باکس‌های بالایی */
+    padding: 0.375rem 1rem;
+    line-height: 1.5;
+    font-size: 1rem;
+    box-sizing: border-box;
+    font-family: 'BHoma', sans-serif;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
     display: flex;
-    gap: 1rem;
     align-items: center;
     justify-content: center;
-    grid-column: 1 / -1; /* پهن کردن در تمام عرض */
+    gap: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    background-color: #f9fafb;
+}
+
+.cheque-btn:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* استایل خلاصه چک‌ها */
+.cheque-summary-container {
+    background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.summary-header h6 {
+    color: #1e293b;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.summary-header h6 i {
+    color: #3b82f6;
+}
+
+.summary-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.summary-label {
+    font-weight: 600;
+    color: #475569;
+    font-size: 0.9rem;
+}
+
+.summary-value {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 1.1rem;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* استایل خلاصه کوچک زیر دکمه‌ها */
+.mini-summary {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    text-align: center;
+}
+
+/* استایل سطر خلاصه‌ها */
+#mini-summaries-row {
+    min-height: 60px;
+    margin-top: 0.5rem;
+    overflow: hidden;
+}
+
+.mini-summary-text {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #0369a1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+}
+
+.mini-summary-text i {
+    color: #059669;
+    font-size: 0.9rem;
 }
 
 @font-face {
@@ -935,8 +995,8 @@
     margin: 5% auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 80%;
-    max-width: 800px;
+    width: 95%;
+    max-width: 1400px;
     border-radius: 15px;
     position: relative;
     direction: rtl;
@@ -1106,9 +1166,9 @@
         gap: 1rem;
     }
     
-    .cheque-buttons-container {
-        flex-direction: column;
-        gap: 0.5rem;
+    .cheque-btn {
+        width: 100%;
+        height: 38px !important;
     }
     
     .form-actions {
@@ -1122,6 +1182,7 @@
     
     .customer-modal-content {
         width: 98%;
+        max-width: 1400px;
         margin: 5% auto;
         padding: 10px;
     }
@@ -1143,67 +1204,6 @@
 <script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
 
 <script>
-// Global variables for temporary check storage
-let tempIssuedChecks = [];
-let tempSpentChecks = [];
-
-// Function to update main page summaries
-function updateCheckSummaries() {
-    // Update issued checks summary
-    const issuedCount = tempIssuedChecks.length;
-    const issuedTotal = tempIssuedChecks.reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0);
-    
-    document.getElementById('issued-checks-count').textContent = issuedCount;
-    document.getElementById('issued-checks-total').textContent = issuedTotal.toLocaleString('fa-IR');
-    
-    // Update spent checks summary
-    const spentCount = tempSpentChecks.length;
-    const spentTotal = tempSpentChecks.reduce((sum, check) => sum + (parseFloat(check.amount) || 0), 0);
-    
-    document.getElementById('spent-checks-count').textContent = spentCount;
-    document.getElementById('spent-checks-total').textContent = spentTotal.toLocaleString('fa-IR');
-    
-    // Show/hide summary sections
-    const issuedSummary = document.getElementById('issued-checks-summary');
-    const spentSummary = document.getElementById('spent-checks-summary');
-    
-    if (issuedCount > 0) {
-        issuedSummary.style.display = 'block';
-    } else {
-        issuedSummary.style.display = 'none';
-    }
-    
-    if (spentCount > 0) {
-        spentSummary.style.display = 'block';
-    } else {
-        spentSummary.style.display = 'none';
-    }
-    
-    // Update main amount field
-    const totalAmount = issuedTotal + spentTotal;
-    const amountField = document.getElementById('id_amount');
-    if (amountField && totalAmount > 0) {
-        amountField.value = totalAmount.toLocaleString('fa-IR');
-    }
-}
-
-// Function to handle main form submission
-function handleFormSubmit(event) {
-    // Update hidden fields with check data before form submission
-    const issuedChecksField = document.getElementById('temp_issued_checks_data');
-    const spentChecksField = document.getElementById('temp_spent_checks_data');
-    
-    if (issuedChecksField) {
-        issuedChecksField.value = JSON.stringify(tempIssuedChecks);
-    }
-    
-    if (spentChecksField) {
-        spentChecksField.value = JSON.stringify(tempSpentChecks);
-    }
-    
-    return true; // Allow form submission
-}
-
 $(document).ready(function() {
     // Persian Datepicker initialization
     $("#id_date_shamsi").pDatepicker({
@@ -1242,11 +1242,32 @@ $(document).ready(function() {
     
     // Initialize customer modal functionality
     initializeCustomerModal();
+    
+    // تست وجود فیلد مبلغ
+    const amountField = document.getElementById('id_amount');
+    if (amountField) {
+        console.log('Debug - Amount field found:', amountField);
+        console.log('Debug - Amount field value:', amountField.value);
+    } else {
+        console.error('Debug - Amount field not found!');
+        // بررسی همه فیلدهای input
+        const allInputs = document.querySelectorAll('input');
+        console.log('Debug - All inputs:', allInputs);
+        allInputs.forEach(input => {
+            if (input.name === 'amount' || input.id.includes('amount')) {
+                console.log('Debug - Found amount-related field:', input);
+            }
+        });
+    }
 });
 
 // Customer Modal Functions
 let customers = [];
 let selectedCustomer = null;
+
+// متغیرهای global برای نگهداری چک‌ها
+let selectedIssuedChecks = []; // چک‌های جدید صادر شده
+let selectedSpentChecks = []; // چک‌های دریافتی خرج شده
 
 function initializeCustomerModal() {
     // Load customers from Django context or API
@@ -1265,6 +1286,87 @@ function initializeCustomerModal() {
             closeCustomerModal();
         }
     });
+}
+
+// تابع به‌روزرسانی خلاصه چک‌ها
+function updateChequeSummary() {
+    const totalIssuedChecks = selectedIssuedChecks.length;
+    const totalSpentChecks = selectedSpentChecks.length;
+    const totalCheques = totalIssuedChecks + totalSpentChecks;
+    
+    const totalIssuedAmount = selectedIssuedChecks.reduce((sum, check) => sum + parseFloat(check.amount), 0);
+    const totalSpentAmount = selectedSpentChecks.reduce((sum, check) => sum + parseFloat(check.amount), 0);
+    const totalAmount = totalIssuedAmount + totalSpentAmount;
+    
+    console.log('Debug - Total Amount:', totalAmount);
+    console.log('Debug - Issued Checks:', selectedIssuedChecks);
+    console.log('Debug - Spent Checks:', selectedSpentChecks);
+    
+
+    
+    // به‌روزرسانی خلاصه کوچک چک‌های جدید
+    const newChequesMiniSummary = document.getElementById('new-cheques-mini-summary');
+    const newChequesMiniCount = document.getElementById('new-cheques-mini-count');
+    const newChequesMiniAmount = document.getElementById('new-cheques-mini-amount');
+    
+    // به‌روزرسانی خلاصه کوچک چک‌های خرجی
+    const spentChequesMiniSummary = document.getElementById('spent-cheques-mini-summary');
+    const spentChequesMiniCount = document.getElementById('spent-cheques-mini-count');
+    const spentChequesMiniAmount = document.getElementById('spent-cheques-mini-amount');
+    
+    // نمایش یا مخفی کردن سطر خلاصه‌ها
+    const miniSummariesRow = document.getElementById('mini-summaries-row');
+    
+    if (totalIssuedChecks > 0 || totalSpentChecks > 0) {
+        miniSummariesRow.style.display = 'grid';
+        
+        if (totalIssuedChecks > 0) {
+            newChequesMiniSummary.style.display = 'block';
+            newChequesMiniCount.textContent = totalIssuedChecks;
+            newChequesMiniAmount.textContent = totalIssuedAmount.toLocaleString('fa-IR');
+        } else {
+            newChequesMiniSummary.style.display = 'none';
+        }
+        
+        if (totalSpentChecks > 0) {
+            spentChequesMiniSummary.style.display = 'block';
+            spentChequesMiniCount.textContent = totalSpentChecks;
+            spentChequesMiniAmount.textContent = totalSpentAmount.toLocaleString('fa-IR');
+        } else {
+            spentChequesMiniSummary.style.display = 'none';
+        }
+    } else {
+        miniSummariesRow.style.display = 'none';
+    }
+    
+
+    
+    // به‌روزرسانی مبلغ در فرم اصلی
+    const amountField = document.querySelector('input[name="amount"]');
+    if (amountField) {
+        // حالا که فیلد text است، می‌توانیم جداکننده هزارگان اضافه کنیم
+        amountField.value = totalAmount.toLocaleString('en-US');
+        console.log('Debug - Amount field updated:', amountField.value);
+    } else {
+        console.error('Debug - Amount field not found!');
+        // تلاش با ID
+        const amountFieldById = document.getElementById('id_amount');
+        if (amountFieldById) {
+            amountFieldById.value = totalAmount.toLocaleString('en-US');
+            console.log('Debug - Amount field updated by ID:', amountFieldById.value);
+        }
+    }
+    
+    // به‌روزرسانی توضیحات
+    let description = '';
+    if (totalIssuedChecks > 0) {
+        description += `صدور ${totalIssuedChecks} فقره چک جدید به مبلغ ${totalIssuedAmount.toLocaleString('fa-IR')}`;
+    }
+    if (totalSpentChecks > 0) {
+        if (description) description += ' - ';
+        description += `خرج ${totalSpentChecks} فقره چک دریافتی به مبلغ ${totalSpentAmount.toLocaleString('fa-IR')}`;
+    }
+    document.getElementById('id_description').value = description;
 }
 
 function loadCustomers() {
@@ -1672,29 +1774,22 @@ function confirmSpendChecks() {
         return;
     }
 
-    // Collect check data for temporary storage
-    const checks = Array.from(selectedCheckboxes).map(cb => {
-        const row = cb.closest('tr');
-        return {
-            id: cb.value,
-            amount: parseFloat(cb.dataset.amount),
-            serial: row.cells[2].textContent, // Serial number
-            customer: row.cells[1].textContent, // Customer name
-            due_date: cb.dataset.dueDate
-        };
-    });
+    // ذخیره موقت چک‌های انتخاب شده
+    selectedSpentChecks = Array.from(selectedCheckboxes).map(cb => ({
+        id: cb.value,
+        serial: cb.dataset.serial,
+        amount: parseFloat(cb.dataset.amount),
+        payee: cb.dataset.payee,
+        due_date: cb.dataset.dueDate
+    }));
 
-    // Store checks temporarily instead of immediate submission
-    tempSpentChecks = checks;
-    
-    // Update main page summaries
-    updateCheckSummaries();
-    
-    // Close modal
+    // بستن مودال
     closeSpendReceivedCheckModal();
     
-    // Show success message
-    alert(`${checks.length} چک دریافتی برای خرج آماده شد. برای نهایی کردن، دکمه "ثبت عملیات" را بزنید.`);
+    // به‌روزرسانی خلاصه
+    updateChequeSummary();
+    
+    alert(`${selectedSpentChecks.length} فقره چک دریافتی برای خرج کردن انتخاب شد.`);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1981,43 +2076,134 @@ document.addEventListener('DOMContentLoaded', function() {
         const checks = [];
         let hasError = false;
         container.querySelectorAll('tr').forEach(row => {
-            const bankAccountSelect = row.querySelector('.cheque-bank-account');
-            const checkbookSelect = row.querySelector('.checkbook');
-            const checkNumberSelect = row.querySelector('.check_number');
-            
             const check = {
-                bank_account: bankAccountSelect ? bankAccountSelect.value : '',
-                checkbook: checkbookSelect ? checkbookSelect.value : '',
-                check_number: checkNumberSelect ? checkNumberSelect.value : '',
+                check_number: row.querySelector('.check_number').value,
                 series: row.querySelector('input[name^="series"]').value,
                 sayadi_id: row.querySelector('input[name^="sayadi_id"]').value,
                 amount: parseAmountFromFormattedString(row.querySelector('.cheque-amount').value),
                 due_date: row.querySelector('.cheque-due-date').value,
             };
 
-            if (!check.bank_account || !check.checkbook || !check.check_number || !check.amount || !check.due_date) {
+            if (!check.check_number || !check.amount || !check.due_date) {
                 hasError = true;
             }
             checks.push(check);
         });
 
         if (hasError) {
-            alert('لطفا تمامی فیلدهای الزامی (حساب بانکی، دسته چک، شماره چک، مبلغ، تاریخ) را برای همه چک‌ها پر کنید.');
+            alert('لطفا تمامی فیلدهای الزامی (شماره چک، مبلغ، تاریخ) را برای همه چک‌ها پر کنید.');
             return;
         }
         
-        // Store checks temporarily instead of immediate submission
-        tempIssuedChecks = checks;
-        
-        // Update main page summaries
-        updateCheckSummaries();
-        
-        // Close modal
+        // ذخیره موقت چک‌های انتخاب شده
+        selectedIssuedChecks = checks.map(check => ({
+            check_number: check.check_number,
+            series: check.series,
+            sayadi_id: check.sayadi_id,
+            amount: parseFloat(check.amount),
+            due_date: check.due_date,
+            payee: document.getElementById('modal_payee_name').value
+        }));
+
+        // بستن مودال
         closeIssueCheckModal();
         
-        // Show success message
-        alert(`${checks.length} چک برای صدور آماده شد. برای نهایی کردن، دکمه "ثبت عملیات" را بزنید.`);
+        // به‌روزرسانی خلاصه
+        updateChequeSummary();
+        
+        alert(`${selectedIssuedChecks.length} فقره چک جدید برای صدور انتخاب شد.`);
     };
+    
+    // تابع پردازش فرم اصلی
+    window.handleFormSubmit = function(event) {
+        event.preventDefault();
+        
+        // پاک کردن جداکننده‌ها از مبلغ قبل از ارسال
+        const amountField = document.querySelector('input[name="amount"]');
+        if (amountField && amountField.value) {
+            amountField.value = amountField.value.replace(/,/g, '');
+        }
+        
+        // بررسی اینکه آیا چک‌هایی انتخاب شده‌اند
+        if (selectedIssuedChecks.length > 0 || selectedSpentChecks.length > 0) {
+            // پردازش چک‌های جدید
+            if (selectedIssuedChecks.length > 0) {
+                processIssuedChecks();
+            }
+            
+            // پردازش چک‌های خرجی
+            if (selectedSpentChecks.length > 0) {
+                processSpentChecks();
+            }
+        } else {
+            // اگر چکی انتخاب نشده، فرم معمولی ارسال شود
+            event.target.submit();
+        }
+    };
+    
+    // پردازش چک‌های جدید
+    function processIssuedChecks() {
+        const formData = {
+            customer: document.getElementById('modal_customer_id').value,
+            payee: selectedIssuedChecks[0].payee,
+            checks: selectedIssuedChecks
+        };
+
+        fetch("{% url 'products:issue_check' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('چک‌های جدید با موفقیت ثبت شدند');
+            } else {
+                alert('خطا در ثبت چک‌های جدید: ' + data.message);
+                return;
+            }
+        })
+        .catch(error => {
+            console.error('Error processing issued checks:', error);
+            alert('خطا در پردازش چک‌های جدید');
+            return;
+        });
+    }
+    
+    // پردازش چک‌های خرجی
+    function processSpentChecks() {
+        const checkIds = selectedSpentChecks.map(check => check.id);
+        const customerId = document.getElementById('id_customer').value;
+
+        fetch("{% url 'products:spend_received_check' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                check_ids: checkIds,
+                customer_id: customerId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('چک‌های خرجی با موفقیت ثبت شدند');
+                // ارسال فرم اصلی
+                document.querySelector('.operation-form').submit();
+            } else {
+                alert('خطا در ثبت چک‌های خرجی: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error processing spent checks:', error);
+            alert('خطا در پردازش چک‌های خرجی');
+        });
+    }
 });
 </script>
 {% endblock %}content {
