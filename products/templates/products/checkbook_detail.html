@@ -288,27 +288,43 @@
 
   .action-buttons {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
+    gap: 0.5rem;
   }
   .btn {
-    padding: 6px 10px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    background: transparent;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
+    transition: all 0.3s ease;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 0.5rem;
     text-decoration: none;
   }
-  .btn-sm { padding: 4px 8px; font-size: 0.8rem; }
-  .btn-outline-warning { color: #f59e0b; border-color: #f59e0b; }
-  .btn-outline-warning:hover { background: #f59e0b; color: #fff; }
-  .btn-outline-danger { color: #ef4444; border-color: #ef4444; }
-  .btn-outline-danger:hover { background: #ef4444; color: #fff; }
+  .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+  .btn-outline-warning {
+    background: transparent;
+    color: #f59e0b;
+    border: 1px solid #f59e0b;
+  }
+
+  .btn-outline-warning:hover {
+    background: #f59e0b;
+    color: white;
+  }
+
+  .btn-outline-danger {
+    background: transparent;
+    color: #dc3545;
+    border: 1px solid #dc3545;
+  }
+
+  .btn-outline-danger:hover {
+    background: #dc3545;
+    color: white;
+  }
 </style>
 
 <div class="checkbook-detail-container">
@@ -435,14 +451,14 @@
             <div class="check-col">
               <div class="action-buttons">
                 <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
-                  <i class="bi bi-pencil"></i>
+                    <i class="bi bi-pencil-fill"></i>
                 </a>
-                <form method="post" action="{% url 'products:issued_check_delete' check.id %}" style="display:inline;" onsubmit="return confirm('حذف این چک انجام شود؟');">
-                  {% csrf_token %}
-                  <button type="submit" class="btn btn-sm btn-outline-danger" title="حذف">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                <form id="delete-form-{{ check.id }}" action="{% url 'products:issued_check_delete' check.id %}" method="post" style="display: none;">
+                    {% csrf_token %}
                 </form>
+                <a href="#" onclick="if(confirm('آیا از حذف این چک مطمئن هستید؟')) { document.getElementById('delete-form-{{ check.id }}').submit(); } return false;" class="btn btn-sm btn-outline-danger" title="حذف">
+                    <i class="bi bi-trash-fill"></i>
+                </a>
               </div>
             </div>
           </div>

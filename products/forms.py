@@ -1528,7 +1528,7 @@ class FinancialOperationEditForm(forms.ModelForm):
 class IssuedCheckEditForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ سررسید",
-        widget=forms.TextInput(attrs={'class': 'form-control persian-date', 'placeholder': 'YYYY/MM/DD'}),
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'YYYY/MM/DD'}),
         required=True
     )
 
@@ -1554,7 +1554,7 @@ class IssuedCheckEditForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk and getattr(self.instance, 'date', None):
             try:
-                self.fields['date_shamsi'].initial = jdatetime.date.fromgregorian(date=self.instance.date).strftime('%Y/%m/%d')
+                self.fields['date_shamsi'].initial = self.instance.date.strftime('%Y/%m/%d')
             except Exception:
                 pass
 
