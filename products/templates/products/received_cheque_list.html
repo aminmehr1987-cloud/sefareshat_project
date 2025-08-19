@@ -101,7 +101,13 @@
                         <td>{{ cheque.due_date|jalali_date }}</td>
                         <td>
                             {% if cheque.status == 'SPENT' %}
-                                {{ cheque.recipient_name|default:cheque.financial_operation.customer.get_full_name|default:"-" }}
+                                {% if cheque.recipient_name %}
+                                    {{ cheque.recipient_name }}
+                                {% elif cheque.financial_operation and cheque.financial_operation.customer %}
+                                    {{ cheque.financial_operation.customer.get_full_name }}
+                                {% else %}
+                                    -
+                                {% endif %}
                             {% else %}
                                 -
                             {% endif %}
