@@ -6735,158 +6735,78 @@ def bounce_issued_check(request, check_id):
 @require_POST
 def reset_issued_check(request, check_id):
     """
-    بازگشت چک صادر شده به حالت اولیه (UNUSED)
+    بازگشت چک صادر شده به حالت اولیه (UNUSED) و اصلاح عملیات مالی مرتبط
     """
-    import json
-    
     try:
-        check = get_object_or_404(Check, id=check_id)
-        
-        if check.status == 'UNUSED':
-            return JsonResponse({
-                'success': False,
-                'error': 'چک در حالت اولیه قرار دارد'
-            })
-        
         with transaction.atomic():
-            # ذخیره مبلغ چک قبل از پاک کردن
-            check_amount = check.amount
-            check_payee = check.payee
-            
-            # اگر چک وصول شده، مبلغ را به حساب بانکی برگردان
-            if check.status == 'CLEARED' and check.checkbook and check.checkbook.bank_account:
-                bank_account = check.checkbook.bank_account
-                bank_account.current_balance += check_amount
-                bank_account.save()
-                
-                # ایجاد عملیات مالی برای برگشت مبلغ به حساب بانکی
-                from products.models import FinancialOperation
-                FinancialOperation.objects.create(
-                    operation_type='CHECK_RESET_FROM_CLEARED',
-                    amount=check_amount,
-                    description=f'بازگشت چک شماره {check.number} به حالت اولیه (از وضعیت وصول شده)',
-                    bank_account=bank_account,
-                    created_by=request.user,
-                    date=timezone.now().date()
-                )
-            
-            # اگر چک برگشتی و مشتری شناسایی شده، مبلغ را از حساب مشتری کم کن
-            elif check.status == 'BOUNCED' and check_payee:
-                try:
-                    from django.db.models import Q
-                    customer = Customer.objects.filter(
-                        Q(first_name__icontains=check_payee) | 
-                        Q(last_name__icontains=check_payee) |
-                        Q(company_name__icontains=check_payee)
-                    ).first()
-                    
-                    if customer:
-                        customer_balance, created = CustomerBalance.objects.get_or_create(
-                            customer=customer,
-                            defaults={'current_balance': 0}
-                        )
-                        customer_balance.current_balance -= check_amount
-                        customer_balance.save()
-                        
-                        # ایجاد عملیات مالی برای کسر مبلغ از حساب مشتری
-                        from products.models import FinancialOperation
-                        FinancialOperation.objects.create(
-                            operation_type='CHECK_RESET_FROM_BOUNCED',
-                            amount=check_amount,
-                            description=f'بازگشت چک شماره {check.number} به حالت اولیه (از وضعیت برگشت خورده)',
-                            customer=customer,
-                            created_by=request.user,
-                            date=timezone.now().date()
-                        )
-                except Exception as e:
-                    # در صورت عدم شناسایی مشتری، لاگ بگیر
-                    print(f"Error finding customer for check {check.id}: {e}")
-            
-            # اگر چک صادر شده (ISSUED) و مشتری شناسایی شده، مبلغ را به حساب مشتری برگردان
-            elif check.status == 'ISSUED' and check_payee:
-                try:
-                    from django.db.models import Q
-                    customer = Customer.objects.filter(
-                        Q(first_name__icontains=check_payee) | 
-                        Q(last_name__icontains=check_payee) |
-                        Q(company_name__icontains=check_payee)
-                    ).first()
-                    
-                    if customer:
-                        # بررسی عملیات مالی مرتبط
-                        if check.financial_operation:
-                            operation = check.financial_operation
-                            
-                            # اگر عملیات مالی فقط شامل این چک است، آن را حذف کن
-                            if operation.issued_checks.count() == 1:
-                                operation.delete()
-                            else:
-                                # اگر عملیات مالی شامل چندین چک است، مبلغ این چک را کسر کن
-                                operation.amount -= check_amount
-                                operation.save()
-                                
-                                # به‌روزرسانی توضیحات عملیات
-                                remaining_checks = operation.issued_checks.exclude(id=check.id)
-                                if remaining_checks.exists():
-                                    remaining_numbers = [c.number for c in remaining_checks]
-                                    operation.description = f'پرداخت طی چک‌های شماره: {", ".join(remaining_numbers)} به {check_payee}'
-                                    operation.save()
-                                
-                                # به‌روزرسانی شماره عملیات مالی (خودکار)
-                                operation.save()
-                        
-                        # به‌روزرسانی موجودی مشتری
-                        customer_balance, created = CustomerBalance.objects.get_or_create(
-                            customer=customer,
-                            defaults={'current_balance': 0}
-                        )
-                        customer_balance.current_balance += check_amount
-                        customer_balance.save()
-                        
-                        # ایجاد عملیات مالی برای برگشت مبلغ به حساب مشتری
-                        from products.models import FinancialOperation
-                        FinancialOperation.objects.create(
-                            operation_type='CHECK_RESET_FROM_ISSUED',
-                            amount=check_amount,
-                            description=f'بازگشت چک شماره {check.number} به حالت اولیه (از وضعیت صادر شده)',
-                            customer=customer,
-                            created_by=request.user,
-                            date=timezone.now().date()
-                        )
-                        
-                        # به‌روزرسانی موجودی مشتری بر اساس تمام عملیات‌های مالی
-                        customer_balance.update_balance()
-                        
-                except Exception as e:
-                    print(f"Error finding customer for check {check.id}: {e}")
-            
-            # حذف ارتباط چک با عملیات مالی (قبل از save)
-            if check.financial_operation:
-                check.financial_operation = None
-            
-            # بازگشت چک به حالت اولیه
+            check = get_object_or_404(Check.objects.select_for_update(), id=check_id)
+
+            if check.status == 'UNUSED':
+                return JsonResponse({'success': False, 'error': 'چک در حال حاضر در وضعیت اولیه قرار دارد.'})
+
+            # Store related info before modification
+            original_operation = check.financial_operation
+            customer = original_operation.customer if original_operation else None
+
+            # Reset the check to its initial state
             check.status = 'UNUSED'
-            check.date = None  # حذف تاریخ سررسید
-            check.payee = None  # حذف نام دریافت‌کننده
-            check.amount = 0   # حذف مبلغ
-            check.description = None  # حذف توضیحات
+            check.amount = 0
+            check.date = None
+            check.payee = ''
+            check.description = ''
+            check.series = ''
+            check.sayadi_id = ''
+            check.financial_operation = None
             check.cleared_at = None
             check.cleared_by = None
             check.bounced_at = None
             check.bounced_by = None
-            check.financial_operation = None
             check.save()
-        
+
+            if original_operation:
+                # Recalculate the operation's amount from all associated checks (issued and spent)
+                issued_total = original_operation.issued_checks.all().aggregate(total=Sum('amount'))['total'] or Decimal('0')
+                spent_total = original_operation.spent_cheques.all().aggregate(total=Sum('amount'))['total'] or Decimal('0')
+                new_amount = issued_total + spent_total
+
+                if new_amount <= 0:
+                    # If no checks are left, soft-delete the entire operation
+                    original_operation.soft_delete(request.user)
+                else:
+                    # Otherwise, update the operation's amount and description
+                    original_operation.amount = new_amount
+                    
+                    # Rebuild the description based on remaining checks
+                    desc_parts = []
+                    remaining_issued = original_operation.issued_checks.all()
+                    if remaining_issued.exists():
+                        desc_parts.append(f"صدور چک‌های: {', '.join([c.number for c in remaining_issued])}")
+                    
+                    remaining_spent = original_operation.spent_cheques.all()
+                    if remaining_spent.exists():
+                        desc_parts.append(f"خرج چک‌های دریافتی: {', '.join([c.serial for c in remaining_spent])}")
+                    
+                    original_operation.description = f"پرداخت به {customer.get_full_name() if customer else 'ناشناس'} - {' + '.join(desc_parts)}"
+                    original_operation.save()
+
+            # Trigger a balance update for the related customer
+            if customer:
+                # The post_save signal on FinancialOperation should handle this,
+                # but an explicit call ensures correctness.
+                customer_balance, _ = CustomerBalance.objects.get_or_create(customer=customer)
+                customer_balance.update_balance()
+
         return JsonResponse({
             'success': True,
-            'message': 'چک با موفقیت به حالت اولیه بازگشت داده شد و تاثیرات مالی آن اعمال شد'
+            'message': 'چک با موفقیت به حالت اولیه بازگشت و عملیات مالی مرتبط اصلاح شد.'
         })
-        
+
+    except Check.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'چک یافت نشد.'}, status=404)
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': f'خطای سیستمی: {str(e)}'}, status=500)
 
 
 @login_required

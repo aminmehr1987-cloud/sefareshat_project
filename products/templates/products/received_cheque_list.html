@@ -89,7 +89,13 @@
                     <tr>
                         <td>{{ cheque.endorsement|default_if_none:"" }}</td>
                         <td>{{ cheque.serial|default:"-" }}</td>
-                        <td>{{ cheque.customer.get_full_name }}</td>
+                        <td>
+                            {% if cheque.customer %}
+                                {{ cheque.customer.get_full_name }}
+                            {% else %}
+                                <span class="text-muted"><em>(حذف شده)</em></span>
+                            {% endif %}
+                        </td>
                         <td>{{ cheque.bank_name }}</td>
                         <td class="amount">{{ cheque.amount|persian_number_format }} ریال</td>
                         <td>{{ cheque.due_date|jalali_date }}</td>

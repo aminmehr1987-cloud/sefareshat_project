@@ -2810,9 +2810,16 @@ def create_voucher_for_sales_invoice_save(sender, instance, created, **kwargs):
             print(f"خطا در ایجاد سند حسابداری برای فاکتور فروش {instance.id}: {e}")
 
 @receiver(post_delete, sender=FinancialOperation)
-def update_fund_balance_on_delete(sender, instance, **kwargs):
-    if hasattr(instance, 'fund') and instance.fund:
+def update_balances_on_operation_delete(sender, instance, **kwargs):
+    """
+    Update related balances whenever a FinancialOperation is hard-deleted.
+    """
+    if instance.fund:
         instance.fund.recalculate_balance()
+    
+    if instance.customer:
+        customer_balance, _ = CustomerBalance.objects.get_or_create(customer=instance.customer)
+        customer_balance.update_balance()
 
 @receiver(post_save, sender=FundTransaction)
 def create_fund_statement_on_transaction_save(sender, instance, created, **kwargs):
