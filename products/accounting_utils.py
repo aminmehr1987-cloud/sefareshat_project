@@ -88,31 +88,30 @@ class AccountingVoucherManager:
             return existing_voucher
         
         try:
-            with transaction.atomic():
-                # اطمینان از وجود financial_year
-                if not self.current_financial_year:
-                    self._initialize_defaults()
-                
-                # اطمینان از وجود created_by
-                created_by = operation.created_by
-                if not created_by:
-                    created_by = User.objects.first()
-                
-                # Create voucher
-                voucher = Voucher.objects.create(
-                    financial_year=self.current_financial_year,
-                    number=self.get_next_voucher_number(),
-                    date=operation.date,
-                    type='PERMANENT',
-                    description=f"سند {operation.get_operation_type_display()} - {operation.operation_number}",
-                    created_by=created_by
-                )
-                
-                # Create voucher items based on operation type
-                self._create_voucher_items_for_operation(operation, voucher)
-                
-                return voucher
-                
+            # اطمینان از وجود financial_year
+            if not self.current_financial_year:
+                self._initialize_defaults()
+            
+            # اطمینان از وجود created_by
+            created_by = operation.created_by
+            if not created_by:
+                created_by = User.objects.first()
+            
+            # Create voucher
+            voucher = Voucher.objects.create(
+                financial_year=self.current_financial_year,
+                number=self.get_next_voucher_number(),
+                date=operation.date,
+                type='PERMANENT',
+                description=f"سند {operation.get_operation_type_display()} - {operation.operation_number}",
+                created_by=created_by
+            )
+            
+            # Create voucher items based on operation type
+            self._create_voucher_items_for_operation(operation, voucher)
+            
+            return voucher
+            
         except Exception as e:
             print(f"Error creating voucher for operation {operation.id}: {e}")
             return None
@@ -145,68 +144,67 @@ class AccountingVoucherManager:
         This logic is moved from the old `create_petty_cash_voucher` function.
         """
         try:
-            with transaction.atomic():
-                if not self.current_financial_year:
-                    self._initialize_defaults()
-                
-                created_by = operation.created_by or User.objects.first()
-                
-                voucher = Voucher.objects.create(
-                    financial_year=self.current_financial_year,
-                    number=self.get_next_voucher_number(),
-                    date=operation.date,
-                    type='PERMANENT',
-                    description=f"سند عملیات تنخواه - {operation.get_operation_type_display()} - {operation.operation_number}",
-                    created_by=created_by,
-                    is_confirmed=True,
-                    confirmed_by=created_by,
-                    confirmed_at=timezone.now()
-                )
-                
-                petty_cash_account = self._get_or_create_petty_cash_account()
-                expense_account = self._get_or_create_expense_account()
+            if not self.current_financial_year:
+                self._initialize_defaults()
+            
+            created_by = operation.created_by or User.objects.first()
+            
+            voucher = Voucher.objects.create(
+                financial_year=self.current_financial_year,
+                number=self.get_next_voucher_number(),
+                date=operation.date,
+                type='PERMANENT',
+                description=f"سند عملیات تنخواه - {operation.get_operation_type_display()} - {operation.operation_number}",
+                created_by=created_by,
+                is_confirmed=True,
+                confirmed_by=created_by,
+                confirmed_at=timezone.now()
+            )
+            
+            petty_cash_account = self._get_or_create_petty_cash_account()
+            expense_account = self._get_or_create_expense_account()
 
-                if operation.operation_type == 'ADD':
-                    source_account = None
-                    if operation.source_fund:
-                        source_account = self._get_or_create_cash_account()
-                    elif operation.source_bank_account:
-                        source_account = self._get_or_create_bank_account(
-                            operation.source_bank_account.bank.name,
-                            operation.source_bank_account.account_number
-                        )
-                    
-                    if source_account:
-                        # Debit Petty Cash, Credit Source (Cash/Bank)
-                        VoucherItem.objects.create(
-                            voucher=voucher, account=petty_cash_account,
-                            description=f"افزودن به تنخواه از {source_account.name}",
-                            debit=operation.amount, credit=0,
-                            reference_id=str(operation.id), reference_type='PettyCashOperation'
-                        )
-                        VoucherItem.objects.create(
-                            voucher=voucher, account=source_account,
-                            description=f"برداشت برای تنخواه",
-                            debit=0, credit=operation.amount,
-                            reference_id=str(operation.id), reference_type='PettyCashOperation'
-                        )
+            if operation.operation_type == 'ADD':
+                source_account = None
+                if operation.source_fund:
+                    source_account = self._get_or_create_cash_account()
+                elif operation.source_bank_account:
+                    source_account = self._get_or_create_bank_account(
+                        operation.source_bank_account.bank.name,
+                        operation.source_bank_account.account_number
+                    )
                 
-                elif operation.operation_type == 'WITHDRAW':
-                    # Debit Expense, Credit Petty Cash
+                if source_account:
+                    # Debit Petty Cash, Credit Source (Cash/Bank)
                     VoucherItem.objects.create(
-                        voucher=voucher, account=expense_account,
-                        description=f"هزینه از تنخواه: {operation.get_reason_display()}",
+                        voucher=voucher, account=petty_cash_account,
+                        description=f"افزودن به تنخواه از {source_account.name}",
                         debit=operation.amount, credit=0,
                         reference_id=str(operation.id), reference_type='PettyCashOperation'
                     )
                     VoucherItem.objects.create(
-                        voucher=voucher, account=petty_cash_account,
-                        description=f"برداشت از تنخواه بابت {operation.get_reason_display()}",
+                        voucher=voucher, account=source_account,
+                        description=f"برداشت برای تنخواه",
                         debit=0, credit=operation.amount,
                         reference_id=str(operation.id), reference_type='PettyCashOperation'
                     )
-                
-                return voucher
+            
+            elif operation.operation_type == 'WITHDRAW':
+                # Debit Expense, Credit Petty Cash
+                VoucherItem.objects.create(
+                    voucher=voucher, account=expense_account,
+                    description=f"هزینه از تنخواه: {operation.get_reason_display()}",
+                    debit=operation.amount, credit=0,
+                    reference_id=str(operation.id), reference_type='PettyCashOperation'
+                )
+                VoucherItem.objects.create(
+                    voucher=voucher, account=petty_cash_account,
+                    description=f"برداشت از تنخواه بابت {operation.get_reason_display()}",
+                    debit=0, credit=operation.amount,
+                    reference_id=str(operation.id), reference_type='PettyCashOperation'
+                )
+            
+            return voucher
 
         except Exception as e:
             print(f"Error creating voucher for petty cash operation {operation.id}: {e}")

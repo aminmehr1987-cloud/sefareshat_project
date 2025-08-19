@@ -344,6 +344,114 @@
   .checkbook-actions .btn:hover {
     opacity: 0.8;
   }
+
+  /* بخش چک‌های واگذاری */
+  .deposited-checks-section {
+    margin-top: 30px;
+    padding: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .deposited-checks-actions {
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .list-checks-btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3);
+  }
+
+  .list-checks-btn:hover {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+    transform: translateY(-1px);
+    color: white;
+    text-decoration: none;
+  }
+
+  .list-checks-btn i {
+    margin-left: 8px;
+  }
+
+  /* جدول چک‌های واگذاری */
+  .deposited-checks-table {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .deposited-checks-header {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1.5fr 1.5fr 1fr 1.5fr;
+    gap: 10px;
+    padding: 15px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+  }
+
+  .deposited-check-row {
+    display: grid;
+    grid-template-columns: 2fr 2fr 1.5fr 1.5fr 1fr 1.5fr;
+    gap: 10px;
+    padding: 15px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    align-items: center;
+    transition: background-color 0.3s;
+  }
+
+  .deposited-check-row:hover {
+    background: rgba(40, 167, 69, 0.1);
+  }
+
+  .deposited-check-row:last-child {
+    border-bottom: none;
+  }
+
+  .check-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .check-sayadi {
+    font-weight: bold;
+    color: #007bff;
+  }
+
+  .check-amount {
+    font-weight: bold;
+    color: #28a745;
+  }
+
+  .check-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+  }
+
+  .status-deposited {
+    background: #d4edda;
+    color: #155724;
+  }
 </style>
 
 <div class="bank-account-detail-container">
@@ -483,6 +591,58 @@
       <i class="bi bi-plus-circle"></i>
       افزودن دسته چک جدید
     </a>
+  </div>
+
+  <!-- بخش چک‌های واگذاری -->
+  <div class="deposited-checks-section">
+    <div class="section-title">چک‌های واگذاری</div>
+    
+    <div class="deposited-checks-actions">
+      <a href="{% url 'products:available_checks_for_deposit' bank_account.id %}" class="list-checks-btn">
+        <i class="bi bi-list-check"></i>
+        لیست چک‌ها
+      </a>
+    </div>
+
+    {% if deposited_checks %}
+      <div class="deposited-checks-table">
+        <div class="deposited-checks-header">
+          <div class="check-col">شناسه صیادی</div>
+          <div class="check-col">صاحب حساب</div>
+          <div class="check-col">مبلغ</div>
+          <div class="check-col">تاریخ سررسید</div>
+          <div class="check-col">وضعیت</div>
+          <div class="check-col">تاریخ واگذاری</div>
+        </div>
+        
+        {% for check in deposited_checks %}
+          <div class="deposited-check-row">
+            <div class="check-col">
+              <span class="check-sayadi">{{ check.sayadi_id }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-owner">{{ check.owner_name }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-amount">{{ check.amount|persian_number_format }} ریال</span>
+            </div>
+            <div class="check-col">
+              <span class="check-due-date">{{ check.due_date|jalali_date }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-status status-deposited">{{ check.get_status_display }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-deposit-date">{{ check.updated_at|jalali_date }}</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-message">
+        <p>هیچ چک واگذار شده‌ای برای این حساب وجود ندارد.</p>
+      </div>
+    {% endif %}
   </div>
 </div>
 

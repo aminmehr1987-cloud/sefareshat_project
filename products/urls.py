@@ -134,6 +134,8 @@ urlpatterns = [
     path('accounting/bank-accounts/<int:bank_account_id>/detail/', views.bank_account_detail_view, name='bank_account_detail'),
     path('accounting/bank-accounts/<int:bank_account_id>/edit/', views.bank_account_edit_view, name='bank_account_edit'),
     path('accounting/bank-accounts/<int:bank_account_id>/statement/', views.bank_statement_view, name='bank_statement'),
+    path('accounting/bank-accounts/<int:bank_account_id>/available-checks/', views.available_checks_for_deposit_view, name='available_checks_for_deposit'),
+    path('accounting/bank-accounts/<int:bank_account_id>/deposit-confirmation/<str:check_ids>/', views.deposit_confirmation_view, name='deposit_confirmation'),
     
     # دسته چک‌ها
     path('accounting/checkbooks/<int:checkbook_id>/detail/', views.checkbook_detail_view, name='checkbook_detail'),
@@ -164,6 +166,7 @@ urlpatterns = [
     path('accounting/received-cheques/<int:cheque_id>/edit/', views.received_cheque_edit_view, name='received_cheque_edit'),
     
     # URLs for check issuance
+    path('accounting/combined-check-operation/', views.combined_check_operation_view, name='combined_check_operation'),
     path('accounting/issue-check/', views.issue_check_view, name='issue_check'),
     path('api/get-checkbooks/', views.get_checkbooks_for_bank_account, name='get_checkbooks_for_bank_account'),
     path('api/get-unused-checks/', views.get_unused_checks_for_checkbook, name='get_unused_checks_for_checkbook'),

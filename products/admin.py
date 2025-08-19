@@ -1238,7 +1238,7 @@ class PettyCashOperationAdmin(admin.ModelAdmin):
 
 @admin.register(ReceivedCheque)
 class ReceivedChequeAdmin(admin.ModelAdmin):
-    list_display = ('sayadi_id', 'customer', 'amount', 'jalali_due_date', 'bank_name', 'status', 'created_by', 'jalali_created_at')
+    list_display = ('sayadi_id', 'customer', 'amount', 'jalali_due_date', 'bank_name', 'status', 'recipient_name', 'deposited_bank_account', 'created_by', 'jalali_created_at')
     list_filter = ('status', 'bank_name', 'due_date', 'created_by')
     search_fields = (
         'sayadi_id', 
@@ -1251,7 +1251,8 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
         'branch_name',
         'account_number',
         'national_id',
-        'endorsement'
+        'endorsement',
+        'recipient_name'
     )
     readonly_fields = ('jalali_created_at', 'jalali_updated_at', 'created_by')
     fieldsets = (
@@ -1262,7 +1263,7 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
             'fields': ('sayadi_id', 'amount', 'due_date', 'bank_name', 'branch_name', 'account_number', 'owner_name', 'national_id', 'series', 'serial')
         }),
         ('اطلاعات تکمیلی', {
-            'fields': ('endorsement', 'created_by', 'jalali_created_at', 'jalali_updated_at')
+            'fields': ('endorsement', 'recipient_name', 'deposited_bank_account', 'created_by', 'jalali_created_at', 'jalali_updated_at')
         }),
     )
 

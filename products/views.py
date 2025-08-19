@@ -620,7 +620,6 @@ def group_required(group_name):
 @login_required
 @group_required('حسابداری')
 @require_POST
-@transaction.atomic
 def spend_received_check_view(request):
     try:
         data = json.loads(request.body)
@@ -630,36 +629,44 @@ def spend_received_check_view(request):
         if not check_ids or not isinstance(check_ids, list):
             return JsonResponse({'success': False, 'message': 'لیست شناسه‌های چک نامعتبر است.'}, status=400)
 
-        checks = ReceivedCheque.objects.filter(id__in=check_ids, status='RECEIVED')
-        
-        if len(checks) != len(check_ids):
-             return JsonResponse({'success': False, 'message': 'یک یا چند چک یافت نشد یا وضعیت آن‌ها برای خرج کردن مناسب نیست.'}, status=404)
+        # Use a shorter transaction to avoid database locks
+        with transaction.atomic():
+            # Lock the checks for update to prevent race conditions
+            checks = ReceivedCheque.objects.select_for_update().filter(id__in=check_ids, status='RECEIVED')
+            
+            if len(checks) != len(check_ids):
+                return JsonResponse({'success': False, 'message': 'یک یا چند چک یافت نشد یا وضعیت آن‌ها برای خرج کردن مناسب نیست.'}, status=404)
 
-        customer = get_object_or_404(Customer, id=customer_id)
-        
-        total_amount = sum(check.amount for check in checks)
-        check_serials = ", ".join(check.serial for check in checks)
+            customer = get_object_or_404(Customer, id=customer_id)
+            
+            total_amount = sum(check.amount for check in checks)
+            check_serials = ", ".join(check.serial for check in checks)
 
-        # Update all checks at once
-        checks.update(status='SPENT')
-        
-        # Create a single financial operation for the total amount
-        FinancialOperation.objects.create(
-            operation_type='PAY_TO_CUSTOMER',
-            customer=customer,
-            amount=total_amount,
-            payment_method='cheque',
-            date=timezone.now().date(),
-            description=f"خرج {len(checks)} فقره چک دریافتی به شماره سریال‌های {check_serials} به {customer.get_full_name()}",
-            created_by=request.user,
-            status='CONFIRMED',
-            confirmed_by=request.user,
-            confirmed_at=timezone.now()
-        )
-        
-        # The signal will handle voucher creation and balance updates for the single operation.
+            # Update all checks at once with recipient name
+            checks.update(status='SPENT', recipient_name=customer.get_full_name())
+            
+            # Create a single financial operation for the total amount
+            operation = FinancialOperation.objects.create(
+                operation_type='PAY_TO_CUSTOMER',
+                customer=customer,
+                amount=total_amount,
+                payment_method='spend_cheque',  # Changed to spend_cheque to match the template logic
+                date=timezone.now().date(),
+                description=f"خرج {len(checks)} فقره چک دریافتی به شماره سریال‌های {check_serials} به {customer.get_full_name()}",
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            # Link the spent cheques to the operation
+            operation.spent_cheques.set(checks)
 
-        return JsonResponse({'success': True, 'message': f'{len(checks)} چک با موفقیت خرج شد.'})
+        return JsonResponse({
+            'success': True, 
+            'message': f'{len(checks)} فقره چک دریافتی با مبلغ {total_amount:,} ریال با موفقیت خرج شد.',
+            'operation_id': operation.id
+        })
 
     except Customer.DoesNotExist:
         return JsonResponse({'success': False, 'message': 'مشتری یافت نشد.'}, status=404)
@@ -4192,6 +4199,53 @@ def financial_operation_detail_view(request, operation_id):
     return render(request, 'products/financial_operation_detail.html', context)
 
 
+def _restore_check_statuses_on_operation_delete(operation):
+    """
+    بازگردانی وضعیت چک‌ها به حالت قبلی هنگام حذف عملیات مالی
+    """
+    from .models import Check, ReceivedCheque
+    
+    try:
+        # بازگردانی چک‌های صادر شده به حالت UNUSED
+        issued_checks = operation.issued_checks.all()
+        if issued_checks.exists():
+            print(f"Restoring {issued_checks.count()} issued checks to UNUSED status")
+            for check in issued_checks:
+                check.status = 'UNUSED'
+                check.amount = 0
+                check.date = timezone.now().date()
+                check.payee = ''
+                check.series = ''
+                check.sayadi_id = ''
+                check.financial_operation = None
+                check.save()
+        
+        # بازگردانی چک‌های خرج شده به حالت RECEIVED
+        spent_cheques = operation.spent_cheques.all()
+        if spent_cheques.exists():
+            print(f"Restoring {spent_cheques.count()} spent cheques to RECEIVED status")
+            for cheque in spent_cheques:
+                cheque.status = 'RECEIVED'
+                cheque.recipient_name = ''  # پاک کردن نام گیرنده
+                cheque.save()
+            # حذف ارتباط با عملیات مالی
+            operation.spent_cheques.clear()
+        
+        # بازگردانی چک‌های واگذار شده به حالت RECEIVED
+        deposited_cheques = operation.received_cheques.filter(status='DEPOSITED')
+        if deposited_cheques.exists():
+            print(f"Restoring {deposited_cheques.count()} deposited cheques to RECEIVED status")
+            for cheque in deposited_cheques:
+                cheque.status = 'RECEIVED'
+                cheque.deposited_bank_account = None  # پاک کردن مرجع بانک
+                cheque.save()
+            
+        print(f"Successfully restored check statuses for operation {operation.operation_number}")
+        
+    except Exception as e:
+        print(f"Error restoring check statuses for operation {operation.operation_number}: {e}")
+
+
 def _update_bank_account_balance(bank_name, account_number):
     """
     موجودی حساب بانکی را بر اساس عملیات‌های مالی حذف نشده، مجدداً محاسبه و به‌روزرسانی می‌کند.
@@ -4244,6 +4298,9 @@ def financial_operation_delete_view(request, operation_id):
         bank_name = operation.bank_name
         account_number = operation.account_number
         customer = operation.customer
+
+        # بازگردانی وضعیت چک‌های مرتبط قبل از حذف عملیات
+        _restore_check_statuses_on_operation_delete(operation)
 
         # حذف نرم عملیات
         operation.soft_delete(request.user)
@@ -4528,6 +4585,14 @@ def pay_to_customer_view(request):
     پرداخت به مشتری - با منطق کامل
     """
     if request.method == 'POST':
+        # Check if this is a form submission after spending checks
+        # If so, don't create another financial operation
+        if request.POST.get('spent_checks_processed') == 'true':
+            success_message = 'عملیات پرداخت به مشتری با موفقیت ثبت شد.'
+            request.session['success_message'] = success_message
+            request.session['operation_type'] = 'pay_to_customer'
+            return redirect('products:operation_confirmation')
+        
         # This view will now only handle the main form submission (cash, pos, etc.)
         # The check issuance will be handled by a separate AJAX view.
         form = PayToCustomerForm(request.POST)
@@ -4607,9 +4672,6 @@ def bank_operation_view(request, operation_type):
         'form': form,
         'title': title
     })
-@login_required
-@group_required('حسابداری')
-@transaction.atomic
 def bank_transfer_view(request):
     """
     حواله بانکی - با انتخاب حساب‌های تعریف شده و بانک‌های موجود
@@ -4964,6 +5026,136 @@ def get_received_checks(request):
 @group_required('حسابداری')
 @require_POST
 @transaction.atomic
+def combined_check_operation_view(request):
+    """
+    پردازش ترکیبی چک‌های خرجی و صدور شده در یک عملیات مالی واحد
+    """
+    try:
+        data = json.loads(request.body)
+        customer_id = data.get('customer')
+        payee_name = data.get('payee', '')
+        issued_checks_data = data.get('issued_checks', [])
+        spent_check_ids = data.get('spent_check_ids', [])
+
+
+
+        if not customer_id:
+            return JsonResponse({'success': False, 'message': 'شناسه مشتری ارسال نشده است.'}, status=400)
+
+        if not issued_checks_data and not spent_check_ids:
+            return JsonResponse({'success': False, 'message': 'هیچ چکی برای پردازش ارسال نشده است.'}, status=400)
+
+        customer = get_object_or_404(Customer, id=customer_id)
+        total_amount = Decimal('0')
+        operation_description_parts = []
+        issued_check_numbers = []
+
+        # پردازش چک‌های صدور شده
+        if issued_checks_data:
+            for check_data in issued_checks_data:
+                check_id = check_data.get('check_number')
+                amount_value = check_data.get('amount', '0')
+                amount_str = str(amount_value).replace(',', '')
+                amount = Decimal(amount_str)
+                due_date_shamsi = check_data.get('due_date')
+                series = check_data.get('series')
+                sayadi_id = check_data.get('sayadi_id')
+
+                if not all([check_id, amount, due_date_shamsi]):
+                    return JsonResponse({'success': False, 'message': 'اطلاعات یکی از چک‌های جدید ناقص است.'}, status=400)
+
+                try:
+                    check = Check.objects.get(id=check_id)
+                    if check.status != 'UNUSED':
+                        return JsonResponse({
+                            'success': False, 
+                            'message': f'چک شماره {check.number} در وضعیت {check.get_status_display()} است و قابل صدور نیست.'
+                        }, status=400)
+                except Check.DoesNotExist:
+                    return JsonResponse({
+                        'success': False, 
+                        'message': f'چک با شناسه {check_id} یافت نشد.'
+                    }, status=404)
+
+                # Update the check
+                check.status = 'ISSUED'
+                check.amount = amount
+                check.date = convert_shamsi_to_gregorian(due_date_shamsi)
+                check.payee = payee_name or customer.get_full_name()
+                check.series = series
+                check.sayadi_id = sayadi_id
+                check.save()
+
+                total_amount += amount
+                issued_check_numbers.append(check.number)
+
+            if issued_check_numbers:
+                operation_description_parts.append(f"صدور {len(issued_check_numbers)} فقره چک شماره: {', '.join(issued_check_numbers)}")
+
+        # پردازش چک‌های خرجی
+        spent_checks = []
+        if spent_check_ids:
+            spent_checks = list(ReceivedCheque.objects.select_for_update().filter(
+                id__in=spent_check_ids, 
+                status='RECEIVED'
+            ))
+            
+            if len(spent_checks) != len(spent_check_ids):
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'یک یا چند چک دریافتی یافت نشد یا وضعیت آن‌ها برای خرج کردن مناسب نیست.'
+                }, status=404)
+
+            spent_amount = sum(check.amount for check in spent_checks)
+            spent_serials = ", ".join(check.serial for check in spent_checks)
+            
+            # Update spent checks status and recipient name
+            ReceivedCheque.objects.filter(id__in=spent_check_ids).update(
+                status='SPENT',
+                recipient_name=customer.get_full_name()
+            )
+            
+            total_amount += spent_amount
+            operation_description_parts.append(f"خرج {len(spent_checks)} فقره چک دریافتی شماره: {spent_serials}")
+
+        # ایجاد یک عملیات مالی واحد
+        if total_amount > 0:
+            operation = FinancialOperation.objects.create(
+                operation_type='PAY_TO_CUSTOMER',
+                customer=customer,
+                amount=total_amount,
+                payment_method='cheque' if issued_checks_data and len(spent_checks) == 0 else 'spend_cheque' if len(spent_checks) > 0 and not issued_checks_data else 'mixed_cheque',
+                date=timezone.now().date(),
+                description=f"پرداخت به {customer.get_full_name()} - {' + '.join(operation_description_parts)}",
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+
+            # Link issued checks to the operation
+            if issued_check_numbers:
+                Check.objects.filter(number__in=issued_check_numbers).update(financial_operation=operation)
+
+            # Link spent cheques to the operation
+            if spent_checks:
+                operation.spent_cheques.set(spent_checks)
+
+        return JsonResponse({
+            'success': True, 
+            'message': f'عملیات پرداخت با مبلغ کل {total_amount:,} ریال با موفقیت ثبت شد.',
+            'operation_id': operation.id
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'درخواست نامعتبر.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'خطا در پردازش عملیات: {str(e)}'}, status=500)
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
 def issue_check_view(request):
     """
     Handles the submission of multiple checks from the modal.
@@ -4994,7 +5186,19 @@ def issue_check_view(request):
             if not all([check_id, amount, due_date_shamsi]):
                 return JsonResponse({'success': False, 'message': 'اطلاعات یکی از چک‌ها ناقص است.'}, status=400)
 
-            check = get_object_or_404(Check, id=check_id, status='UNUSED')
+            # Check if the check exists and is unused
+            try:
+                check = Check.objects.get(id=check_id)
+                if check.status != 'UNUSED':
+                    return JsonResponse({
+                        'success': False, 
+                        'message': f'چک شماره {check.number} در وضعیت {check.get_status_display()} است و قابل صدور نیست.'
+                    }, status=400)
+            except Check.DoesNotExist:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'چک با شناسه {check_id} یافت نشد.'
+                }, status=404)
             
             # Update the check
             check.status = 'ISSUED'
@@ -5010,7 +5214,7 @@ def issue_check_view(request):
 
         # Create a single financial operation for the batch of checks
         if total_amount > 0:
-            FinancialOperation.objects.create(
+            operation = FinancialOperation.objects.create(
                 operation_type='PAY_TO_CUSTOMER',
                 customer=customer,
                 amount=total_amount,
@@ -5022,6 +5226,8 @@ def issue_check_view(request):
                 confirmed_by=request.user,
                 confirmed_at=timezone.now()
             )
+            # Link the checks to the operation
+            Check.objects.filter(number__in=issued_check_numbers).update(financial_operation=operation)
         
         return JsonResponse({'success': True, 'message': f'{len(issued_check_numbers)} فقره چک با موفقیت صادر شد.'})
 
@@ -6117,9 +6323,6 @@ def get_customer_statements_data(request):
         'end_date': end_date,
         'customer_statements': customer_statements,
     }
-@login_required
-@group_required('حسابداری')
-@transaction.atomic
 def bank_account_create_view(request):
     """
     ایجاد حساب بانکی جدید
@@ -6213,12 +6416,108 @@ def bank_account_detail_view(request, bank_account_id):
     _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
     bank_account.refresh_from_db()  # Refresh the object to get the updated balance
     
+    # چک‌های واگذار شده به این حساب بانکی (مرتب شده بر اساس تاریخ سررسید)
+    deposited_checks = ReceivedCheque.objects.filter(
+        status='DEPOSITED',
+        deposited_bank_account=bank_account
+    ).order_by('due_date')
+    
     context = {
         'bank_account': bank_account,
-        'title': f'جزئیات حساب بانکی {bank_account.title}'
+        'title': f'جزئیات حساب بانکی {bank_account.title}',
+        'deposited_checks': deposited_checks
     }
     
     return render(request, 'products/bank_account_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def available_checks_for_deposit_view(request, bank_account_id):
+    """
+    نمایش لیست چک‌های قابل واگذاری به بانک
+    """
+    bank_account = get_object_or_404(BankAccount, id=bank_account_id)
+    
+    # چک‌های دریافتی که در صندوق هستند (وضعیت RECEIVED)
+    available_checks = ReceivedCheque.objects.filter(
+        status='RECEIVED'
+    ).order_by('due_date')
+    
+    if request.method == 'POST':
+        selected_check_ids = request.POST.getlist('selected_checks')
+        if selected_check_ids:
+            return redirect('products:deposit_confirmation', bank_account_id=bank_account_id, check_ids=','.join(selected_check_ids))
+        else:
+            messages.error(request, 'لطفاً حداقل یک چک انتخاب کنید.')
+    
+    context = {
+        'bank_account': bank_account,
+        'available_checks': available_checks,
+        'title': f'چک‌های قابل واگذاری به {bank_account.bank.name}'
+    }
+    
+    return render(request, 'products/available_checks_for_deposit.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def deposit_confirmation_view(request, bank_account_id, check_ids):
+    """
+    صفحه تایید واگذاری چک‌ها به بانک
+    """
+    bank_account = get_object_or_404(BankAccount, id=bank_account_id)
+    check_id_list = check_ids.split(',')
+    
+    # دریافت چک‌های انتخاب شده
+    selected_checks = ReceivedCheque.objects.filter(
+        id__in=check_id_list,
+        status='RECEIVED'
+    ).order_by('due_date')
+    
+    if not selected_checks.exists():
+        messages.error(request, 'چک‌های انتخاب شده یافت نشد یا وضعیت آن‌ها برای واگذاری مناسب نیست.')
+        return redirect('products:available_checks_for_deposit', bank_account_id=bank_account_id)
+    
+    total_amount = sum(check.amount for check in selected_checks)
+    
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # تغییر وضعیت چک‌ها به DEPOSITED و تنظیم حساب بانکی واگذار شده
+                selected_checks.update(status='DEPOSITED', deposited_bank_account=bank_account)
+                
+                # ایجاد عملیات مالی برای واگذاری چک‌ها
+                check_serials = ", ".join(check.sayadi_id for check in selected_checks)
+                operation = FinancialOperation.objects.create(
+                    operation_type='DEPOSIT_TO_BANK',
+                    amount=total_amount,
+                    payment_method='cheque',
+                    date=timezone.now().date(),
+                    description=f"واگذاری {selected_checks.count()} فقره چک دریافتی به بانک {bank_account.bank.name} - شناسه‌های صیادی: {check_serials}",
+                    created_by=request.user,
+                    status='CONFIRMED',
+                    confirmed_by=request.user,
+                    confirmed_at=timezone.now()
+                )
+                
+                # ربط چک‌ها به عملیات مالی
+                operation.received_cheques.set(selected_checks)
+                
+            messages.success(request, f'{selected_checks.count()} فقره چک با مجموع مبلغ {total_amount:,} ریال با موفقیت به بانک {bank_account.bank.name} واگذار شد.')
+            return redirect('products:bank_account_detail', bank_account_id=bank_account_id)
+            
+        except Exception as e:
+            messages.error(request, f'خطا در واگذاری چک‌ها: {str(e)}')
+    
+    context = {
+        'bank_account': bank_account,
+        'selected_checks': selected_checks,
+        'total_amount': total_amount,
+        'title': f'تایید واگذاری چک‌ها به {bank_account.bank.name}'
+    }
+    
+    return render(request, 'products/deposit_confirmation.html', context)
 
 
 @login_required

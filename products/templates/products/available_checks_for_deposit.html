@@ -1,0 +1,768 @@
+{% extends 'products/base.html' %}
+{% load custom_filters %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block customer_elements %}{% endblock customer_elements %}{% block cart_elements %}{% endblock cart_elements %}
+
+{% block content %}
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<style>
+  .available-checks-container {
+    max-width: 1200px;
+    margin: 20px auto;
+    background: rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 24px 24px 18px 24px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(23, 162, 184, 0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+    font-family: 'b homa', Tahoma, sans-serif;
+    box-sizing: border-box;
+    transition: all 0.25s;
+  }
+  
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+  }
+  
+  h3 {
+    color: #000;
+    text-align: center;
+    margin: 0;
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .back-btn {
+    display: inline-block;
+    padding: 8px 16px;
+    background: #6c757d;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+  
+  .back-btn:hover {
+    background: #5a6268;
+    color: #fff;
+    text-decoration: none;
+  }
+
+  .bank-info {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+
+  .bank-info h4 {
+    margin: 0;
+    color: #28a745;
+    font-size: 18px;
+  }
+
+  .checks-form {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .checks-table {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .checks-header {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 15px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    font-weight: bold;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .check-row {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 15px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    align-items: center;
+    transition: background-color 0.3s;
+    text-align: center;
+  }
+
+  .check-row:hover {
+    background: rgba(40, 167, 69, 0.1);
+  }
+
+  .check-row:last-child {
+    border-bottom: none;
+  }
+
+  .check-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 14px;
+  }
+
+  .check-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+  }
+
+  .check-sayadi {
+    font-weight: bold;
+    color: #007bff;
+  }
+
+  .check-amount {
+    font-weight: bold;
+    color: #28a745;
+  }
+
+  .check-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    background: #d1ecf1;
+    color: #0c5460;
+  }
+
+  .form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+  }
+
+  .select-all-btn {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+
+  .select-all-btn:hover {
+    background: #138496;
+  }
+
+  .submit-btn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 2px 10px rgba(40, 167, 69, 0.3);
+  }
+
+  .submit-btn:hover {
+    background: linear-gradient(135deg, #218838, #1e7e34);
+    transform: translateY(-1px);
+  }
+
+  .submit-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .empty-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+
+  .selected-info {
+    color: #28a745;
+    font-weight: bold;
+  }
+
+  /* باکس جستجوی پیشرفته */
+  .advanced-search {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .search-toggle {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+  }
+
+  .search-toggle:hover {
+    background: #138496;
+  }
+
+  .search-fields {
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-top: 15px;
+  }
+
+  .search-fields.show {
+    display: grid;
+  }
+
+  .search-field {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .search-field label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 5px;
+    font-weight: bold;
+    width: 100%;
+  }
+
+  .search-field input,
+  .search-field select {
+    padding: 4px 8px;
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.8);
+    font-size: 14px;
+    height: 28px;
+    transition: all 0.3s;
+  }
+
+  .search-field input:focus,
+  .search-field select:focus {
+    outline: none;
+    border-color: #17a2b8;
+    box-shadow: 0 0 0 2px rgba(23, 162, 184, 0.2);
+  }
+  
+
+
+  .search-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .search-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+
+  .search-btn:hover {
+    background: #218838;
+  }
+
+  .clear-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+
+  .clear-btn:hover {
+    background: #5a6268;
+  }
+
+
+
+
+
+  @media (max-width: 768px) {
+    .checks-header,
+    .check-row {
+      grid-template-columns: 50px 1fr 1fr 1fr 1fr;
+      gap: 5px;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .check-col:nth-child(n+6) {
+      display: none;
+    }
+
+    .search-fields {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .search-fields {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+  }
+</style>
+
+<div class="available-checks-container">
+  <div class="page-header">
+    <h3>{{ title }}</h3>
+    <div>
+      <a href="{% url 'products:bank_account_detail' bank_account.id %}" class="back-btn">
+        بازگشت به جزیات بانک
+      </a>
+    </div>
+  </div>
+
+  <div class="bank-info">
+    <h4>{{ bank_account.bank.name }} - {{ bank_account.title }}</h4>
+    <p>شماره حساب: {{ bank_account.account_number }}</p>
+  </div>
+
+  <!-- باکس جستجوی پیشرفته -->
+  <div class="advanced-search">
+    <button type="button" class="search-toggle" onclick="toggleAdvancedSearch()">
+      <i class="bi bi-search"></i>
+      جستجوی پیشرفته
+    </button>
+    
+    <div class="search-fields" id="search-fields">
+
+      <div class="search-field">
+        <label for="search-endorsement">پشت نمره:</label>
+        <input type="text" id="search-endorsement" placeholder="پشت نمره را وارد کنید">
+      </div> 
+
+      <div class="search-field">
+        <label for="search-serial">سریال چک:</label>
+        <input type="text" id="search-serial" placeholder="سریال چک را وارد کنید">
+      </div>
+        
+      <div class="search-field">
+        <label for="search-sayadi">شناسه صیادی:</label>
+        <input type="text" id="search-sayadi" placeholder="شناسه صیادی را وارد کنید">
+      </div>
+      
+      <div class="search-field">
+        <label for="search-owner">صاحب حساب:</label>
+        <input type="text" id="search-owner" placeholder="نام صاحب حساب را وارد کنید">
+      </div>
+      
+      <div class="search-field">
+        <label for="search-amount-min">مبلغ از:</label>
+        <input type="number" id="search-amount-min" placeholder="حداقل مبلغ">
+      </div>
+      
+      <div class="search-field">
+        <label for="search-amount-max">مبلغ تا:</label>
+        <input type="number" id="search-amount-max" placeholder="حداکثر مبلغ">
+      </div>
+      
+      <div class="search-field">
+        <label for="search-due-date-from">تاریخ سررسید از (شمسی):</label>
+        <input type="text" id="search-due-date-from" class="date-input persian-datepicker" placeholder="1403/05/15" readonly>
+      </div>
+      
+      <div class="search-field">
+        <label for="search-due-date-to">تاریخ سررسید تا (شمسی):</label>
+        <input type="text" id="search-due-date-to" class="date-input persian-datepicker" placeholder="1403/06/15" readonly>
+      </div>
+      
+      <div class="search-field">
+        <label for="search-customer">مشتری:</label>
+        <input type="text" id="search-customer" placeholder="نام مشتری را وارد کنید">
+      </div>
+    </div>
+    
+    <div class="search-actions" id="search-actions" style="display: none;">
+      <button type="button" class="search-btn" onclick="applyAdvancedSearch()">
+        <i class="bi bi-search"></i>
+        اعمال فیلتر
+      </button>
+      <button type="button" class="clear-btn" onclick="clearAdvancedSearch()">
+        <i class="bi bi-x-circle"></i>
+        پاک کردن
+      </button>
+    </div>
+  </div>
+
+  {% if available_checks %}
+    <form method="post" class="checks-form">
+      {% csrf_token %}
+      
+      <div class="checks-table">
+        <div class="checks-header">
+          <div class="check-col">انتخاب</div>
+          <div class="check-col">پشت نمره</div>
+          <div class="check-col">سریال</div>
+          <div class="check-col">شناسه صیادی</div>
+          <div class="check-col">صاحب حساب</div>
+          <div class="check-col">مبلغ</div>
+          <div class="check-col">تاریخ سررسید</div>
+          <div class="check-col">وضعیت</div>
+          <div class="check-col">مشتری</div>
+        </div>
+        
+        {% for check in available_checks %}
+          <div class="check-row">
+            <div class="check-col">
+              <input type="checkbox" name="selected_checks" value="{{ check.id }}" 
+                     class="check-checkbox" onchange="updateSelectedInfo()">
+            </div>
+            <div class="check-col">
+              <span class="check-endorsement">{{ check.endorsement|default:"-" }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-serial">{{ check.serial|default:"-" }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-sayadi">{{ check.sayadi_id }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-owner">{{ check.owner_name }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-amount">{{ check.amount|persian_number_format }} ریال</span>
+            </div>
+            <div class="check-col">
+              <span class="check-due-date">{{ check.due_date|jalali_date }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-status">{{ check.get_status_display }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-customer">{{ check.customer.get_full_name }}</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="form-actions">
+        <div>
+          <button type="button" class="select-all-btn" onclick="selectAllChecks()">
+            انتخاب همه
+          </button>
+          <button type="button" class="select-all-btn" onclick="deselectAllChecks()" 
+                  style="background: #dc3545; margin-right: 10px;">
+            لغو انتخاب همه
+          </button>
+        </div>
+        
+        <div class="selected-info">
+          <span id="selected-count">0</span> چک انتخاب شده
+          <span id="selected-amount" style="margin-right: 15px;">0 ریال</span>
+        </div>
+        
+        <button type="submit" class="submit-btn" id="submit-btn" disabled>
+          تایید واگذاری چک‌ها
+        </button>
+      </div>
+    </form>
+  {% else %}
+    <div class="empty-message">
+      <p>هیچ چک دریافتی برای واگذاری در صندوق موجود نیست.</p>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+function selectAllChecks() {
+    const checkboxes = document.querySelectorAll('.check-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelectedInfo();
+}
+
+function deselectAllChecks() {
+    const checkboxes = document.querySelectorAll('.check-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectedInfo();
+}
+
+function updateSelectedInfo() {
+    const checkboxes = document.querySelectorAll('.check-checkbox:checked');
+    const count = checkboxes.length;
+    let totalAmount = 0;
+    
+    checkboxes.forEach(checkbox => {
+        const row = checkbox.closest('.check-row');
+        const amountText = row.querySelector('.check-amount').textContent;
+        // حذف تمام کاراکترهای غیر عددی و تبدیل اعداد فارسی به انگلیسی
+        const cleanAmount = amountText.replace(/[^\d۰-۹]/g, '')
+                                     .replace(/[۰-۹]/g, function(w) {
+                                         return String.fromCharCode(w.charCodeAt(0) - 1728);
+                                     });
+        const amount = parseInt(cleanAmount) || 0;
+        totalAmount += amount;
+    });
+    
+    document.getElementById('selected-count').textContent = count;
+    // فرمت کردن عدد با کاما
+    const formattedAmount = totalAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    document.getElementById('selected-amount').textContent = formattedAmount + ' ریال';
+    
+    const submitBtn = document.getElementById('submit-btn');
+    submitBtn.disabled = count === 0;
+}
+
+// تابع مقایسه تاریخ‌های شمسی
+function comparePersianDate(dateText, compareDate, operator) {
+    if (!dateText || !compareDate) return true;
+    
+    // تبدیل اعداد فارسی به انگلیسی
+    const convertPersianNumbers = (str) => {
+        return str.replace(/[۰-۹]/g, function(w) {
+            return String.fromCharCode(w.charCodeAt(0) - 1728);
+        });
+    };
+    
+    const cleanDateText = convertPersianNumbers(dateText.trim());
+    const cleanCompareDate = convertPersianNumbers(compareDate.trim());
+    
+    // استخراج سال، ماه، روز
+    const dateMatch = cleanDateText.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+    const compareMatch = cleanCompareDate.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+    
+    if (!dateMatch || !compareMatch) return true;
+    
+    const date1 = parseInt(dateMatch[1]) * 10000 + parseInt(dateMatch[2]) * 100 + parseInt(dateMatch[3]);
+    const date2 = parseInt(compareMatch[1]) * 10000 + parseInt(compareMatch[2]) * 100 + parseInt(compareMatch[3]);
+    
+    switch (operator) {
+        case '>=': return date1 >= date2;
+        case '<=': return date1 <= date2;
+        case '>': return date1 > date2;
+        case '<': return date1 < date2;
+        case '==': return date1 === date2;
+        default: return true;
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateSelectedInfo();
+});
+
+// Advanced Search Functions
+function toggleAdvancedSearch() {
+    const searchFields = document.getElementById('search-fields');
+    const searchActions = document.getElementById('search-actions');
+    const isVisible = searchFields.classList.contains('show');
+    
+    if (isVisible) {
+        searchFields.classList.remove('show');
+        searchActions.style.display = 'none';
+    } else {
+        searchFields.classList.add('show');
+        searchActions.style.display = 'flex';
+    }
+}
+
+function applyAdvancedSearch() {
+    const searchTerms = {
+        sayadi: document.getElementById('search-sayadi').value.toLowerCase(),
+        owner: document.getElementById('search-owner').value.toLowerCase(),
+        serial: document.getElementById('search-serial').value.toLowerCase(),
+        endorsement: document.getElementById('search-endorsement').value.toLowerCase(),
+        amountMin: parseFloat(document.getElementById('search-amount-min').value) || 0,
+        amountMax: parseFloat(document.getElementById('search-amount-max').value) || Infinity,
+        dueDateFrom: document.getElementById('search-due-date-from').value.trim(),
+        dueDateTo: document.getElementById('search-due-date-to').value.trim(),
+        customer: document.getElementById('search-customer').value.toLowerCase()
+    };
+    
+    const checkRows = document.querySelectorAll('.check-row');
+    let visibleCount = 0;
+    
+    checkRows.forEach(row => {
+        const sayadi = row.querySelector('.check-sayadi').textContent.toLowerCase();
+        const owner = row.querySelector('.check-owner').textContent.toLowerCase();
+        const serial = row.querySelector('.check-serial').textContent.toLowerCase();
+        const endorsement = row.querySelector('.check-endorsement').textContent.toLowerCase();
+        const amountText = row.querySelector('.check-amount').textContent;
+        // بهبود استخراج مبلغ - حذف تمام کاراکترهای غیر عددی و تبدیل اعداد فارسی
+        const cleanAmount = amountText.replace(/[^\d۰-۹]/g, '')
+                                     .replace(/[۰-۹]/g, function(w) {
+                                         return String.fromCharCode(w.charCodeAt(0) - 1728);
+                                     });
+        const amount = parseFloat(cleanAmount) || 0;
+        const customer = row.querySelector('.check-customer').textContent.toLowerCase();
+        
+        // استخراج تاریخ شمسی (فرمت: 1403/05/28)
+        const dueDateText = row.querySelector('.check-due-date').textContent.trim();
+        
+        let matches = true;
+        
+        // بررسی فیلدهای متنی
+        if (searchTerms.sayadi && !sayadi.includes(searchTerms.sayadi)) matches = false;
+        if (searchTerms.owner && !owner.includes(searchTerms.owner)) matches = false;
+        if (searchTerms.serial && !serial.includes(searchTerms.serial)) matches = false;
+        if (searchTerms.endorsement && !endorsement.includes(searchTerms.endorsement)) matches = false;
+        if (searchTerms.customer && !customer.includes(searchTerms.customer)) matches = false;
+        
+        // بررسی محدوده مبلغ
+        if (amount < searchTerms.amountMin || amount > searchTerms.amountMax) matches = false;
+        
+        // بررسی محدوده تاریخ شمسی
+        if (searchTerms.dueDateFrom && !comparePersianDate(dueDateText, searchTerms.dueDateFrom, '>=')) matches = false;
+        if (searchTerms.dueDateTo && !comparePersianDate(dueDateText, searchTerms.dueDateTo, '<=')) matches = false;
+        
+        // نمایش/مخفی کردن ردیف
+        if (matches) {
+            row.style.display = 'grid';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+            // لغو انتخاب چک‌باکس‌های مخفی
+            const checkbox = row.querySelector('.check-checkbox');
+            if (checkbox.checked) {
+                checkbox.checked = false;
+            }
+        }
+    });
+    
+    // Update selected info after filtering
+    updateSelectedInfo();
+    
+    // Show result message
+    const resultMessage = document.createElement('div');
+    resultMessage.style.cssText = `
+        background: #d1ecf1;
+        color: #0c5460;
+        padding: 10px;
+        border-radius: 6px;
+        margin: 10px 0;
+        text-align: center;
+        font-weight: bold;
+    `;
+    resultMessage.textContent = `${visibleCount} چک پیدا شد`;
+    
+    // Remove existing result message
+    const existingMessage = document.querySelector('.search-result-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+    
+    resultMessage.className = 'search-result-message';
+    document.querySelector('.checks-table').insertBefore(resultMessage, document.querySelector('.checks-header'));
+    
+    // Auto remove message after 3 seconds
+    setTimeout(() => {
+        if (resultMessage) {
+            resultMessage.remove();
+        }
+    }, 3000);
+}
+
+function clearAdvancedSearch() {
+    // Clear all search fields
+    document.getElementById('search-sayadi').value = '';
+    document.getElementById('search-owner').value = '';
+    document.getElementById('search-serial').value = '';
+    document.getElementById('search-endorsement').value = '';
+    document.getElementById('search-amount-min').value = '';
+    document.getElementById('search-amount-max').value = '';
+    document.getElementById('search-due-date-from').value = '';
+    document.getElementById('search-due-date-to').value = '';
+    document.getElementById('search-customer').value = '';
+    
+    // Show all rows
+    const checkRows = document.querySelectorAll('.check-row');
+    checkRows.forEach(row => {
+        row.style.display = 'grid';
+    });
+    
+    // Remove result message
+    const existingMessage = document.querySelector('.search-result-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+    
+    // Update selected info
+    updateSelectedInfo();
+}
+</script>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<!-- Scripts for persian-datepicker -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/moment/min/moment.min.js"></script>
+<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script>
+// Initialize persian-datepicker
+$(document).ready(function() {
+    $('.persian-datepicker').pDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValueType: 'persian',
+        autoClose: true,
+        persianDigit: true,
+        observer: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        onSelect: function(unix) {
+            var m = moment(unix);
+            var shamsiDate = m.format('jYYYY/jMM/jDD');
+            
+            // Update the input value with properly formatted shamsi date
+            $(this).val(shamsiDate);
+        },
+        toolbox: {
+            calendarSwitch: {
+                enabled: false
+            }
+        },
+        initialValue: true
+    });
+});
+</script>
+{% endblock %}

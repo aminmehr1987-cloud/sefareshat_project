@@ -1639,6 +1639,14 @@ class Check(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     created_by = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="ایجاد کننده")
+    financial_operation = models.ForeignKey(
+        'FinancialOperation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='issued_checks',
+        verbose_name="عملیات مالی صدور"
+    )
 
     class Meta:
         verbose_name = "چک"
@@ -1796,6 +1804,7 @@ class ReceivedCheque(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='RECEIVED', verbose_name="وضعیت")
     recipient_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="نام دریافت‌کننده (در صورت خرج چک)")
+    deposited_bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='deposited_checks', verbose_name="حساب بانکی واگذار شده")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")
@@ -1868,6 +1877,7 @@ class FinancialOperation(models.Model):
         ('PAYMENT_FROM_CASH', 'پرداخت از صندوق'),
         ('CAPITAL_INVESTMENT', 'سرمایه گذاری'),
         ('PETTY_CASH', 'تنخواه'),
+        ('DEPOSIT_TO_BANK', 'واگذاری چک به بانک'),
     ]
     
     STATUS_CHOICES = [
@@ -1896,6 +1906,7 @@ class FinancialOperation(models.Model):
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
         ('spend_cheque', 'خرج چک'),
+        ('mixed_cheque', 'ترکیب چک‌ها'),
         ('pos', 'دستگاه POS'),
     ], verbose_name="روش پرداخت")
     card_reader_device = models.ForeignKey('CardReaderDevice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دستگاه کارت‌خوان")
