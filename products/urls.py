@@ -141,6 +141,7 @@ urlpatterns = [
     path('accounting/checkbooks/<int:checkbook_id>/detail/', views.checkbook_detail_view, name='checkbook_detail'),
     path('accounting/checkbooks/<int:checkbook_id>/edit/', views.checkbook_edit_view, name='checkbook_edit'),
     path('accounting/checkbooks/<int:checkbook_id>/issued-checks-report/', views.issued_checks_report_view, name='issued_checks_report'),
+    path('accounting/issued-checks/', views.all_issued_checks_view, name='all_issued_checks'),
     path('accounting/vouchers/', views.voucher_list_view, name='voucher_list'),
     path('accounting/vouchers/<int:voucher_id>/', views.voucher_detail_view, name='voucher_detail'),
     
@@ -164,6 +165,8 @@ urlpatterns = [
     path('accounting/received-cheques/<int:cheque_id>/change-status/', views.change_received_cheque_status, name='change_received_cheque_status'),
     path('accounting/received-cheques/<int:cheque_id>/detail/', views.received_cheque_detail_view, name='received_cheque_detail'),
     path('accounting/received-cheques/<int:cheque_id>/edit/', views.received_cheque_edit_view, name='received_cheque_edit'),
+    path('accounting/received-checks/<int:check_id>/clear/', views.clear_received_check, name='clear_received_check'),
+    path('accounting/received-checks/<int:check_id>/bounce/', views.bounce_received_check, name='bounce_received_check'),
     
     # URLs for check issuance
     path('accounting/combined-check-operation/', views.combined_check_operation_view, name='combined_check_operation'),
@@ -172,6 +175,9 @@ urlpatterns = [
     path('api/get-unused-checks/', views.get_unused_checks_for_checkbook, name='get_unused_checks_for_checkbook'),
     path('accounting/issued-checks/<int:check_id>/edit/', views.issued_check_edit_view, name='issued_check_edit'),
     path('accounting/issued-checks/<int:check_id>/delete/', views.issued_check_delete_view, name='issued_check_delete'),
+    path('accounting/issued-checks/<int:check_id>/clear/', views.clear_issued_check, name='clear_issued_check'),
+    path('accounting/issued-checks/<int:check_id>/bounce/', views.bounce_issued_check, name='bounce_issued_check'),
+    path('accounting/issued-checks/<int:check_id>/reset/', views.reset_issued_check, name='reset_issued_check'),
     
     # URLs for spending received checks
     path('api/get-received-checks/', views.get_received_checks, name='get_received_checks'),

@@ -1623,10 +1623,10 @@ class Check(models.Model):
     number = models.CharField(max_length=50, verbose_name="شماره/سریال چک")
     series = models.CharField(max_length=50, blank=True, null=True, verbose_name="سری چک")
     amount = models.DecimalField(max_digits=18, decimal_places=2, verbose_name="مبلغ")
-    date = jmodels.jDateField(verbose_name="تاریخ سررسید")
+    date = jmodels.jDateField(null=True, blank=True, verbose_name="تاریخ سررسید")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='UNUSED', verbose_name="وضعیت")
-    payee = models.CharField(max_length=200, verbose_name="در وجه")
-    description = models.TextField(blank=True, verbose_name="توضیحات")
+    payee = models.CharField(max_length=200, null=True, blank=True, verbose_name="در وجه")
+    description = models.TextField(blank=True, null=True, verbose_name="توضیحات")
 
     # Fields for received checks
     bank_name = models.CharField(max_length=100, blank=True, null=True, verbose_name="نام بانک")
@@ -1647,6 +1647,14 @@ class Check(models.Model):
         related_name='issued_checks',
         verbose_name="عملیات مالی صدور"
     )
+    
+    # فیلدهای وصول چک
+    cleared_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ وصول")
+    cleared_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cleared_issued_checks', verbose_name="وصول کننده")
+    
+    # فیلدهای برگشت چک
+    bounced_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ برگشت")
+    bounced_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='bounced_issued_checks', verbose_name="برگشت دهنده")
 
     class Meta:
         verbose_name = "چک"
@@ -1655,7 +1663,7 @@ class Check(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['checkbook', 'number'], name='unique_issued_check', condition=Q(checkbook__isnull=False))
         ]
-        ordering = ['-date', '-created_at']
+        ordering = ['-date', '-cleared_at', '-bounced_at', '-created_at']
 
     def __str__(self):
         return f"{self.number} - {self.payee} - {self.amount}"
@@ -1706,6 +1714,20 @@ class Check(models.Model):
         if self.checkbook:
             return self.checkbook.bank_account
         return None
+    
+    @property
+    def effective_date(self):
+        """تاریخ مؤثر برای نمایش - چک‌های UNUSED تاریخ سررسید ندارند"""
+        if self.status == 'UNUSED':
+            return None
+        return self.date
+    
+    @property
+    def effective_cleared_at(self):
+        """تاریخ وصول مؤثر - چک‌های UNUSED تاریخ وصول ندارند"""
+        if self.status == 'UNUSED':
+            return None
+        return self.cleared_at
 
 class Voucher(models.Model):
     VOUCHER_TYPES = [
@@ -1810,6 +1832,14 @@ class ReceivedCheque(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاریخ بروزرسانی")
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_received_cheques', verbose_name="ایجاد کننده")
     
+    # فیلدهای وصول چک
+    cleared_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ وصول")
+    cleared_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cleared_received_cheques', verbose_name="وصول کننده")
+    
+    # فیلدهای برگشت چک
+    bounced_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ برگشت")
+    bounced_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='bounced_received_cheques', verbose_name="برگشت دهنده")
+    
     # فیلدهای حذف نرم
     is_deleted = models.BooleanField(default=False, verbose_name="حذف شده")
     deleted_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ حذف")
@@ -1828,7 +1858,7 @@ class ReceivedCheque(models.Model):
     class Meta:
         verbose_name = "چک دریافتی"
         verbose_name_plural = "چک‌های دریافتی"
-        ordering = ['-due_date']
+        ordering = ['-due_date', '-cleared_at', '-created_at']
 
     def __str__(self):
         return f"رسید {self.id} از {self.customer} به مبلغ {self.amount}"
@@ -1878,6 +1908,9 @@ class FinancialOperation(models.Model):
         ('CAPITAL_INVESTMENT', 'سرمایه گذاری'),
         ('PETTY_CASH', 'تنخواه'),
         ('DEPOSIT_TO_BANK', 'واگذاری چک به بانک'),
+        ('CHECK_RESET_FROM_CLEARED', 'بازگشت چک وصول شده به حالت اولیه'),
+        ('CHECK_RESET_FROM_BOUNCED', 'بازگشت چک برگشت خورده به حالت اولیه'),
+        ('CHECK_RESET_FROM_ISSUED', 'بازگشت چک صادر شده به حالت اولیه'),
     ]
     
     STATUS_CHOICES = [
@@ -1897,6 +1930,7 @@ class FinancialOperation(models.Model):
     # اطلاعات طرف حساب
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, null=True, blank=True, verbose_name="مشتری")
     fund = models.ForeignKey('Fund', on_delete=models.PROTECT, null=True, blank=True, verbose_name="صندوق مرتبط")
+    bank_account = models.ForeignKey('BankAccount', on_delete=models.PROTECT, null=True, blank=True, verbose_name="حساب بانکی")
     bank_name = models.CharField(max_length=100, blank=True, verbose_name="نام بانک")
     account_number = models.CharField(max_length=50, blank=True, verbose_name="شماره حساب")
     
@@ -1961,6 +1995,29 @@ class FinancialOperation(models.Model):
     class Meta:
         verbose_name = "عملیات مالی"
         verbose_name_plural = "عملیات مالی"
+    
+    def save(self, *args, **kwargs):
+        # تولید شماره عملیات به صورت خودکار
+        if not self.operation_number:
+            from datetime import datetime
+            current_date = datetime.now().strftime('%Y%m%d')
+            # پیدا کردن آخرین شماره عملیات برای امروز
+            today_operations = FinancialOperation.objects.filter(
+                operation_number__startswith=current_date
+            ).order_by('-operation_number').first()
+            
+            if today_operations:
+                try:
+                    last_number = int(today_operations.operation_number[-3:])
+                    new_number = last_number + 1
+                except ValueError:
+                    new_number = 1
+            else:
+                new_number = 1
+            
+            self.operation_number = f"{current_date}{new_number:03d}"
+        
+        super().save(*args, **kwargs)
         ordering = ['-date', '-created_at']
     
     def __str__(self):

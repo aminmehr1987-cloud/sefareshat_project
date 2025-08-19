@@ -258,6 +258,115 @@
                     </div>
                 </div>
             </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>چکهای وصول شده</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount positive">
+                            {{ cleared_cheques_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:received_cheque_list' %}?status=CLEARED" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-check-circle"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>چکهای برگشتی</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount negative">
+                            {{ bounced_cheques_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:received_cheque_list' %}?status=BOUNCED" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-x-circle"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Issued Checks Summary -->
+    <div class="funds-overview">
+        <h2><i class="bi bi-journal-minus"></i> خلاصه چکهای صادر شده</h2>
+        <div class="funds-grid">
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>جمع کل چکهای صادر شده</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount negative">
+                            {{ total_issued_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:all_issued_checks' %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>چکهای صادر شده</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount negative">
+                            {{ issued_checks_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:all_issued_checks' %}?status=ISSUED" class="btn btn-sm btn-outline-warning">
+                            <i class="bi bi-clock"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>چکهای وصول شده (صادری)</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount negative">
+                            {{ issued_cleared_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:all_issued_checks' %}?status=CLEARED" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-check-circle"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>چکهای برگشتی (صادری)</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount positive">
+                            {{ issued_bounced_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:all_issued_checks' %}?status=BOUNCED" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-arrow-return-left"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

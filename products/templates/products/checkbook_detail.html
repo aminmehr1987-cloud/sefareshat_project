@@ -289,6 +289,197 @@
   .action-buttons {
     display: flex;
     gap: 0.5rem;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    text-align: center;
+    margin: 2px;
+  }
+  
+  .bg-success {
+    background-color: #28a745 !important;
+    color: white !important;
+  }
+  
+  .bg-danger {
+    background-color: #dc3545 !important;
+    color: white !important;
+  }
+  
+  /* بهبود اندازه دکمه‌ها برای نمایش در یک سطر */
+  .action-buttons .btn {
+    padding: 0.25rem;
+    min-width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 14px;
+    transition: all 0.3s ease;
+  }
+  
+  .action-buttons .badge {
+    margin-right: 0.2rem;
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  /* استایل دکمه‌های عملیات مطابق با صفحات دیگر */
+  .btn-outline-success {
+    background: transparent;
+    color: #28a745;
+    border: 1px solid #28a745;
+  }
+  
+  .btn-outline-success:hover {
+    background: #28a745;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+  }
+  
+  .btn-outline-danger {
+    background: transparent;
+    color: #dc3545;
+    border: 1px solid #dc3545;
+  }
+  
+  .btn-outline-danger:hover {
+    background: #dc3545;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+  }
+  
+  .btn-outline-warning {
+    background: transparent;
+    color: #ffc107;
+    border: 1px solid #ffc107;
+  }
+  
+  .btn-outline-warning:hover {
+    background: #ffc107;
+    color: #212529;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+  }
+  
+  .btn-outline-secondary {
+    background: transparent;
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .btn-outline-secondary:hover {
+    background: #6c757d;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.4);
+  }
+  
+  /* استایل دکمه‌های عملیات چک */
+  .check-operations {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .operation-btn {
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .clear-btn-op {
+    background: #28a745;
+    color: white;
+  }
+
+  .clear-btn-op:hover {
+    background: #218838;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+  }
+
+  .bounce-btn-op {
+    background: #dc3545;
+    color: white;
+  }
+
+  .bounce-btn-op:hover {
+    background: #c82333;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+  }
+  
+  /* استایل دکمه‌های ویرایش و حذف (گرد و هم اندازه) */
+  .action-buttons .btn-outline-warning,
+  .action-buttons .btn-outline-secondary,
+  .action-buttons .btn-outline-danger {
+    background: transparent;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    min-width: 32px;
+    max-width: 32px;
+  }
+  
+  .action-buttons .btn-outline-warning {
+    color: #ffc107;
+    border: 1px solid #ffc107;
+  }
+  
+  .action-buttons .btn-outline-warning:hover {
+    background: #ffc107;
+    color: #212529;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+  }
+  
+  .action-buttons .btn-outline-secondary {
+    color: #6c757d;
+    border: 1px solid #6c757d;
+  }
+  
+  .action-buttons .btn-outline-secondary:hover {
+    background: #6c757d;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.4);
+  }
+  
+  .action-buttons .btn-outline-danger {
+    color: #dc3545;
+    border: 1px solid #dc3545;
+  }
+  
+  .action-buttons .btn-outline-danger:hover {
+    background: #dc3545;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
   }
   .btn {
     padding: 0.75rem 1.5rem;
@@ -440,7 +631,13 @@
               <span class="check-amount">{{ check.amount|persian_number_format }} ریال</span>
             </div>
             <div class="check-col">
-              <span class="check-date">{{ check.date|jalali_date }}</span>
+              <span class="check-date">
+                {% if check.effective_date %}
+                  {{ check.effective_date|jalali_date }}
+                {% else %}
+                  -
+                {% endif %}
+              </span>
             </div>
             <div class="check-col">
               <span class="check-status status-{{ check.status|lower }}">{{ check.status_display }}</span>
@@ -450,15 +647,66 @@
             </div>
             <div class="check-col">
               <div class="action-buttons">
-                <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
-                    <i class="bi bi-pencil-fill"></i>
-                </a>
-                <form id="delete-form-{{ check.id }}" action="{% url 'products:issued_check_delete' check.id %}" method="post" style="display: none;">
-                    {% csrf_token %}
-                </form>
-                <a href="#" onclick="if(confirm('آیا از حذف این چک مطمئن هستید؟')) { document.getElementById('delete-form-{{ check.id }}').submit(); } return false;" class="btn btn-sm btn-outline-danger" title="حذف">
-                    <i class="bi bi-trash-fill"></i>
-                </a>
+                {% if check.status == 'ISSUED' %}
+                  <div class="check-operations">
+                    <button type="button" class="operation-btn clear-btn-op" 
+                            onclick="clearIssuedCheck({{ check.id }}, '{{ check.number }}', {{ check.amount }})"
+                            title="وصول چک">
+                      <i class="bi bi-check-circle"></i>
+                    </button>
+                    <button type="button" class="operation-btn bounce-btn-op" 
+                            onclick="bounceIssuedCheck({{ check.id }}, '{{ check.number }}', '{{ check.payee }}')"
+                            title="برگشت چک">
+                      <i class="bi bi-x-circle"></i>
+                    </button>
+                  </div>
+                  <div class="action-buttons">
+                    <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                        <i class="bi bi-pencil-fill"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" 
+                            onclick="resetCheck({{ check.id }}, '{{ check.number }}')"
+                            title="بازگشت به حالت اولیه">
+                      <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                  </div>
+                {% elif check.status == 'CLEARED' %}
+                  <span class="badge bg-success">وصول شده</span>
+                  <div class="action-buttons">
+                    <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                        <i class="bi bi-pencil-fill"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" 
+                            onclick="resetCheck({{ check.id }}, '{{ check.number }}')"
+                            title="بازگشت به حالت اولیه">
+                      <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                  </div>
+                {% elif check.status == 'BOUNCED' %}
+                  <span class="badge bg-danger">برگشت خورده</span>
+                  <div class="action-buttons">
+                    <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                        <i class="bi bi-pencil-fill"></i>
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" 
+                            onclick="resetCheck({{ check.id }}, '{{ check.number }}')"
+                            title="بازگشت به حالت اولیه">
+                      <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                  </div>
+                {% elif check.status == 'UNUSED' %}
+                  <div class="action-buttons">
+                    <a href="{% url 'products:issued_check_edit' check.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
+                        <i class="bi bi-pencil-fill"></i>
+                    </a>
+                    <form id="delete-form-{{ check.id }}" action="{% url 'products:issued_check_delete' check.id %}" method="post" style="display: none;">
+                        {% csrf_token %}
+                    </form>
+                    <a href="#" onclick="if(confirm('آیا از حذف کامل این چک مطمئن هستید؟')) { document.getElementById('delete-form-{{ check.id }}').submit(); } return false;" class="btn btn-sm btn-outline-danger" title="حذف کامل چک">
+                        <i class="bi bi-trash-fill"></i>
+                    </a>
+                  </div>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -474,4 +722,172 @@
 
 <!-- Bootstrap Icons -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<script>
+// Issued Check Operations Functions
+function clearIssuedCheck(checkId, checkNumber, amount) {
+    if (confirm(`آیا از وصول چک شماره ${checkNumber} اطمینان دارید؟\nمبلغ ${amount.toLocaleString()} ریال از حساب بانکی کسر خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.btn-outline-success');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/issued-checks/${checkId}/clear/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'clear'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('چک با موفقیت وصول شد و مبلغ از حساب بانکی کسر گردید.', 'success');
+                
+                // Refresh page after 2 seconds to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در وصول چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+function bounceIssuedCheck(checkId, checkNumber, payee) {
+    if (confirm(`آیا از برگشت چک شماره ${checkNumber} (در وجه ${payee}) اطمینان دارید؟\nمبلغ به حساب مشتری اضافه خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.btn-outline-danger');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/issued-checks/${checkId}/bounce/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'bounce'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('چک با موفقیت برگشت خورد و مبلغ به حساب مشتری اضافه شد.', 'success');
+                
+                // Refresh page after 2 seconds to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در برگشت چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+function resetCheck(checkId, checkNumber) {
+    if (confirm(`آیا از بازگشت چک شماره ${checkNumber} به حالت اولیه اطمینان دارید؟\nتمام عملیات انجام شده روی این چک لغو خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.btn-outline-secondary');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/issued-checks/${checkId}/reset/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'reset'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('چک با موفقیت به حالت اولیه بازگشت داده شد.', 'success');
+                
+                // Refresh page after 2 seconds to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در بازگشت چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+function showMessage(message, type) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        font-weight: bold;
+        max-width: 400px;
+        ${type === 'success' ? 'background: #d4edda; color: #155724; border: 1px solid #c3e6cb;' : 'background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;'}
+    `;
+    messageDiv.textContent = message;
+    
+    document.body.appendChild(messageDiv);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        messageDiv.style.opacity = '0';
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.parentNode.removeChild(messageDiv);
+            }
+        }, 300);
+    }, 5000);
+}
+
+// Add CSRF token if not exists
+if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = '{{ csrf_token }}';
+    document.body.appendChild(csrfInput);
+}
+</script>
 {% endblock %} 

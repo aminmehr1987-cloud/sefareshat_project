@@ -777,6 +777,7 @@ def purchase_invoice_view(request):
             return redirect(request.path)
 
     return render(request, 'products/purchase_invoice.html', {'today': today, 'customers': customers})
+
 @login_required
 def warehouse_panel(request):
     try:
@@ -5009,7 +5010,7 @@ def customer_balance_detail_view(request, customer_id):
 
 @login_required
 def get_received_checks(request):
-    checks = ReceivedCheque.objects.filter(status='RECEIVED').select_related('customer').order_by('due_date')
+    checks = ReceivedCheque.objects.filter(status='RECEIVED').select_related('customer').order_by('-due_date', '-created_at')
     data = [{
         'id': check.id,
         'number': check.serial,
@@ -5315,7 +5316,7 @@ def received_cheque_list_view(request):
     """
     Displays a list of received cheques with filtering and pagination.
     """
-    cheques_list = ReceivedCheque.objects.select_related('customer', 'created_by').order_by('-due_date')
+    cheques_list = ReceivedCheque.objects.select_related('customer', 'created_by').order_by('-due_date', '-cleared_at', '-created_at')
     
     # Filtering
     search_query = request.GET.get('q')
@@ -5496,6 +5497,15 @@ def financial_dashboard_view(request):
     total_cheques_amount = all_cheques.aggregate(Sum('amount'))['amount__sum'] or 0
     on_hand_cheques_amount = all_cheques.filter(status='RECEIVED').aggregate(Sum('amount'))['amount__sum'] or 0
     deposited_cheques_amount = all_cheques.filter(status='DEPOSITED').aggregate(Sum('amount'))['amount__sum'] or 0
+    cleared_cheques_amount = all_cheques.filter(status='CLEARED').aggregate(Sum('amount'))['amount__sum'] or 0
+    bounced_cheques_amount = all_cheques.filter(status='BOUNCED').aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # Issued Checks Summary
+    all_issued_checks = Check.objects.filter(checkbook__isnull=False)  # فقط چک‌های صادر شده
+    total_issued_amount = all_issued_checks.aggregate(Sum('amount'))['amount__sum'] or 0
+    issued_checks_amount = all_issued_checks.filter(status='ISSUED').aggregate(Sum('amount'))['amount__sum'] or 0
+    issued_cleared_amount = all_issued_checks.filter(status='CLEARED').aggregate(Sum('amount'))['amount__sum'] or 0
+    issued_bounced_amount = all_issued_checks.filter(status='BOUNCED').aggregate(Sum('amount'))['amount__sum'] or 0
 
     context = {
         'total_balance': total_balance,
@@ -5516,6 +5526,13 @@ def financial_dashboard_view(request):
         'total_cheques_amount': total_cheques_amount,
         'on_hand_cheques_amount': on_hand_cheques_amount,
         'deposited_cheques_amount': deposited_cheques_amount,
+        'cleared_cheques_amount': cleared_cheques_amount,
+        'bounced_cheques_amount': bounced_cheques_amount,
+        # Issued Checks context
+        'total_issued_amount': total_issued_amount,
+        'issued_checks_amount': issued_checks_amount,
+        'issued_cleared_amount': issued_cleared_amount,
+        'issued_bounced_amount': issued_bounced_amount,
     }
     
     return render(request, 'products/financial_dashboard.html', context)
@@ -6420,7 +6437,7 @@ def bank_account_detail_view(request, bank_account_id):
     deposited_checks = ReceivedCheque.objects.filter(
         status='DEPOSITED',
         deposited_bank_account=bank_account
-    ).order_by('due_date')
+    ).select_related('customer').order_by('-due_date', '-cleared_at', '-created_at')
     
     context = {
         'bank_account': bank_account,
@@ -6429,6 +6446,447 @@ def bank_account_detail_view(request, bank_account_id):
     }
     
     return render(request, 'products/bank_account_detail.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def clear_received_check(request, check_id):
+    """
+    وصول چک دریافتی و اضافه کردن مبلغ به حساب بانکی
+    """
+    import json
+    
+    try:
+        check = get_object_or_404(ReceivedCheque, id=check_id)
+        
+        if check.status != 'DEPOSITED':
+            return JsonResponse({
+                'success': False,
+                'error': 'تنها چک‌های واگذار شده قابل وصول هستند'
+            })
+        
+        bank_account = check.deposited_bank_account
+        if not bank_account:
+            return JsonResponse({
+                'success': False,
+                'error': 'حساب بانکی مرتبط با چک یافت نشد'
+            })
+        
+        with transaction.atomic():
+            # تغییر وضعیت چک به وصول شده
+            check.status = 'CLEARED'
+            check.cleared_at = timezone.now()
+            check.cleared_by = request.user
+            check.save()
+            
+            # اضافه کردن مبلغ به حساب بانکی
+            bank_account.current_balance += check.amount
+            bank_account.save()
+            
+            # ایجاد عملیات مالی برای وصول چک
+            operation = FinancialOperation.objects.create(
+                operation_type='CHECK_CLEARANCE',
+                amount=check.amount,
+                payment_method='cheque',
+                date=timezone.now().date(),
+                description=f"وصول چک دریافتی با شناسه صیادی {check.sayadi_id} از {check.customer.get_full_name()}",
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            # ربط چک به عملیات مالی
+            check.financial_operation = operation
+            check.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'چک با موفقیت وصول شد',
+            'new_balance': float(bank_account.current_balance)
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def bounce_received_check(request, check_id):
+    """
+    برگشت چک دریافتی و انتقال به چک‌های نزد صندوق
+    """
+    import json
+    
+    try:
+        check = get_object_or_404(ReceivedCheque, id=check_id)
+        
+        if check.status != 'DEPOSITED':
+            return JsonResponse({
+                'success': False,
+                'error': 'تنها چک‌های واگذار شده قابل برگشت هستند'
+            })
+        
+        with transaction.atomic():
+            # تغییر وضعیت چک به برگشت خورده
+            check.status = 'BOUNCED'
+            check.bounced_at = timezone.now()
+            check.bounced_by = request.user
+            # حذف ارتباط با حساب بانکی
+            check.deposited_bank_account = None
+            check.save()
+            
+            # ایجاد عملیات مالی برای برگشت چک
+            operation = FinancialOperation.objects.create(
+                operation_type='CHECK_BOUNCE',
+                amount=check.amount,
+                payment_method='cheque',
+                date=timezone.now().date(),
+                description=f"برگشت چک دریافتی با شناسه صیادی {check.sayadi_id} از {check.customer.get_full_name()}",
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            # ربط چک به عملیات مالی
+            check.financial_operation = operation
+            check.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'چک با موفقیت برگشت خورد و به چک‌های نزد صندوق منتقل شد'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def clear_issued_check(request, check_id):
+    """
+    وصول چک صادر شده و کسر مبلغ از حساب بانکی
+    """
+    import json
+    
+    try:
+        check = get_object_or_404(Check, id=check_id)
+        
+        if check.status != 'ISSUED':
+            return JsonResponse({
+                'success': False,
+                'error': 'تنها چک‌های صادر شده قابل وصول هستند'
+            })
+        
+        bank_account = check.checkbook.bank_account
+        if not bank_account:
+            return JsonResponse({
+                'success': False,
+                'error': 'حساب بانکی مرتبط با چک یافت نشد'
+            })
+        
+        # Check if bank account has sufficient balance
+        if bank_account.current_balance < check.amount:
+            return JsonResponse({
+                'success': False,
+                'error': f'موجودی حساب کافی نیست. موجودی فعلی: {bank_account.current_balance:,} ریال'
+            })
+        
+        with transaction.atomic():
+            # تغییر وضعیت چک به وصول شده
+            check.status = 'CLEARED'
+            check.cleared_at = timezone.now()
+            check.cleared_by = request.user
+            check.save()
+            
+            # کسر مبلغ از حساب بانکی
+            bank_account.current_balance -= check.amount
+            bank_account.save()
+            
+            # ایجاد عملیات مالی برای وصول چک
+            operation = FinancialOperation.objects.create(
+                operation_type='ISSUED_CHECK_CLEARANCE',
+                amount=check.amount,
+                payment_method='cheque',
+                date=timezone.now().date(),
+                description=f"وصول چک صادر شده شماره {check.number} در وجه {check.payee}",
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'چک با موفقیت وصول شد',
+            'new_balance': float(bank_account.current_balance)
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def bounce_issued_check(request, check_id):
+    """
+    برگشت چک صادر شده و اضافه کردن مبلغ به حساب مشتری
+    """
+    import json
+    
+    try:
+        check = get_object_or_404(Check, id=check_id)
+        
+        if check.status != 'ISSUED':
+            return JsonResponse({
+                'success': False,
+                'error': 'تنها چک‌های صادر شده قابل برگشت هستند'
+            })
+        
+        # پیدا کردن مشتری بر اساس نام در وجه
+        customer = None
+        if check.payee:
+            try:
+                # جستجو در نام کامل مشتریان
+                from django.db.models import Q
+                customer = Customer.objects.filter(
+                    Q(first_name__icontains=check.payee) | 
+                    Q(last_name__icontains=check.payee) |
+                    Q(company_name__icontains=check.payee)
+                ).first()
+            except:
+                pass
+        
+        with transaction.atomic():
+            # تغییر وضعیت چک به برگشت خورده
+            check.status = 'BOUNCED'
+            check.bounced_at = timezone.now()
+            check.bounced_by = request.user
+            check.save()
+            
+            # اگر مشتری پیدا شد، مبلغ را به حساب او اضافه کن
+            if customer:
+                customer_balance, created = CustomerBalance.objects.get_or_create(
+                    customer=customer,
+                    defaults={'current_balance': 0}
+                )
+                customer_balance.current_balance += check.amount
+                customer_balance.save()
+                
+                # ایجاد عملیات مالی برای برگشت چک
+                operation = FinancialOperation.objects.create(
+                    operation_type='ISSUED_CHECK_BOUNCE',
+                    amount=check.amount,
+                    payment_method='cheque',
+                    date=timezone.now().date(),
+                    description=f"برگشت چک صادر شده شماره {check.number} در وجه {check.payee}",
+                    customer=customer,
+                    created_by=request.user,
+                    status='CONFIRMED',
+                    confirmed_by=request.user,
+                    confirmed_at=timezone.now()
+                )
+                
+                message = f'چک با موفقیت برگشت خورد و مبلغ به حساب {customer.get_full_name()} اضافه شد'
+            else:
+                # ایجاد عملیات مالی بدون مشتری
+                operation = FinancialOperation.objects.create(
+                    operation_type='ISSUED_CHECK_BOUNCE',
+                    amount=check.amount,
+                    payment_method='cheque',
+                    date=timezone.now().date(),
+                    description=f"برگشت چک صادر شده شماره {check.number} در وجه {check.payee} (مشتری شناسایی نشد)",
+                    created_by=request.user,
+                    status='CONFIRMED',
+                    confirmed_by=request.user,
+                    confirmed_at=timezone.now()
+                )
+                
+                message = 'چک با موفقیت برگشت خورد (مشتری مرتبط شناسایی نشد)'
+        
+        return JsonResponse({
+            'success': True,
+            'message': message
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def reset_issued_check(request, check_id):
+    """
+    بازگشت چک صادر شده به حالت اولیه (UNUSED)
+    """
+    import json
+    
+    try:
+        check = get_object_or_404(Check, id=check_id)
+        
+        if check.status == 'UNUSED':
+            return JsonResponse({
+                'success': False,
+                'error': 'چک در حالت اولیه قرار دارد'
+            })
+        
+        with transaction.atomic():
+            # ذخیره مبلغ چک قبل از پاک کردن
+            check_amount = check.amount
+            check_payee = check.payee
+            
+            # اگر چک وصول شده، مبلغ را به حساب بانکی برگردان
+            if check.status == 'CLEARED' and check.checkbook and check.checkbook.bank_account:
+                bank_account = check.checkbook.bank_account
+                bank_account.current_balance += check_amount
+                bank_account.save()
+                
+                # ایجاد عملیات مالی برای برگشت مبلغ به حساب بانکی
+                from products.models import FinancialOperation
+                FinancialOperation.objects.create(
+                    operation_type='CHECK_RESET_FROM_CLEARED',
+                    amount=check_amount,
+                    description=f'بازگشت چک شماره {check.number} به حالت اولیه (از وضعیت وصول شده)',
+                    bank_account=bank_account,
+                    created_by=request.user,
+                    date=timezone.now().date()
+                )
+            
+            # اگر چک برگشتی و مشتری شناسایی شده، مبلغ را از حساب مشتری کم کن
+            elif check.status == 'BOUNCED' and check_payee:
+                try:
+                    from django.db.models import Q
+                    customer = Customer.objects.filter(
+                        Q(first_name__icontains=check_payee) | 
+                        Q(last_name__icontains=check_payee) |
+                        Q(company_name__icontains=check_payee)
+                    ).first()
+                    
+                    if customer:
+                        customer_balance, created = CustomerBalance.objects.get_or_create(
+                            customer=customer,
+                            defaults={'current_balance': 0}
+                        )
+                        customer_balance.current_balance -= check_amount
+                        customer_balance.save()
+                        
+                        # ایجاد عملیات مالی برای کسر مبلغ از حساب مشتری
+                        from products.models import FinancialOperation
+                        FinancialOperation.objects.create(
+                            operation_type='CHECK_RESET_FROM_BOUNCED',
+                            amount=check_amount,
+                            description=f'بازگشت چک شماره {check.number} به حالت اولیه (از وضعیت برگشت خورده)',
+                            customer=customer,
+                            created_by=request.user,
+                            date=timezone.now().date()
+                        )
+                except Exception as e:
+                    # در صورت عدم شناسایی مشتری، لاگ بگیر
+                    print(f"Error finding customer for check {check.id}: {e}")
+            
+            # اگر چک صادر شده (ISSUED) و مشتری شناسایی شده، مبلغ را به حساب مشتری برگردان
+            elif check.status == 'ISSUED' and check_payee:
+                try:
+                    from django.db.models import Q
+                    customer = Customer.objects.filter(
+                        Q(first_name__icontains=check_payee) | 
+                        Q(last_name__icontains=check_payee) |
+                        Q(company_name__icontains=check_payee)
+                    ).first()
+                    
+                    if customer:
+                        # بررسی عملیات مالی مرتبط
+                        if check.financial_operation:
+                            operation = check.financial_operation
+                            
+                            # اگر عملیات مالی فقط شامل این چک است، آن را حذف کن
+                            if operation.issued_checks.count() == 1:
+                                operation.delete()
+                            else:
+                                # اگر عملیات مالی شامل چندین چک است، مبلغ این چک را کسر کن
+                                operation.amount -= check_amount
+                                operation.save()
+                                
+                                # به‌روزرسانی توضیحات عملیات
+                                remaining_checks = operation.issued_checks.exclude(id=check.id)
+                                if remaining_checks.exists():
+                                    remaining_numbers = [c.number for c in remaining_checks]
+                                    operation.description = f'پرداخت طی چک‌های شماره: {", ".join(remaining_numbers)} به {check_payee}'
+                                    operation.save()
+                                
+                                # به‌روزرسانی شماره عملیات مالی (خودکار)
+                                operation.save()
+                        
+                        # به‌روزرسانی موجودی مشتری
+                        customer_balance, created = CustomerBalance.objects.get_or_create(
+                            customer=customer,
+                            defaults={'current_balance': 0}
+                        )
+                        customer_balance.current_balance += check_amount
+                        customer_balance.save()
+                        
+                        # ایجاد عملیات مالی برای برگشت مبلغ به حساب مشتری
+                        from products.models import FinancialOperation
+                        FinancialOperation.objects.create(
+                            operation_type='CHECK_RESET_FROM_ISSUED',
+                            amount=check_amount,
+                            description=f'بازگشت چک شماره {check.number} به حالت اولیه (از وضعیت صادر شده)',
+                            customer=customer,
+                            created_by=request.user,
+                            date=timezone.now().date()
+                        )
+                        
+                        # به‌روزرسانی موجودی مشتری بر اساس تمام عملیات‌های مالی
+                        customer_balance.update_balance()
+                        
+                except Exception as e:
+                    print(f"Error finding customer for check {check.id}: {e}")
+            
+            # حذف ارتباط چک با عملیات مالی (قبل از save)
+            if check.financial_operation:
+                check.financial_operation = None
+            
+            # بازگشت چک به حالت اولیه
+            check.status = 'UNUSED'
+            check.date = None  # حذف تاریخ سررسید
+            check.payee = None  # حذف نام دریافت‌کننده
+            check.amount = 0   # حذف مبلغ
+            check.description = None  # حذف توضیحات
+            check.cleared_at = None
+            check.cleared_by = None
+            check.bounced_at = None
+            check.bounced_by = None
+            check.financial_operation = None
+            check.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'چک با موفقیت به حالت اولیه بازگشت داده شد و تاثیرات مالی آن اعمال شد'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 
 @login_required
@@ -6442,7 +6900,7 @@ def available_checks_for_deposit_view(request, bank_account_id):
     # چک‌های دریافتی که در صندوق هستند (وضعیت RECEIVED)
     available_checks = ReceivedCheque.objects.filter(
         status='RECEIVED'
-    ).order_by('due_date')
+    ).order_by('-due_date', '-created_at')
     
     if request.method == 'POST':
         selected_check_ids = request.POST.getlist('selected_checks')
@@ -6473,7 +6931,7 @@ def deposit_confirmation_view(request, bank_account_id, check_ids):
     selected_checks = ReceivedCheque.objects.filter(
         id__in=check_id_list,
         status='RECEIVED'
-    ).order_by('due_date')
+    ).order_by('-due_date', '-created_at')
     
     if not selected_checks.exists():
         messages.error(request, 'چک‌های انتخاب شده یافت نشد یا وضعیت آن‌ها برای واگذاری مناسب نیست.')
@@ -6533,8 +6991,21 @@ def checkbook_detail_view(request, checkbook_id):
         'bank_account', 'bank_account__bank', 'created_by'
     ), id=checkbook_id)
     
-    # دریافت چک‌های مرتبط
-    checks = Check.objects.filter(checkbook=checkbook).order_by('number')
+    # دریافت چک‌های مرتبط با مرتب‌سازی هوشمند
+    # راه‌حل ساده: جداگانه query کردن و سپس ترکیب کردن
+    unused_checks = Check.objects.filter(
+        checkbook=checkbook, 
+        status='UNUSED'
+    ).order_by('number')
+    
+    other_checks = Check.objects.filter(
+        checkbook=checkbook
+    ).exclude(
+        status='UNUSED'
+    ).order_by('date', '-cleared_at', '-bounced_at', '-created_at')
+    
+    # ترکیب دو queryset به صورت لیست (چک‌های صادر شده اول، سپس UNUSED)
+    checks = list(other_checks) + list(unused_checks)
     
     context = {
         'checkbook': checkbook,
@@ -6593,7 +7064,7 @@ def issued_checks_report_view(request, checkbook_id):
     issued_checks = Check.objects.filter(
         checkbook=checkbook,
         status__in=['ISSUED', 'RECEIVED', 'DEPOSITED', 'CLEARED', 'BOUNCED']
-    ).order_by('-date', '-created_at')
+    ).order_by('-date', '-cleared_at', '-bounced_at', '-created_at')
     
     # محاسبه آمار
     total_amount = issued_checks.aggregate(
@@ -6625,6 +7096,60 @@ def issued_checks_report_view(request, checkbook_id):
     }
     
     return render(request, 'products/issued_checks_report.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def all_issued_checks_view(request):
+    """
+    نمایش تمام چک‌های صادر شده با امکان فیلتر بر اساس وضعیت
+    """
+    from django.db import models
+    
+    # فیلتر بر اساس وضعیت
+    status_filter = request.GET.get('status', None)
+    
+    # دریافت تمام چک‌های صادر شده
+    issued_checks = Check.objects.filter(
+        checkbook__isnull=False  # فقط چک‌های صادر شده
+    ).select_related('checkbook', 'checkbook__bank_account', 'created_by')
+    
+    if status_filter:
+        issued_checks = issued_checks.filter(status=status_filter)
+    
+    # مرتب‌سازی بر اساس تاریخ سررسید (جدیدترین اول)
+    issued_checks = issued_checks.order_by('-date', '-cleared_at', '-bounced_at', '-created_at')
+    
+    # محاسبه آمار
+    total_amount = issued_checks.aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    cleared_amount = issued_checks.filter(status='CLEARED').aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    bounced_amount = issued_checks.filter(status='BOUNCED').aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    pending_amount = issued_checks.filter(
+        status__in=['ISSUED', 'RECEIVED', 'DEPOSITED']
+    ).aggregate(
+        total=models.Sum('amount')
+    )['total'] or 0
+    
+    context = {
+        'issued_checks': issued_checks,
+        'total_amount': total_amount,
+        'cleared_amount': cleared_amount,
+        'bounced_amount': bounced_amount,
+        'pending_amount': pending_amount,
+        'status_filter': status_filter,
+        'title': 'تمام چک‌های صادر شده'
+    }
+    
+    return render(request, 'products/all_issued_checks.html', context)
 
 
 @login_required

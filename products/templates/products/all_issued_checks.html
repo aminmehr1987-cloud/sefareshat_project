@@ -7,7 +7,7 @@
 {% block content %}
 <style>
   .report-container {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 20px auto;
     background: rgba(255,255,255,0.1);
     border-radius: 24px;
@@ -52,103 +52,136 @@
     text-decoration: none;
   }
   
-  .checkbook-info {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
-    padding: 20px;
+  .filter-section {
+    margin-bottom: 20px;
+    padding: 15px;
     background: rgba(255,255,255,0.05);
     border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.1);
   }
   
-  .info-item {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .info-label {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 5px;
-  }
-  
-  .info-value {
+  .filter-title {
     font-size: 16px;
     font-weight: bold;
-    color: #000;
+    margin-bottom: 10px;
+    color: #333;
+  }
+  
+  .filter-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-btn {
+    padding: 8px 16px;
+    border: 2px solid;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .filter-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+  }
+  
+  .filter-btn:not(.active) {
+    background: transparent;
+    color: #007bff;
+    border-color: #007bff;
+  }
+  
+  .filter-btn:hover {
+    background: #007bff;
+    color: white;
+    text-decoration: none;
   }
   
   .stats-section {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 15px;
-    margin-bottom: 30px;
+    margin-bottom: 25px;
   }
   
   .stat-card {
-    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+    border-radius: 16px;
     padding: 20px;
     text-align: center;
-    border: 1px solid rgba(23, 162, 184, 0.2);
+    border: 1px solid rgba(0,0,0,0.1);
+    box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+    transition: all 0.3s;
   }
   
-  .stat-card.total {
-    background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
-  }
-  
-  .stat-card.cleared {
-    background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
-  }
-  
-  .stat-card.bounced {
-    background: linear-gradient(135deg, #ffebee, #ffcdd2);
-  }
-  
-  .stat-card.pending {
-    background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
   }
   
   .stat-number {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: bold;
-    color: #1976d2;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
   }
   
   .stat-label {
     font-size: 14px;
     color: #666;
+    font-weight: 500;
+  }
+  
+  .stat-card.total .stat-number {
+    color: #6c757d;
+  }
+  
+  .stat-card.cleared .stat-number {
+    color: #28a745;
+  }
+  
+  .stat-card.pending .stat-number {
+    color: #ffc107;
+  }
+  
+  .stat-card.bounced .stat-number {
+    color: #dc3545;
   }
   
   .checks-section {
-    margin-top: 30px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
   }
   
   .section-title {
     font-size: 18px;
     font-weight: bold;
-    color: #000;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #17a2b8;
+    margin-bottom: 20px;
+    color: #333;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
   }
   
   .checks-table {
-    background: rgba(255,255,255,0.05);
     border-radius: 12px;
     overflow: hidden;
-    margin-bottom: 20px;
     border: 1px solid rgba(0,0,0,0.1);
   }
   
   .checks-header {
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1.5fr 1.5fr 1fr 1fr 2fr 1fr 1.2fr;
     gap: 10px;
     padding: 15px;
-    background: linear-gradient(135deg, #17a2b8, #138496);
+    background: linear-gradient(135deg, #007bff, #0056b3);
     color: white;
     font-weight: bold;
     font-size: 14px;
@@ -156,89 +189,67 @@
   
   .check-row {
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1.5fr 1.5fr 1fr 1fr 2fr 1fr 1.2fr;
     gap: 10px;
     padding: 15px;
     border-bottom: 1px solid rgba(0,0,0,0.1);
     align-items: center;
     transition: background-color 0.3s;
+    background: rgba(255,255,255,0.02);
   }
   
   .check-row:hover {
-    background: rgba(23, 162, 184, 0.1);
-  }
-  
-  .check-row:last-child {
-    border-bottom: none;
+    background: rgba(0, 123, 255, 0.1);
   }
   
   .check-col {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-size: 14px;
+    word-wrap: break-word;
+    font-size: 13px;
   }
   
   .check-number {
     font-weight: bold;
-    color: #17a2b8;
-  }
-  
-  .check-payee {
-    font-weight: bold;
-    color: #495057;
+    color: #007bff;
   }
   
   .check-amount {
     font-weight: bold;
-    color: #28a745;
+    color: #dc3545;
   }
   
-  .check-date {
-    font-weight: bold;
+  .check-payee {
+    color: #333;
+    font-weight: 500;
+  }
+  
+  .check-bank {
     color: #6c757d;
+    font-size: 12px;
   }
   
   .check-status {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
     font-weight: bold;
+    text-align: center;
   }
   
   .status-issued {
-    background: linear-gradient(135deg, #fff3e0, #ffe0b2);
-    color: #f57c00;
-  }
-  
-  .status-received {
-    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
-    color: #1976d2;
-  }
-  
-  .status-deposited {
-    background: linear-gradient(135deg, #f3e5f5, #e1bee7);
-    color: #7b1fa2;
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    color: #856404;
   }
   
   .status-cleared {
-    background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
-    color: #2e7d32;
+    background: linear-gradient(135deg, #d4edda, #a3d977);
+    color: #155724;
   }
   
   .status-bounced {
-    background: linear-gradient(135deg, #ffebee, #ffcdd2);
-    color: #c62828;
+    background: linear-gradient(135deg, #f8d7da, #ffb3ba);
+    color: #721c24;
   }
   
-  .empty-message {
-    text-align: center;
-    padding: 40px;
-    color: #666;
-    font-style: italic;
-  }
-
   /* عملیات چک */
   .check-operations {
     display: flex;
@@ -299,41 +310,80 @@
     background: #f8d7da;
     color: #721c24;
   }
+  
+  .empty-message {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+  }
+  
+  /* Responsive design */
+  @media (max-width: 1200px) {
+    .checks-header,
+    .check-row {
+      grid-template-columns: 1fr 1.5fr 1fr 1fr 1fr 1.5fr 1fr;
+    }
+    
+    .check-col:nth-child(6) {
+      display: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .checks-header,
+    .check-row {
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+    
+    .check-col:nth-child(n+5) {
+      display: none;
+    }
+    
+    .filter-buttons {
+      flex-direction: column;
+    }
+    
+    .stats-section {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 
 <div class="report-container">
   <div class="page-header">
     <h3>{{ title }}</h3>
     <div>
-      <a href="{% url 'products:checkbook_detail' checkbook.id %}" class="back-btn">
-        بازگشت به جزئیات دسته چک
+      <a href="{% url 'products:financial_dashboard' %}" class="back-btn">
+        بازگشت به داشبورد
       </a>
     </div>
   </div>
   
-  <div class="checkbook-info">
-    <div class="info-item">
-      <span class="info-label">سریال دسته چک:</span>
-      <span class="info-value">{{ checkbook.serial }}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">حساب بانکی:</span>
-      <span class="info-value">{{ checkbook.bank_account.title }}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">بانک:</span>
-      <span class="info-value">{{ checkbook.bank_account.bank.name }}</span>
-    </div>
-    <div class="info-item">
-      <span class="info-label">تعداد کل چک‌های خرجی:</span>
-      <span class="info-value">{{ issued_checks.count }}</span>
+  <!-- Filter Section -->
+  <div class="filter-section">
+    <div class="filter-title">فیلتر بر اساس وضعیت:</div>
+    <div class="filter-buttons">
+      <a href="{% url 'products:all_issued_checks' %}" class="filter-btn {% if not status_filter %}active{% endif %}">
+        <i class="bi bi-list"></i> همه
+      </a>
+      <a href="{% url 'products:all_issued_checks' %}?status=ISSUED" class="filter-btn {% if status_filter == 'ISSUED' %}active{% endif %}">
+        <i class="bi bi-clock"></i> صادر شده
+      </a>
+      <a href="{% url 'products:all_issued_checks' %}?status=CLEARED" class="filter-btn {% if status_filter == 'CLEARED' %}active{% endif %}">
+        <i class="bi bi-check-circle"></i> وصول شده
+      </a>
+      <a href="{% url 'products:all_issued_checks' %}?status=BOUNCED" class="filter-btn {% if status_filter == 'BOUNCED' %}active{% endif %}">
+        <i class="bi bi-arrow-return-left"></i> برگشتی
+      </a>
     </div>
   </div>
   
+  <!-- Stats Section -->
   <div class="stats-section">
     <div class="stat-card total">
       <div class="stat-number">{{ total_amount|persian_number_format }} ریال</div>
-      <div class="stat-label">مجموع مبلغ چک‌ها</div>
+      <div class="stat-label">مجموع کل</div>
     </div>
     <div class="stat-card cleared">
       <div class="stat-number">{{ cleared_amount|persian_number_format }} ریال</div>
@@ -349,18 +399,20 @@
     </div>
   </div>
   
+  <!-- Checks Section -->
   <div class="checks-section">
-    <div class="section-title">لیست چک‌های خرجی</div>
+    <div class="section-title">لیست چک‌های صادر شده</div>
     
     {% if issued_checks %}
       <div class="checks-table">
         <div class="checks-header">
           <div class="check-col">شماره چک</div>
           <div class="check-col">در وجه</div>
+          <div class="check-col">دسته چک</div>
           <div class="check-col">مبلغ</div>
           <div class="check-col">تاریخ سررسید</div>
+          <div class="check-col">حساب بانکی</div>
           <div class="check-col">وضعیت</div>
-          <div class="check-col">توضیحات</div>
           <div class="check-col">عملیات</div>
         </div>
         
@@ -373,16 +425,19 @@
               <span class="check-payee">{{ check.payee|default:"-" }}</span>
             </div>
             <div class="check-col">
+              <span class="check-bank">{{ check.checkbook.serial|default:"-" }}</span>
+            </div>
+            <div class="check-col">
               <span class="check-amount">{{ check.amount|persian_number_format }} ریال</span>
             </div>
             <div class="check-col">
               <span class="check-date">{{ check.date|jalali_date }}</span>
             </div>
             <div class="check-col">
-              <span class="check-status status-{{ check.status|lower }}">{{ check.status_display }}</span>
+              <span class="check-bank">{{ check.checkbook.bank_account.title|default:"-" }}</span>
             </div>
             <div class="check-col">
-              <span class="check-description">{{ check.description|default:"-"|truncatechars:30 }}</span>
+              <span class="check-status status-{{ check.status|lower }}">{{ check.status_display }}</span>
             </div>
             <div class="check-col">
               <div class="check-operations">
@@ -409,7 +464,7 @@
       </div>
     {% else %}
       <div class="empty-message">
-        <p>هیچ چک خرجی‌ای در این دسته چک یافت نشد.</p>
+        <p>هیچ چک صادر شده‌ای{% if status_filter %} با وضعیت انتخابی{% endif %} یافت نشد.</p>
       </div>
     {% endif %}
   </div>
@@ -564,4 +619,4 @@ if (!document.querySelector('[name=csrfmiddlewaretoken]')) {
     document.body.appendChild(csrfInput);
 }
 </script>
-{% endblock %} 
+{% endblock %}
