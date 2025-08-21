@@ -51,7 +51,8 @@
                     <th>تاریخ</th>
                     <th>شماره سند</th>
                     <th>نوع عملیات</th>
-                    <th>مبلغ</th>
+                    <th>بدهکار</th>
+                    <th>بستانکار</th>
                     <th>وضعیت</th>
                     <th>عملیات</th>
                 </tr>
@@ -62,7 +63,15 @@
                     <td>{{ operation.date|jalali_date }}</td>
                     <td>{{ operation.operation_number }}</td>
                     <td>
-                        {% if operation.payment_method == 'cheque_return' or operation.payment_method == 'bounced_cheque_return' %}
+                        {% if operation.operation_type == 'SPENT_CHEQUE_RETURN' %}
+                            <span class="operation-type received">
+                                <i class="bi bi-arrow-counterclockwise"></i> {{ operation.get_operation_type_display }}
+                            </span>
+                        {% elif operation.operation_type == 'ISSUED_CHECK_BOUNCE' %}
+                            <span class="operation-type received">
+                                <i class="bi bi-arrow-counterclockwise"></i> {{ operation.get_operation_type_display }}
+                            </span>
+                        {% elif operation.payment_method == 'cheque_return' or operation.payment_method == 'bounced_cheque_return' %}
                             <span class="operation-type received">
                                 <i class="bi bi-arrow-counterclockwise"></i> چک برگشتی
                             </span>
@@ -76,8 +85,21 @@
                             </span>
                         {% endif %}
                     </td>
-                    <td class="{% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}received{% else %}paid{% endif %}">
-                        {{ operation.amount|persian_number_format }} ریال
+                    <!-- ستون بدهکار -->
+                    <td class="debit-column">
+                        {% if operation.operation_type == 'PAY_TO_CUSTOMER' or operation.operation_type == 'CHECK_BOUNCE' or operation.operation_type == 'BANK_TRANSFER' %}
+                            <span class="debit-amount">{{ operation.amount|persian_number_format }} ریال</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <!-- ستون بستانکار -->
+                    <td class="credit-column">
+                        {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' or operation.operation_type == 'SPENT_CHEQUE_RETURN' or operation.operation_type == 'ISSUED_CHECK_BOUNCE' %}
+                            <span class="credit-amount">{{ operation.amount|persian_number_format }} ریال</span>
+                        {% else %}
+                            -
+                        {% endif %}
                     </td>
                     <td>
                         {% if operation.is_deleted %}
@@ -217,6 +239,15 @@
 .transactions-table th {
     background: #f9fafb;
     font-weight: 600;
+    text-align: center;
+}
+
+.transactions-table th:nth-child(4) { /* ستون بدهکار */
+    /* رنگ‌ها حذف شدند */
+}
+
+.transactions-table th:nth-child(5) { /* ستون بستانکار */
+    /* رنگ‌ها حذف شدند */
 }
 
 .btn {
@@ -285,6 +316,54 @@
 .btn-delete:hover {
     background-color: #c82333;
 }
+
+.operation-type.received {
+    background: #dcfce7;
+    color: #166534;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    display: inline-block;
+    min-width: 80px;
+}
+
+.operation-type.paid {
+    background: #fef2f2;
+    color: #991b1b;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    display: inline-block;
+    min-width: 80px;
+}
+
+/* رنگ‌بندی برای ستون‌های بدهکار و بستانکار */
+.debit-column {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.credit-column {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.debit-amount {
+    color: #991b1b !important;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.credit-amount {
+    color: #166534 !important;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
 .table-danger, .table-danger > th, .table-danger > td {
     background-color: #f8d7da !important;
 }

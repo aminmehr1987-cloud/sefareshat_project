@@ -1337,7 +1337,7 @@ class CustomerBalanceAdmin(admin.ModelAdmin):
                 
                 balance.total_received = total_received
                 balance.total_paid = total_paid
-                balance.current_balance = total_received - total_paid
+                balance.current_balance = total_paid - total_received
                 balance.save()
                 updated_count += 1
             except Exception as e:

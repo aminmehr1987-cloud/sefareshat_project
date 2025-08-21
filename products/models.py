@@ -2380,6 +2380,9 @@ class FinancialOperation(models.Model):
         ('CHECK_RESET_FROM_CLEARED', 'بازگشت چک وصول شده به حالت اولیه'),
         ('CHECK_RESET_FROM_BOUNCED', 'بازگشت چک برگشت خورده به حالت اولیه'),
         ('CHECK_RESET_FROM_ISSUED', 'بازگشت چک صادر شده به حالت اولیه'),
+        ('CHECK_BOUNCE', 'برگشت چک دریافتی'),
+        ('ISSUED_CHECK_BOUNCE', 'برگشت چک صادر شده'),
+        ('SPENT_CHEQUE_RETURN', 'برگشت چک خرجی'),
         ('PURCHASE_INVOICE', 'فاکتور خرید'),
         ('SALES_INVOICE', 'فاکتور فروش'),
     ]
@@ -2415,6 +2418,7 @@ class FinancialOperation(models.Model):
         ('pos', 'دستگاه POS'),
         ('cheque_return', 'چک برگشتی'),
         ('bounced_cheque_return', 'برگشت چک برگشتی'),
+        ('cheque_bounce', 'برگشت چک دریافتی'),
     ], verbose_name="روش پرداخت")
     card_reader_device = models.ForeignKey('CardReaderDevice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دستگاه کارت‌خوان")
     spent_cheques = models.ManyToManyField(
@@ -2472,8 +2476,13 @@ class FinancialOperation(models.Model):
     def save(self, *args, **kwargs):
         # تولید شماره عملیات به صورت خودکار
         if not self.operation_number:
-            from datetime import datetime
-            current_date = datetime.now().strftime('%Y%m%d')
+            import jdatetime
+            from django.utils import timezone
+            
+            # استفاده از تاریخ شمسی به جای میلادی
+            now_time = timezone.now()
+            current_date = jdatetime.datetime.fromgregorian(datetime=now_time).strftime('%Y%m%d')
+            
             # پیدا کردن آخرین شماره عملیات برای امروز
             today_operations = FinancialOperation.objects.filter(
                 operation_number__startswith=current_date
@@ -2517,6 +2526,8 @@ class FinancialOperation(models.Model):
         self.deleted_at = timezone.now()
         self.deleted_by = user
         self.save()
+        # بازگردانی وضعیت چک‌های مرتبط
+        self.restore_related_check_statuses()
     
     def restore(self):
         """بازگردانی عملیات حذف شده"""
@@ -2524,6 +2535,71 @@ class FinancialOperation(models.Model):
         self.deleted_at = None
         self.deleted_by = None
         self.save()
+    
+    def restore_related_check_statuses(self):
+        """
+        بازگردانی وضعیت چک‌های مرتبط به حالت قبلی
+        این متد برای اطمینان از بازگردانی صحیح چک‌ها استفاده می‌شود
+        """
+        import re
+        
+        try:
+            # برای چک‌های صادر شده که برگشت خورده‌اند
+            if self.operation_type == 'ISSUED_CHECK_BOUNCE':
+                check_number_match = re.search(r'شماره (\d+)', self.description or '')
+                if check_number_match:
+                    check_number = check_number_match.group(1)
+                    try:
+                        from .models import Check
+                        check = Check.objects.get(number=check_number)
+                        if check.status == 'BOUNCED':
+                            check.status = 'ISSUED'
+                            check.save()
+                            print(f"✅ چک صادر شده {check.number} از BOUNCED به ISSUED برگشت")
+                        return True
+                    except Check.DoesNotExist:
+                        print(f"⚠️ چک {check_number} یافت نشد")
+                        return False
+            
+            # برای چک‌های دریافتی که برگشت خورده‌اند
+            elif self.operation_type == 'CHECK_BOUNCE':
+                sayadi_match = re.search(r'شناسه صیادی:?\s*(\d+)', self.description or '')
+                if sayadi_match:
+                    sayadi_id = sayadi_match.group(1)
+                    try:
+                        from .models import ReceivedCheque
+                        cheque = ReceivedCheque.objects.get(sayadi_id=sayadi_id)
+                        if cheque.status == 'BOUNCED':
+                            cheque.status = 'RECEIVED'
+                            cheque.save()
+                            print(f"✅ چک دریافتی {cheque.sayadi_id} از BOUNCED به RECEIVED برگشت")
+                        return True
+                    except ReceivedCheque.DoesNotExist:
+                        print(f"⚠️ چک دریافتی {sayadi_id} یافت نشد")
+                        return False
+            
+            # برای چک‌های خرجی که برگشت خورده‌اند  
+            elif self.operation_type == 'SPENT_CHEQUE_RETURN':
+                sayadi_match = re.search(r'شماره صیادی:?\s*(\d+)', self.description or '')
+                if sayadi_match:
+                    sayadi_id = sayadi_match.group(1)
+                    try:
+                        from .models import ReceivedCheque
+                        cheque = ReceivedCheque.objects.get(sayadi_id=sayadi_id)
+                        if cheque.status == 'RETURNED':
+                            cheque.status = 'SPENT'
+                            cheque.save()
+                            print(f"✅ چک خرجی {cheque.sayadi_id} از RETURNED به SPENT برگشت")
+                        return True
+                    except ReceivedCheque.DoesNotExist:
+                        print(f"⚠️ چک خرجی {sayadi_id} یافت نشد")
+                        return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ خطا در بازگردانی وضعیت چک‌ها: {e}")
+            return False
     
     def mark_as_modified(self, user):
         """علامت‌گذاری به عنوان اصلاح شده"""
@@ -2551,8 +2627,12 @@ class FinancialOperation(models.Model):
     
     def generate_operation_number(self):
         """تولید شماره عملیات خودکار"""
-        from datetime import datetime
-        prefix = datetime.now().strftime('%Y%m%d')
+        import jdatetime
+        from django.utils import timezone
+        
+        # استفاده از تاریخ شمسی به جای میلادی
+        now_time = timezone.now()
+        prefix = jdatetime.datetime.fromgregorian(datetime=now_time).strftime('%Y%m%d')
         last_operation = FinancialOperation.objects.filter(
             operation_number__startswith=prefix
         ).order_by('-operation_number').first()
@@ -2965,25 +3045,18 @@ class CustomerBalance(models.Model):
             is_deleted=False
         )
 
-        # عملیات‌های دریافت از مشتری (کاهش بدهی مشتری)
-        received_ops = ['RECEIVE_FROM_CUSTOMER']
-        # عملیات‌های پرداخت به مشتری (افزایش بدهی مشتری)
-        paid_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER']
-        
-        # عملیات‌های برگشت چک باید از دریافت‌ها کم شوند
-        # چون وقتی چک برگشت می‌خورد، عملیات RECEIVE_FROM_CUSTOMER خنثی می‌شود
-        cheque_return_ops = ['cheque_return', 'bounced_cheque_return']
-        
-        total_received = operations.filter(operation_type__in=received_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
-        total_paid = operations.filter(operation_type__in=paid_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
-        
-        # کم کردن عملیات‌های برگشت چک از دریافت‌ها
-        cheque_return_total = operations.filter(payment_method__in=cheque_return_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
-        total_received -= cheque_return_total
+        # عملیات‌هایی که بدهی مشتری را افزایش می‌دهند (مشتری بدهکار می‌شود)
+        debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE']
+        # عملیات‌هایی که بدهی مشتری را کاهش می‌دهند (مشتری بستانکار می‌شود)
+        credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
 
-        self.current_balance = total_paid - total_received
-        self.total_received = total_received
-        self.total_paid = total_paid
+        total_debit = operations.filter(operation_type__in=debit_ops).aggregate(total=models.Sum('amount'))['total'] or 0
+        total_credit = operations.filter(operation_type__in=credit_ops).aggregate(total=models.Sum('amount'))['total'] or 0
+
+        # موجودی نهایی: (کل بدهی‌ها) - (کل بستانکاری‌ها)
+        self.current_balance = total_debit - total_credit
+        self.total_paid = total_debit
+        self.total_received = total_credit
         
         last_op = operations.order_by('-date', '-created_at').first()
         if last_op:
@@ -3097,10 +3170,14 @@ class PettyCashOperation(models.Model):
     
     def generate_operation_number(self):
         """تولید شماره عملیات تنخواه"""
-        from datetime import datetime
+        import jdatetime
+        from django.utils import timezone
         import time
         
-        prefix = f"PC{datetime.now().strftime('%Y%m%d')}"
+        # استفاده از تاریخ شمسی به جای میلادی
+        now_time = timezone.now()
+        shamsi_date = jdatetime.datetime.fromgregorian(datetime=now_time).strftime('%Y%m%d')
+        prefix = f"PC{shamsi_date}"
         
         # Try to get the last operation number, but handle potential transaction issues
         try:
@@ -3847,6 +3924,7 @@ def cascade_delete_customer(sender, instance, **kwargs):
     """
     حذف آبشاری مشتری - حذف تمام تأثیرات در سیستم
     """
+    customer_full_name = instance.get_full_name()
     try:
         # 1. Soft delete DocumentNumber مرتبط
         content_type = ContentType.objects.get_for_model(Customer)
@@ -3860,14 +3938,14 @@ def cascade_delete_customer(sender, instance, **kwargs):
                 deleter = User.objects.filter(is_superuser=True).first()
             
             doc_number.soft_delete(deleter)
-            print(f"✅ شماره سند {doc_number.document_number} برای مشتری {instance.name} soft delete شد")
+            print(f"✅ شماره سند {doc_number.document_number} برای مشتری {customer_full_name} soft delete شد")
         except DocumentNumber.DoesNotExist:
             pass
         
-        print(f"🔥 حذف آبشاری مشتری {instance.name} کامل شد")
+        print(f"🔥 حذف آبشاری مشتری {customer_full_name} کامل شد")
         
     except Exception as e:
-        print(f"❌ خطا در حذف آبشاری مشتری {instance.name}: {e}")
+        print(f"❌ خطا در حذف آبشاری مشتری {customer_full_name}: {e}")
 
 
 @receiver(pre_delete, sender=Product)

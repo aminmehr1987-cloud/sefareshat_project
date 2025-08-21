@@ -165,8 +165,10 @@ urlpatterns = [
     path('accounting/received-cheques/<int:cheque_id>/change-status/', views.change_received_cheque_status, name='change_received_cheque_status'),
     path('accounting/received-checks/<int:cheque_id>/clear/', views.clear_received_cheque_view, name='clear_received_cheque'),
     path('accounting/received-checks/<int:cheque_id>/bounce/', views.bounce_received_cheque_view, name='bounce_received_cheque'),
+    path('accounting/received-cheques/<int:cheque_id>/return-to-customer/', views.return_received_cheque_to_customer_view, name='return_received_cheque_to_customer'),
     path('accounting/received-cheques/<int:cheque_id>/detail/', views.received_cheque_detail_view, name='received_cheque_detail'),
     path('accounting/received-cheques/<int:cheque_id>/edit/', views.received_cheque_edit_view, name='received_cheque_edit'),
+    path('accounting/received-cheques/<int:cheque_id>/manually-clear/', views.manually_clear_received_cheque, name='manually_clear_received_cheque'),
     
     # URLs for check issuance
     path('accounting/combined-check-operation/', views.combined_check_operation_view, name='combined_check_operation'),

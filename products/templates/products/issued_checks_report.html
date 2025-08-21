@@ -526,33 +526,39 @@ function bounceIssuedCheck(checkId, checkNumber, payee) {
 }
 
 function showMessage(message, type) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
-    messageDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 10000;
-        padding: 15px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        font-weight: bold;
-        max-width: 400px;
-        ${type === 'success' ? 'background: #d4edda; color: #155724; border: 1px solid #c3e6cb;' : 'background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;'}
-    `;
-    messageDiv.textContent = message;
-    
-    document.body.appendChild(messageDiv);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        messageDiv.style.opacity = '0';
+    // استفاده از سیستم نوتیفیکیشن جدید
+    if (typeof showNotification === 'function') {
+        showNotification(message, type, 5000);
+    } else {
+        // Fallback برای مواقعی که سیستم نوتیفیکیشن در دسترس نیست
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-weight: bold;
+            max-width: 400px;
+            ${type === 'success' ? 'background: #d4edda; color: #155724; border: 1px solid #c3e6cb;' : 'background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;'}
+        `;
+        messageDiv.textContent = message;
+        
+        document.body.appendChild(messageDiv);
+        
+        // Auto remove after 5 seconds
         setTimeout(() => {
-            if (messageDiv.parentNode) {
-                messageDiv.parentNode.removeChild(messageDiv);
-            }
-        }, 300);
-    }, 5000);
+            messageDiv.style.opacity = '0';
+            setTimeout(() => {
+                if (messageDiv.parentNode) {
+                    messageDiv.parentNode.removeChild(messageDiv);
+                }
+            }, 300);
+        }, 5000);
+    }
 }
 
 // Add CSRF token if not exists

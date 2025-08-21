@@ -4993,22 +4993,26 @@ def customer_balance_list_view(request):
         is_deleted=False
     )
     
-    total_received = all_operations.filter(
-        operation_type='RECEIVE_FROM_CUSTOMER'
-    ).aggregate(Sum('amount'))['amount__sum'] or 0
-    
-    paid_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER']
+    # عملیات‌هایی که مشتری بدهکار می‌شود (ما به آنها پرداخت کردیم)
+    debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE']
     total_paid = all_operations.filter(
-        operation_type__in=paid_ops
+        operation_type__in=debit_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
+    # عملیات‌هایی که مشتری بستانکار می‌شود (آنها به ما پرداخت کردند یا چک ما برگشت خورد)
+    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
+    total_received = all_operations.filter(
+        operation_type__in=credit_ops
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # موجودی کل = بدهکاری - بستانکاری (مثبت یعنی ما به مشتریان بدهکاریم، منفی یعنی مشتریان به ما بدهکارند)
     total_balance = total_paid - total_received
     
     context = {
         'customer_balances': customer_balances,
         'total_balance': total_balance,
-        'total_received': total_received,
-        'total_paid': total_paid,
+        'total_received': total_received,  # مجموع بستانکاری (مشتریان به ما پرداخت کردند)
+        'total_paid': total_paid,          # مجموع بدهکاری (ما به مشتریان پرداخت کردیم)
     }
     
     return render(request, 'products/customer_balance_list.html', context)
@@ -5424,6 +5428,54 @@ def bounce_received_cheque_view(request, cheque_id):
 
 @login_required
 @group_required('حسابداری')
+@require_POST
+def return_received_cheque_to_customer_view(request, cheque_id):
+    """
+    عودت چک دریافتی به طرف حساب - تبدیل از RECEIVED به RETURNED
+    و ایجاد عملیات مالی برگشت چک دریافتی
+    """
+    try:
+        with transaction.atomic():
+            cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='RECEIVED')
+            
+            # تغییر وضعیت چک به RETURNED
+            cheque.status = 'RETURNED'
+            cheque.returned_at = timezone.now()
+            cheque.returned_by = request.user
+            cheque.save()
+            
+            # ایجاد عملیات مالی برگشت چک دریافتی
+            operation = FinancialOperation.objects.create(
+                operation_type='CHECK_BOUNCE',  # برگشت چک دریافتی
+                customer=cheque.customer,
+                amount=cheque.amount,
+                payment_method='cheque_bounce',
+                description=f'برگشت چک دریافتی - شناسه صیادی: {cheque.sayadi_id}',
+                date=timezone.now().date(),
+                created_by=request.user,
+                status='CONFIRMED'
+            )
+            
+            # به‌روزرسانی موجودی مشتری (بدهکار)
+            from .models import CustomerBalance
+            customer_balance, created = CustomerBalance.objects.get_or_create(customer=cheque.customer)
+            customer_balance.update_balance()
+            
+            messages.success(request, f'چک شناسه صیادی {cheque.sayadi_id} با موفقیت به طرف حساب عودت داده شد.')
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'چک شناسه صیادی {cheque.sayadi_id} با موفقیت به طرف حساب عودت داده شد.'
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+@login_required
+@group_required('حسابداری')
 def received_cheque_list_view(request):
     """
     Displays a list of received cheques with filtering and pagination.
@@ -5653,17 +5705,23 @@ def financial_dashboard_view(request):
     # آمار مشتریان - محاسبه از عملیات‌های واقعی
     all_customer_operations = FinancialOperation.objects.filter(
         customer__isnull=False,
+        status='CONFIRMED',
         is_deleted=False
     )
     
-    total_received = all_customer_operations.filter(
-        operation_type='RECEIVE_FROM_CUSTOMER'
-    ).aggregate(Sum('amount'))['amount__sum'] or 0
-    
+    # عملیات‌هایی که مشتری بدهکار می‌شود (ما به آنها پرداخت کردیم)
+    debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE']
     total_paid = all_customer_operations.filter(
-        operation_type='PAY_TO_CUSTOMER'
+        operation_type__in=debit_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
+    # عملیات‌هایی که مشتری بستانکار می‌شود (آنها به ما پرداخت کردند یا چک ما برگشت خورد)
+    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
+    total_received = all_customer_operations.filter(
+        operation_type__in=credit_ops
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # کل موجودی = بدهکاری - بستانکاری
     total_customer_balance = total_paid - total_received
     
     # شمارش بدهکاران و بستانکاران
@@ -5824,12 +5882,12 @@ def return_spent_cheque_view(request, cheque_id):
             # Create a financial operation for the cheque return
             # This reverses the original PAY_TO_CUSTOMER operation
             operation = FinancialOperation.objects.create(
-                operation_type='RECEIVE_FROM_CUSTOMER',  # بستانکار - خنثی کردن پرداخت قبلی
+                operation_type='RECEIVE_FROM_CUSTOMER',
                 customer=target_customer,
-                amount=cheque.amount,  # مبلغ مثبت
+                amount=cheque.amount,
                 payment_method='cheque_return',
                 date=timezone.now().date(),
-                description=f'چک برگشتی شماره صیادی {cheque.sayadi_id} (خنثی کردن پرداخت قبلی)',
+                description=f'برگشت چک خرج شده به شماره صیادی {cheque.sayadi_id} از {target_customer.get_full_name()}',
                 created_by=request.user,
                 status='CONFIRMED',
                 confirmed_by=request.user,
@@ -5887,7 +5945,7 @@ def return_bounced_to_customer_view(request, cheque_id):
                 amount=cheque.amount,
                 payment_method='bounced_cheque_return',
                 date=timezone.now().date(),
-                description=f'عودت چک شماره صیادی {cheque.sayadi_id}',
+                description=f'عودت چک برگشتی به طرف حساب - شماره صیادی {cheque.sayadi_id} به {cheque.customer.get_full_name()}',
                 created_by=request.user,
                 status='CONFIRMED',
                 confirmed_by=request.user,
@@ -5932,6 +5990,62 @@ def transfer_bounced_to_fund_view(request, cheque_id):
         messages.error(request, f'خطا در انتقال چک به صندوق: {str(e)}')
     
     return redirect('products:received_cheque_list')
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+@transaction.atomic
+def manually_clear_received_cheque(request, cheque_id):
+    """
+    Handles the manual clearing of a received cheque (from 'RECEIVED' to 'MANUALLY_CLEARED').
+    This is used when a check is cleared directly into a cash fund, not a bank.
+    """
+    try:
+        cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='RECEIVED')
+        
+        # Get the main cash fund
+        cash_fund = Fund.objects.filter(fund_type='CASH').first()
+        if not cash_fund:
+            return JsonResponse({'success': False, 'error': 'صندوق نقدی اصلی یافت نشد.'}, status=404)
+
+        # Update cheque status
+        cheque.status = 'MANUALLY_CLEARED'
+        cheque.cleared_at = timezone.now()
+        cheque.cleared_by = request.user
+        cheque.save()
+
+        # Create a financial operation to reflect the cash moving into the fund
+        operation = FinancialOperation.objects.create(
+            operation_type='PAYMENT_TO_CASH', # This correctly increases fund balance
+            fund=cash_fund,
+            amount=cheque.amount,
+            payment_method='cheque',
+            date=timezone.now().date(),
+            description=f"وصول دستی چک شماره صیادی {cheque.sayadi_id} از {cheque.customer.get_full_name()} به صندوق",
+            created_by=request.user,
+            status='CONFIRMED',
+            confirmed_by=request.user,
+            confirmed_at=timezone.now()
+        )
+        
+        # Link the cheque to the operation for tracking
+        operation.received_cheques.add(cheque)
+        
+        # The post_save signal on FinancialOperation will handle updating the fund balance
+        # and creating the accounting voucher.
+
+        return JsonResponse({
+            'success': True,
+            'message': 'چک با موفقیت به صورت دستی وصول شد و مبلغ به صندوق اضافه گردید.'
+        })
+
+    except ReceivedCheque.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'چک یافت نشد یا وضعیت آن برای این عملیات مناسب نیست.'}, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'success': False, 'error': f'خطای سیستمی: {str(e)}'}, status=500)
 
 
 # =============================================================================
@@ -7058,14 +7172,25 @@ def bounce_issued_check(request, check_id):
         customer = None
         if check.payee:
             try:
-                # جستجو در نام کامل مشتریان
-                from django.db.models import Q
-                customer = Customer.objects.filter(
-                    Q(first_name__icontains=check.payee) | 
-                    Q(last_name__icontains=check.payee) |
-                    Q(company_name__icontains=check.payee)
-                ).first()
-            except:
+                # ابتدا جستجوی دقیق نام کامل
+                payee_parts = check.payee.strip().split()
+                if len(payee_parts) >= 2:
+                    # جستجوی دقیق با نام و نام خانوادگی
+                    customer = Customer.objects.filter(
+                        first_name__icontains=payee_parts[0],
+                        last_name__icontains=payee_parts[-1]
+                    ).first()
+                
+                # اگر پیدا نشد، جستجوی کلی انجام بده
+                if not customer:
+                    from django.db.models import Q
+                    customer = Customer.objects.filter(
+                        Q(first_name__icontains=check.payee) | 
+                        Q(last_name__icontains=check.payee) |
+                        Q(store_name__icontains=check.payee)
+                    ).first()
+            except Exception as e:
+                print(f"خطا در جستجوی مشتری: {e}")
                 pass
         
         with transaction.atomic():
@@ -7075,16 +7200,9 @@ def bounce_issued_check(request, check_id):
             check.bounced_by = request.user
             check.save()
             
-            # اگر مشتری پیدا شد، مبلغ را به حساب او اضافه کن
+            # اگر مشتری پیدا شد، عملیات مالی ایجاد کن
             if customer:
-                customer_balance, created = CustomerBalance.objects.get_or_create(
-                    customer=customer,
-                    defaults={'current_balance': 0}
-                )
-                customer_balance.current_balance += check.amount
-                customer_balance.save()
-                
-                # ایجاد عملیات مالی برای برگشت چک
+                # ایجاد عملیات مالی برای برگشت چک صادر شده
                 operation = FinancialOperation.objects.create(
                     operation_type='ISSUED_CHECK_BOUNCE',
                     amount=check.amount,
@@ -7098,7 +7216,11 @@ def bounce_issued_check(request, check_id):
                     confirmed_at=timezone.now()
                 )
                 
-                message = f'چک با موفقیت برگشت خورد و مبلغ به حساب {customer.get_full_name()} اضافه شد'
+                # به‌روزرسانی موجودی مشتری (بستانکار)
+                customer_balance, created = CustomerBalance.objects.get_or_create(customer=customer)
+                customer_balance.update_balance()
+                
+                message = f'چک برگشتی شماره {check.number} با موفقیت به {customer.get_full_name()} برگشت داده شد و مبلغ {check.amount:,} ریال به عنوان بستانکاری مشتری ثبت گردید. سند شماره: {operation.operation_number}'
             else:
                 # ایجاد عملیات مالی بدون مشتری
                 operation = FinancialOperation.objects.create(

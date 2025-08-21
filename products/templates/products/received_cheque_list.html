@@ -191,14 +191,14 @@
                                 <!-- برای چک‌های دریافتی، دکمه‌های وصول، برگشت چک، اصلاح و مشاهده جزئیات نمایش داده می‌شوند -->
                                 <div class="check-operations">
                                     <button type="button" class="operation-btn clear-btn-op" 
-                                            onclick="clearReceivedCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}', {{ cheque.amount }})"
-                                            title="وصول چک">
+                                            onclick="manuallyClearReceivedCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}', {{ cheque.amount }})"
+                                            title="وصول دستی چک">
                                         <i class="bi bi-check-circle"></i>
                                     </button>
-                                    <button type="button" class="operation-btn bounce-btn-op" 
-                                            onclick="bounceReceivedCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}')"
-                                            title="برگشت چک">
-                                        <i class="bi bi-x-circle"></i>
+                                    <button type="button" class="operation-btn return-btn-op" 
+                                            onclick="returnReceivedCheckToCustomer({{ cheque.id }}, '{{ cheque.sayadi_id }}', {{ cheque.amount }})"
+                                            title="عودت چک به طرف حساب">
+                                        <i class="bi bi-person-plus"></i>
                                     </button>
                                     <a href="{% url 'products:received_cheque_edit' cheque_id=cheque.id %}" class="operation-btn edit-btn-op" title="اصلاح">
                                         <i class="bi bi-pencil"></i>
@@ -1320,23 +1320,21 @@ function bounceCheck(checkId, sayadiId) {
 }
 
 // Functions for handling RECEIVED status cheques
-function clearReceivedCheck(checkId, sayadiId, amount) {
-    if (confirm(`آیا از وصول چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nمبلغ ${amount.toLocaleString()} ریال به حساب صندوق اضافه خواهد شد.`)) {
+function manuallyClearReceivedCheck(checkId, sayadiId, amount) {
+    if (confirm(`آیا از وصول دستی چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nمبلغ ${amount.toLocaleString()} ریال به حساب صندوق اضافه خواهد شد.`)) {
         // Show loading
         const btn = event.target.closest('.clear-btn-op');
         const originalContent = btn.innerHTML;
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
         btn.disabled = true;
         
-        fetch(`/accounting/received-checks/${checkId}/clear-received/`, {
+        fetch(`/accounting/received-cheques/${checkId}/manually-clear/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                'action': 'clear_received'
-            })
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
@@ -1373,23 +1371,21 @@ function clearReceivedCheck(checkId, sayadiId, amount) {
     }
 }
 
-function bounceReceivedCheck(checkId, sayadiId) {
-    if (confirm(`آیا از برگشت چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nچک به لیست چک‌های برگشتی منتقل خواهد شد.`)) {
+function returnReceivedCheckToCustomer(checkId, sayadiId, amount) {
+    if (confirm(`آیا از عودت چک با شناسه صیادی ${sayadiId} به طرف حساب اطمینان دارید؟\nمبلغ ${amount.toLocaleString()} ریال به حساب مشتری اضافه خواهد شد.`)) {
         // Show loading
-        const btn = event.target.closest('.bounce-btn-op');
+        const btn = event.target.closest('.return-btn-op');
         const originalContent = btn.innerHTML;
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
         btn.disabled = true;
         
-        fetch(`/accounting/received-checks/${checkId}/bounce-received/`, {
+        fetch(`/accounting/received-cheques/${checkId}/return-to-customer/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                'action': 'bounce_received'
-            })
+            body: JSON.stringify({})
         })
         .then(response => response.json())
         .then(data => {
@@ -1404,11 +1400,11 @@ function bounceReceivedCheck(checkId, sayadiId) {
                     window.location.reload();
                 }, 500);
                 
-                showMessage('چک با موفقیت برگشت خورد و به لیست چک‌های برگشتی منتقل شد.', 'success');
+                showMessage('چک با موفقیت به طرف حساب عودت داده شد و مبلغ به حساب مشتری اضافه گردید.', 'success');
             } else {
                 btn.innerHTML = originalContent;
                 btn.disabled = false;
-                showMessage('خطا در برگشت چک: ' + (data.error || 'خطای نامشخص'), 'error');
+                showMessage('خطا در عودت چک: ' + (data.error || 'خطای نامشخص'), 'error');
             }
         })
         .catch(error => {
@@ -1421,30 +1417,36 @@ function bounceReceivedCheck(checkId, sayadiId) {
 }
 
 function showMessage(message, type) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
-    messageDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 10000;
-        padding: 15px 20px;
-        border-radius: 5px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        max-width: 400px;
-        word-wrap: break-word;
-    `;
-    messageDiv.textContent = message;
-    document.body.appendChild(messageDiv);
-    
-    setTimeout(() => {
-        messageDiv.style.opacity = '0';
+    // استفاده از سیستم نوتیفیکیشن جدید
+    if (typeof showNotification === 'function') {
+        showNotification(message, type, 5000);
+    } else {
+        // Fallback برای مواقعی که سیستم نوتیفیکیشن در دسترس نیست
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 400px;
+            word-wrap: break-word;
+        `;
+        messageDiv.textContent = message;
+        document.body.appendChild(messageDiv);
+        
         setTimeout(() => {
-            if (document.body.contains(messageDiv)) {
-                document.body.removeChild(messageDiv);
-            }
-        }, 300);
-    }, 3000);
+            messageDiv.style.opacity = '0';
+            setTimeout(() => {
+                if (document.body.contains(messageDiv)) {
+                    document.body.removeChild(messageDiv);
+                }
+            }, 300);
+        }, 3000);
+    }
 }
 </script>
 {% endblock %}

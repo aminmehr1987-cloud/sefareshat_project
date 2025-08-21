@@ -37,22 +37,24 @@
                 </p>
             </div>
         </div>
-        <div class="summary-card total-received">
+        <div class="summary-card total-credit">
             <div class="card-icon">
                 <i class="bi bi-arrow-down-circle"></i>
             </div>
             <div class="card-content">
-                <h3>مجموع دریافتی</h3>
+                <h3>مجموع بستانکاری</h3>
                 <p class="received">{{ total_received|persian_number_format }} ریال</p>
+                <small class="text-muted">مشتریان به ما پرداخت کرده‌اند</small>
             </div>
         </div>
-        <div class="summary-card total-paid">
+        <div class="summary-card total-debit">
             <div class="card-icon">
                 <i class="bi bi-arrow-up-circle"></i>
             </div>
             <div class="card-content">
-                <h3>مجموع پرداختی</h3>
+                <h3>مجموع بدهکاری</h3>
                 <p class="paid">{{ total_paid|persian_number_format }} ریال</p>
+                <small class="text-muted">ما به مشتریان پرداخت کرده‌ایم</small>
             </div>
         </div>
         <div class="summary-card customer-count">
@@ -97,8 +99,8 @@
                         <th>نام فروشگاه</th>
                         <th>موجودی فعلی</th>
                         <th>وضعیت</th>
-                        <th>مجموع دریافتی</th>
-                        <th>مجموع پرداختی</th>
+                        <th>مجموع بستانکاری</th>
+                        <th>مجموع بدهکاری</th>
                         <th>آخرین تراکنش</th>
                         <th>عملیات</th>
                     </tr>
@@ -262,12 +264,12 @@
     border-left: 4px solid #3b82f6;
 }
 
-.summary-card.total-received {
+.summary-card.total-credit {
     border-left: 4px solid #10b981;
 }
 
-.summary-card.total-paid {
-    border-left: 4px solid #f59e0b;
+.summary-card.total-debit {
+    border-left: 4px solid #ef4444;
 }
 
 .summary-card.customer-count {
@@ -290,12 +292,12 @@
     color: white;
 }
 
-.total-received .card-icon {
+.total-credit .card-icon {
     background: linear-gradient(135deg, #10b981, #059669);
     color: white;
 }
 
-.total-paid .card-icon {
+.total-debit .card-icon {
     background: linear-gradient(135deg, #f59e0b, #d97706);
     color: white;
 }

@@ -35,6 +35,12 @@
                 <span>گزارشات</span>
             </div>
         </a>
+        <a href="#" class="menu-tile test-tile" title="تست نوتیفیکیشن" onclick="testNotifications(); return false;">
+            <div class="tile-content">
+                <i class="bi bi-bell"></i>
+                <span>تست اعلان‌ها</span>
+            </div>
+        </a>
 </div>
 
 <style>
@@ -71,7 +77,7 @@ body {
 
 .menu-container {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 2rem;
     padding: 1rem;
     margin-bottom: 3rem;
@@ -90,6 +96,14 @@ body {
 .menu-tile:hover {
     transform: translateY(-10px);
     box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+}
+
+.test-tile {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.test-tile .tile-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .tile-content {

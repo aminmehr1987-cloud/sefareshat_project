@@ -117,8 +117,14 @@ def handle_check_statuses_on_operation_status_change(sender, instance, **kwargs)
         if instance.status == 'CANCELLED' and old_instance.status != 'CANCELLED':
             _restore_check_statuses_on_operation_cancel(instance)
         
+        # اگر عملیات soft delete شود، چک‌ها را بازگردانی کن
+        elif instance.is_deleted and not old_instance.is_deleted:
+            _restore_check_statuses_on_operation_soft_delete(instance)
+            # استفاده از متد مدل برای اطمینان بیشتر
+            instance.restore_related_check_statuses()
+        
         # اگر عملیات حذف شده بازگردانی شود، چک‌ها را دوباره فعال کن
-        elif old_instance.is_deleted and instance.status == 'CONFIRMED':
+        elif old_instance.is_deleted and not instance.is_deleted:
             _restore_check_statuses_on_operation_restore(instance)
             
     except sender.DoesNotExist:
@@ -202,6 +208,64 @@ def _restore_check_statuses_on_operation_restore(operation):
                 
     except Exception as e:
         print(f"Error restoring check statuses on operation restore: {e}")
+
+
+def _restore_check_statuses_on_operation_soft_delete(operation):
+    """
+    بازگردانی وضعیت چک‌ها به حالت قبلی هنگام soft delete عملیات مالی
+    """
+    from .models import Check, ReceivedCheque
+    
+    try:
+        # برای چک‌های صادر شده که برگشت خورده‌اند
+        if operation.operation_type == 'ISSUED_CHECK_BOUNCE':
+            # پیدا کردن چک از طریق توضیحات
+            import re
+            check_number_match = re.search(r'شماره (\d+)', operation.description or '')
+            if check_number_match:
+                check_number = check_number_match.group(1)
+                try:
+                    check = Check.objects.get(number=check_number)
+                    print(f"Soft delete: Restoring issued check {check.number} from BOUNCED to ISSUED")
+                    check.status = 'ISSUED'
+                    check.save()
+                except Check.DoesNotExist:
+                    print(f"Warning: Check {check_number} not found for operation {operation.operation_number}")
+        
+        # برای چک‌های دریافتی که برگشت خورده‌اند
+        elif operation.operation_type == 'CHECK_BOUNCE':
+            # پیدا کردن چک از طریق شناسه صیادی در توضیحات
+            import re
+            sayadi_match = re.search(r'شناسه صیادی:?\s*(\d+)', operation.description or '')
+            if sayadi_match:
+                sayadi_id = sayadi_match.group(1)
+                try:
+                    cheque = ReceivedCheque.objects.get(sayadi_id=sayadi_id)
+                    print(f"Soft delete: Restoring received cheque {cheque.sayadi_id} from BOUNCED to RECEIVED")
+                    cheque.status = 'RECEIVED'
+                    cheque.save()
+                except ReceivedCheque.DoesNotExist:
+                    print(f"Warning: Received cheque {sayadi_id} not found for operation {operation.operation_number}")
+        
+        # برای چک‌های خرجی که برگشت خورده‌اند  
+        elif operation.operation_type == 'SPENT_CHEQUE_RETURN':
+            # پیدا کردن چک از طریق شناسه صیادی در توضیحات
+            import re
+            sayadi_match = re.search(r'شماره صیادی:?\s*(\d+)', operation.description or '')
+            if sayadi_match:
+                sayadi_id = sayadi_match.group(1)
+                try:
+                    cheque = ReceivedCheque.objects.get(sayadi_id=sayadi_id)
+                    print(f"Soft delete: Restoring spent cheque {cheque.sayadi_id} from RETURNED to SPENT")
+                    cheque.status = 'SPENT'
+                    cheque.save()
+                except ReceivedCheque.DoesNotExist:
+                    print(f"Warning: Spent cheque {sayadi_id} not found for operation {operation.operation_number}")
+                    
+        print(f"Successfully restored check statuses for soft deleted operation {operation.operation_number}")
+        
+    except Exception as e:
+        print(f"Error restoring check statuses on soft delete: {e}")
 
 
 @receiver(post_delete, sender=PettyCashOperation)

@@ -9,6 +9,8 @@
     {% load custom_filters %}
 
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+    
     @font-face {
         font-family: 'Hamase';
         src: url('{% static "fonts/Hamase.ttf" %}') format('truetype');
@@ -719,6 +721,156 @@
         }
     }
 
+    /* سیستم نوتیفیکیشن - بهبود یافته */
+    .notification-container {
+        position: fixed;
+        bottom: 25px;
+        right: 25px;
+        z-index: 10000;
+        width: 380px;
+        max-width: calc(100vw - 50px);
+        pointer-events: none;
+    }
+
+    .notification {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 16px rgba(0, 0, 0, 0.08);
+        margin-bottom: 12px;
+        padding: 18px 20px;
+        border-right: 5px solid;
+        opacity: 0;
+        transform: translateX(120%);
+        transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        position: relative;
+        font-family: 'Vazirmatn', 'Tahoma', 'IRANSans', Arial, sans-serif;
+        direction: rtl;
+        text-align: right;
+        pointer-events: all;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .notification.show {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    .notification.success {
+        border-right-color: #10b981;
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    }
+
+    .notification.error {
+        border-right-color: #ef4444;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+    }
+
+    .notification.warning {
+        border-right-color: #f59e0b;
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    }
+
+    .notification.info {
+        border-right-color: #3b82f6;
+        background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    }
+
+    .notification-icon {
+        display: inline-block;
+        margin-left: 10px;
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    .notification.success .notification-icon {
+        color: #10b981;
+    }
+
+    .notification.error .notification-icon {
+        color: #ef4444;
+    }
+
+    .notification.warning .notification-icon {
+        color: #f59e0b;
+    }
+
+    .notification.info .notification-icon {
+        color: #3b82f6;
+    }
+
+    .notification-content {
+        display: inline-block;
+        font-size: 15px;
+        line-height: 1.5;
+        color: #374151;
+        font-weight: 500;
+    }
+
+    .notification-close {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: none;
+        border: none;
+        font-size: 20px;
+        color: #9ca3af;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s ease;
+    }
+
+    .notification-close:hover {
+        color: #374151;
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    @media (max-width: 768px) {
+        .notification-container {
+            width: 320px;
+            bottom: 15px;
+            right: 15px;
+            max-width: calc(100vw - 30px);
+        }
+        
+        .notification {
+            padding: 15px 18px;
+            font-size: 14px;
+        }
+        
+        .notification-content {
+            font-size: 14px;
+        }
+        
+        .notification-icon {
+            font-size: 16px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .notification-container {
+            width: 280px;
+            bottom: 10px;
+            right: 10px;
+            max-width: calc(100vw - 20px);
+        }
+        
+        .notification {
+            padding: 12px 15px;
+        }
+        
+        .notification-content {
+            font-size: 13px;
+            line-height: 1.4;
+        }
+    }
+
     .customer-modal-content {
         overflow-x: auto;
         font-size: 0.85rem;
@@ -830,6 +982,7 @@
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="{% static 'js/notifications.js' %}"></script>
     {% block extra_css %}{% endblock %}
 
 <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -1026,6 +1179,9 @@
     {% endblock %}
 </div>
 
+<!-- سیستم نوتیفیکیشن -->
+<div id="notification-container" class="notification-container"></div>
+
 <div class="footer-bar">
     طراحی و برنامه نویسی توسط امین لطفی مهر - 09358229376
 </div>
@@ -1211,6 +1367,171 @@ if (notificationBtn && notificationPopup) {
     });
     // The general document click listener handles closing when clicking outside
 }
+
+// سیستم نوتیفیکیشن
+class NotificationSystem {
+    constructor() {
+        this.container = document.getElementById('notification-container');
+        this.notifications = [];
+    }
+
+    show(message, type = 'success', duration = 5000) {
+        // محدود کردن تعداد نوتیفیکیشن‌های همزمان
+        if (this.notifications.length >= 5) {
+            this.remove(this.notifications[0]);
+        }
+
+        const notification = this.createNotification(message, type);
+        this.container.appendChild(notification);
+        this.notifications.push(notification);
+
+        // نمایش انیمیشن با تأخیر کمتر
+        requestAnimationFrame(() => {
+            notification.classList.add('show');
+        });
+
+        // پخش صدای کوتاه برای اطلاع‌رسانی (اختیاری)
+        this.playNotificationSound(type);
+
+        // حذف خودکار بعد از مدت زمان مشخص
+        if (duration > 0) {
+            setTimeout(() => {
+                this.remove(notification);
+            }, duration);
+        }
+
+        return notification;
+    }
+
+    playNotificationSound(type) {
+        // صدای ملایم برای نوتیفیکیشن‌ها (اختیاری)
+        try {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            // فرکانس‌های مختلف برای انواع مختلف
+            const frequencies = {
+                success: 800,
+                error: 400,
+                warning: 600,
+                info: 700
+            };
+            
+            oscillator.frequency.value = frequencies[type] || 700;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.1);
+        } catch (e) {
+            // صدا پخش نشود اگر مشکلی پیش آمد
+        }
+    }
+
+    createNotification(message, type) {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+
+        const icon = this.getIcon(type);
+        
+        notification.innerHTML = `
+            <span class="notification-icon">${icon}</span>
+            <span class="notification-content">${message}</span>
+            <button class="notification-close" onclick="notificationSystem.remove(this.parentElement)">×</button>
+        `;
+
+        return notification;
+    }
+
+    getIcon(type) {
+        const icons = {
+            success: '<i class="bi bi-check-circle-fill"></i>',
+            error: '<i class="bi bi-x-circle-fill"></i>',
+            warning: '<i class="bi bi-exclamation-triangle-fill"></i>',
+            info: '<i class="bi bi-info-circle-fill"></i>'
+        };
+        return icons[type] || icons.info;
+    }
+
+    remove(notification) {
+        if (!notification || !notification.parentElement) return;
+
+        notification.classList.remove('show');
+        
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.parentElement.removeChild(notification);
+            }
+            const index = this.notifications.indexOf(notification);
+            if (index > -1) {
+                this.notifications.splice(index, 1);
+            }
+        }, 300);
+    }
+
+    clear() {
+        this.notifications.forEach(notification => {
+            this.remove(notification);
+        });
+    }
+}
+
+// ایجاد نمونه سراسری
+const notificationSystem = new NotificationSystem();
+
+// تابع کمکی برای نمایش آسان نوتیفیکیشن
+function showNotification(message, type = 'success', duration = 5000) {
+    return notificationSystem.show(message, type, duration);
+}
+
+// تابع تست نوتیفیکیشن‌ها (برای توسعه‌دهندگان)
+function testNotifications() {
+    showNotification('عملیات با موفقیت انجام شد! 🎉', 'success', 4000);
+    setTimeout(() => showNotification('خطا در انجام عملیات! ❌', 'error', 4000), 1000);
+    setTimeout(() => showNotification('توجه: این یک هشدار است! ⚠️', 'warning', 4000), 2000);
+    setTimeout(() => showNotification('اطلاعات: عملیات در حال انجام... ℹ️', 'info', 4000), 3000);
+}
+
+// کلیدهای میانبر برای تست (Ctrl+Shift+N)
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+        testNotifications();
+    }
+});
+
+// نمایش پیام‌های Django Messages به صورت نوتیفیکیشن
+document.addEventListener('DOMContentLoaded', function() {
+    // پردازش پیام‌های موجود در صفحه
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(alert => {
+        let type = 'info';
+        if (alert.classList.contains('alert-success')) type = 'success';
+        else if (alert.classList.contains('alert-danger')) type = 'error';
+        else if (alert.classList.contains('alert-warning')) type = 'warning';
+        
+        const message = alert.textContent.trim().replace('×', '').replace(/\s+/g, ' ');
+        if (message && message.length > 0) {
+            showNotification(message, type);
+        }
+        
+        // حذف کامل alert اصلی از DOM
+        alert.remove();
+    });
+    
+    // حذف کامل container های پیام اگر خالی هستند
+    const messageContainers = document.querySelectorAll('.messages, .alert-container, .financial-operation-container .alert');
+    messageContainers.forEach(container => {
+        if (container.children.length === 0 || container.textContent.trim() === '') {
+            container.remove();
+        }
+    });
+});
 </script>
 </body>
 </html>
