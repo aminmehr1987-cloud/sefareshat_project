@@ -2,8 +2,10 @@ from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 import jdatetime
 from django.contrib.auth.models import User
+from datetime import datetime
+from django.contrib.contenttypes.models import ContentType
 # from django.contrib import admin # این خط هم احتمالا باید حذف شود، زیرا admin در models.py استفاده نمی‌شود.
-from django.db.models.signals import post_save, post_delete, pre_save
+from django.db.models.signals import post_save, post_delete, pre_save, pre_delete
 from django.dispatch import receiver
 from django.db.models import Max, Sum, F, DecimalField, Q
 import uuid
@@ -51,6 +53,16 @@ class Customer(models.Model):
     def get_full_name(self):
         """Return the full name of the customer"""
         return f'{self.first_name} {self.last_name}'
+    
+    @property
+    def document_number_display(self):
+        """نمایش شماره سند مشتری"""
+        from .models import get_document_number_display
+        return get_document_number_display(self)
+    
+    def set_deleting_user(self, user):
+        """تنظیم کاربر حذف کننده برای استفاده در سیگنال‌های حذف"""
+        self._deleting_user = user
 
 
 class Warehouse(models.Model):
@@ -138,6 +150,12 @@ class Product(models.Model):
     )
     
     created_at = models.DateTimeField(default=timezone.now, verbose_name="تاریخ ایجاد")
+    
+    @property
+    def document_number_display(self):
+        """نمایش شماره سند محصول"""
+        from .models import get_document_number_display
+        return get_document_number_display(self)
 
     normalized_name = models.CharField(max_length=255, blank=True, db_index=True)
 
@@ -165,6 +183,11 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.code})"
+    
+    def set_deleting_user(self, user):
+        """تنظیم کاربر حذف کننده برای استفاده در سیگنال‌های حذف"""
+        self._deleting_user = user
+
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -304,6 +327,20 @@ class Order(models.Model):
 
         super().save(*args, **kwargs)
 
+        # اختصاص شماره سند ثابت بعد از ذخیره
+        if is_new and hasattr(self, '_document_number_assigned') and not self._document_number_assigned:
+            try:
+                from .models import assign_document_number
+                assign_document_number(
+                    self, 
+                    'ORDER', 
+                    User.objects.first(),  # یا کاربر مناسب
+                    f'سفارش {self.order_number}'
+                )
+                self._document_number_assigned = True
+            except Exception as e:
+                print(f"خطا در اختصاص شماره سند: {e}")
+
         # ذخیره تاریخچه وضعیت فقط اگر وضعیت جدید است یا تغییر کرده
         if is_new:
             OrderStatusHistory.objects.create(
@@ -332,6 +369,21 @@ class Order(models.Model):
 
     def get_status_history(self):
         return self.status_history.all()
+    
+    @property
+    def fixed_document_number(self):
+        """شماره سند ثابت برای سفارش"""
+        from .models import get_document_number_display
+        return get_document_number_display(self)
+    
+    @property
+    def document_number_display(self):
+        """نمایش شماره سند ثابت (برای سازگاری)"""
+        return self.fixed_document_number
+    
+    def set_deleting_user(self, user):
+        """تنظیم کاربر حذف کننده برای استفاده در سیگنال‌های حذف"""
+        self._deleting_user = user
 
     class Meta:
         constraints = [
@@ -344,37 +396,226 @@ class Order(models.Model):
 
 
 class DocumentNumber(models.Model):
-    warehouse = models.ForeignKey(
-        Warehouse,
-        on_delete=models.CASCADE,
-        related_name='document_numbers',
-        verbose_name="انبار"
+    """
+    سیستم شماره‌گذاری اسناد برای تمام عملیات سیستم
+    شماره‌های ساده و متوالی از 1 شروع می‌شوند
+    """
+    DOCUMENT_TYPES = [
+        ('SALES_INVOICE', 'فاکتور فروش'),
+        ('PURCHASE_INVOICE', 'فاکتور خرید'),
+        ('ORDER', 'سفارش'),
+        ('SHIPMENT', 'حمل و نقل'),
+        ('CHECK_ISSUED', 'چک صادر شده'),
+        ('CHECK_RECEIVED', 'چک دریافتی'),
+        ('FINANCIAL_OPERATION', 'عملیات مالی'),
+        ('FUND_OPERATION', 'عملیات صندوق'),
+        ('PETTY_CASH', 'تنخواه'),
+        ('VOUCHER', 'سند حسابداری'),
+        ('RECEIPT', 'رسید'),
+        ('PAYMENT', 'پرداخت'),
+        ('CUSTOMER_BALANCE', 'تراز مشتری'),
+        ('BANK_TRANSACTION', 'تراکنش بانکی'),
+        ('OTHER', 'سایر'),
+    ]
+    
+    document_type = models.CharField(
+        max_length=30, 
+        choices=DOCUMENT_TYPES, 
+        verbose_name="نوع سند"
     )
-    number = models.PositiveIntegerField(verbose_name="شماره سند")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
-    order_item = models.OneToOneField(
-        'OrderItem',
+    content_type = models.ForeignKey(
+        'contenttypes.ContentType', 
         on_delete=models.CASCADE,
-        related_name='document_number_obj',
-        verbose_name="آیتم سفارش"
+        verbose_name="نوع محتوا"
+    )
+    object_id = models.PositiveIntegerField(verbose_name="شناسه شیء")
+    document_number = models.PositiveIntegerField(
+        unique=True, 
+        verbose_name="شماره سند"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True, 
+        verbose_name="تاریخ ایجاد"
+    )
+    created_by = models.ForeignKey(
+        User, 
+        on_delete=models.PROTECT, 
+        verbose_name="ایجاد کننده"
+    )
+    
+    # فیلدهای اضافی برای پیگیری
+    description = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="توضیحات"
+    )
+    is_deleted = models.BooleanField(
+        default=False, 
+        verbose_name="حذف شده"
+    )
+    deleted_at = models.DateTimeField(
+        null=True, 
+        blank=True, 
+        verbose_name="تاریخ حذف"
+    )
+    deleted_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='deleted_documents',
+        verbose_name="حذف کننده"
     )
 
     class Meta:
-        unique_together = ('warehouse', 'number')
-        ordering = ['-number']
         verbose_name = "شماره سند"
-        verbose_name_plural = "شماره سندها"
+        verbose_name_plural = "شماره‌های اسناد"
+        ordering = ['-document_number']
+        indexes = [
+            models.Index(fields=['document_type', 'content_type', 'object_id']),
+            models.Index(fields=['document_number']),
+            models.Index(fields=['created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['content_type', 'object_id'], 
+                name='unique_document_reference'
+            )
+        ]
 
     def __str__(self):
-        # این متد __str__ برای DocumentNumber به 'order' و 'product' نیاز دارد که در مدل نیست.
-        # باید به OrderItem مرتبط باشد یا فقط فیلدهای خود DocumentNumber را استفاده کند.
-        # مثلا:
-        return f"{self.warehouse.name} - سند: {self.number}"
+        return f"سند {self.document_number} - {self.get_document_type_display()}"
+    
+    @property
+    def jalali_created_at(self):
+        """تاریخ ایجاد به صورت شمسی"""
+        if self.created_at:
+            return jdatetime.datetime.fromgregorian(datetime=self.created_at).strftime('%Y/%m/%d %H:%M')
+        return '-'
+    
+    @property
+    def related_object(self):
+        """شیء مرتبط با این شماره سند"""
+        try:
+            return self.content_type.get_model().objects.get(pk=self.object_id)
+        except:
+            return None
+    
+    @property
+    def related_object_str(self):
+        """نمایش متنی شیء مرتبط"""
+        obj = self.related_object
+        if obj:
+            return str(obj)
+        return f"شیء {self.object_id} (حذف شده)"
+    
+    def soft_delete(self, user):
+        """حذف نرم شماره سند"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.deleted_by = user
+        self.save()
+    
+    def restore(self):
+        """بازگردانی شماره سند حذف شده"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.deleted_by = None
+        self.save()
+
+class DocumentNumberSettings(models.Model):
+    """
+    تنظیمات سیستم شماره‌گذاری اسناد
+    """
+    current_number = models.PositiveIntegerField(
+        default=1, 
+        verbose_name="شماره سند فعلی"
+    )
+    next_number = models.PositiveIntegerField(
+        default=1, 
+        verbose_name="شماره سند بعدی"
+    )
+    is_active = models.BooleanField(
+        default=True, 
+        verbose_name="فعال"
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True, 
+        verbose_name="تاریخ ایجاد"
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True, 
+        verbose_name="تاریخ بروزرسانی"
+    )
+    updated_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        verbose_name="بروزرسانی کننده"
+    )
+    
+    class Meta:
+        verbose_name = "تنظیمات شماره‌گذاری اسناد"
+        verbose_name_plural = "تنظیمات شماره‌گذاری اسناد"
+    
+    def __str__(self):
+        return f"تنظیمات شماره‌گذاری - شماره فعلی: {self.current_number}"
+    
+    def save(self, *args, **kwargs):
+        # اطمینان از اینکه next_number همیشه بزرگتر از current_number است
+        if self.next_number <= self.current_number:
+            self.next_number = self.current_number + 1
+        super().save(*args, **kwargs)
     
     @classmethod
-    def get_next_number(cls, warehouse):
-        last_number = cls.objects.filter(warehouse=warehouse).order_by('-number').first()
-        return (last_number.number + 1) if last_number else 1
+    def get_settings(cls):
+        """دریافت تنظیمات فعلی یا ایجاد تنظیمات جدید"""
+        settings, created = cls.objects.get_or_create(
+            defaults={'current_number': 1, 'next_number': 1}
+        )
+        return settings
+    
+    @classmethod
+    def get_next_number(cls):
+        """دریافت شماره سند بعدی"""
+        settings = cls.get_settings()
+        if not settings.is_active:
+            raise ValueError("سیستم شماره‌گذاری غیرفعال است")
+        
+        next_num = settings.next_number
+        settings.next_number += 1
+        settings.save()
+        return next_num
+    
+    @classmethod
+    def set_starting_number(cls, starting_number, user):
+        """تنظیم شماره شروع برای مهاجرت"""
+        if starting_number < 1:
+            raise ValueError("شماره شروع باید بزرگتر از 0 باشد")
+        
+        settings = cls.get_settings()
+        settings.current_number = starting_number
+        settings.next_number = starting_number + 1
+        settings.updated_by = user
+        settings.save()
+        
+        return settings
+    
+    @classmethod
+    def get_statistics(cls):
+        """دریافت آمار سیستم شماره‌گذاری"""
+        settings = cls.get_settings()
+        total_documents = DocumentNumber.objects.filter(is_deleted=False).count()
+        deleted_documents = DocumentNumber.objects.filter(is_deleted=True).count()
+        
+        return {
+            'current_number': settings.current_number,
+            'next_number': settings.next_number,
+            'total_documents': total_documents,
+            'deleted_documents': deleted_documents,
+            'is_active': settings.is_active
+        }
 
 class OrderItem(models.Model):
     WAREHOUSE_STATUS_CHOICES = [
@@ -1762,6 +2003,77 @@ class Voucher(models.Model):
         verbose_name = "سند حسابداری"
         verbose_name_plural = "اسناد حسابداری"
         unique_together = ['financial_year', 'number']
+    
+    def get_detailed_operation_description(self):
+        """دریافت توضیحات دقیق عملیات مرتبط با این سند"""
+        # توضیحات دقیق حالا در فیلد description ذخیره می‌شود
+        return self.description
+    
+    def _generate_operation_description(self, operation):
+        """تولید توضیحات دقیق عملیات مالی"""
+        description_parts = []
+        
+        # نوع عملیات
+        operation_type_display = operation.get_operation_type_display()
+        description_parts.append(f"نوع عملیات: {operation_type_display}")
+        
+        # مبلغ
+        description_parts.append(f"مبلغ: {operation.amount:,} ریال")
+        
+        # مشتری
+        if operation.customer:
+            description_parts.append(f"طرف حساب: {operation.customer.get_full_name()}")
+        
+        # صندوق
+        if operation.fund:
+            description_parts.append(f"صندوق: {operation.fund.name}")
+        
+        # روش پرداخت
+        if operation.payment_method:
+            payment_method_display = dict(FinancialOperation._meta.get_field('payment_method').choices).get(
+                operation.payment_method, operation.payment_method
+            )
+            description_parts.append(f"روش پرداخت: {payment_method_display}")
+        
+        # چک‌های مرتبط
+        if operation.spent_cheques.exists():
+            cheque_details = []
+            for cheque in operation.spent_cheques.all():
+                cheque_details.append(f"چک {cheque.sayadi_id} ({cheque.amount:,} ریال)")
+            description_parts.append(f"چک‌های خرج شده: {', '.join(cheque_details)}")
+        
+        # تاریخ
+        if operation.date:
+            description_parts.append(f"تاریخ: {operation.date}")
+        
+        # شماره عملیات
+        description_parts.append(f"شماره عملیات: {operation.operation_number}")
+        
+        return " | ".join(description_parts)
+    
+    def _generate_petty_cash_description(self, petty_op):
+        """تولید توضیحات دقیق عملیات تنخواه"""
+        description_parts = []
+        
+        # نوع عملیات
+        operation_type_display = petty_op.get_operation_type_display()
+        description_parts.append(f"نوع عملیات: {operation_type_display}")
+        
+        # مبلغ
+        description_parts.append(f"مبلغ: {petty_op.amount:,} ریال")
+        
+        # صندوق مبدأ
+        if petty_op.source_fund:
+            description_parts.append(f"صندوق مبدأ: {petty_op.source_fund.name}")
+        
+        # تاریخ
+        if petty_op.date:
+            description_parts.append(f"تاریخ: {petty_op.date}")
+        
+        # شماره عملیات
+        description_parts.append(f"شماره عملیات: {petty_op.operation_number}")
+        
+        return " | ".join(description_parts)
 
 class VoucherItem(models.Model):
     voucher = models.ForeignKey(Voucher, on_delete=models.CASCADE, related_name='items', verbose_name="سند")
@@ -1826,6 +2138,7 @@ class ReceivedCheque(models.Model):
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='RECEIVED', verbose_name="وضعیت")
     recipient_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="نام دریافت‌کننده (در صورت خرج چک)")
+    recipient_customer = models.ForeignKey('Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='received_cheques_as_recipient', verbose_name="مشتری گیرنده چک")
     deposited_bank_account = models.ForeignKey('BankAccount', on_delete=models.SET_NULL, null=True, blank=True, related_name='deposited_checks', verbose_name="حساب بانکی واگذار شده")
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
@@ -1889,8 +2202,164 @@ class ReceivedCheque(models.Model):
         """کلاس CSS برای ردیف بر اساس وضعیت"""
         if self.is_deleted:
             return "table-danger"  # قرمز برای حذف شده
+        elif self.status == 'BOUNCED':
+            return "table-danger"  # قرمز برای برگشتی
+        elif self.status == 'RETURNED':
+            return "table-danger-light"  # قرمز کمرنگ برای برگشت داده شده
+        elif self.status == 'SPENT':
+            return "table-warning"  # زرد برای خرج شده
+        elif self.status == 'CLEARED':
+            return "table-success"  # سبز برای وصول شده
         else:
             return ""  # مشکی برای عادی
+    
+    def create_audit_record(self, operation, user, request=None, description=None, **kwargs):
+        """ایجاد رکورد تاریخچه برای عملیات انجام شده روی چک"""
+        from .models import ReceivedChequeAuditTrail
+        
+        # اطلاعات قبل از عملیات
+        old_data = {
+            'old_status': self.status,
+            'old_amount': self.amount,
+            'old_due_date': self.due_date,
+            'old_recipient_name': self.recipient_name,
+            'old_deposited_bank_account': self.deposited_bank_account,
+        }
+        
+        # اطلاعات بعد از عملیات
+        new_data = {
+            'new_status': kwargs.get('new_status', self.status),
+            'new_amount': kwargs.get('new_amount', self.amount),
+            'new_due_date': kwargs.get('new_due_date', self.due_date),
+            'new_recipient_name': kwargs.get('new_recipient_name', self.recipient_name),
+            'new_deposited_bank_account': kwargs.get('new_deposited_bank_account', self.deposited_bank_account),
+        }
+        
+        # اطلاعات درخواست
+        request_data = {}
+        if request:
+            request_data = {
+                'ip_address': self._get_client_ip(request),
+                'user_agent': request.META.get('HTTP_USER_AGENT', ''),
+            }
+        
+        # ایجاد رکورد تاریخچه
+        audit_record = ReceivedChequeAuditTrail.objects.create(
+            cheque=self,
+            operation=operation,
+            performed_by=user,
+            description=description,
+            **old_data,
+            **new_data,
+            **request_data
+        )
+        
+        return audit_record
+    
+    def _get_client_ip(self, request):
+        """دریافت آدرس IP کاربر"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+    
+    def audit_status_change(self, old_status, new_status, user, request=None, description=None):
+        """ثبت تغییر وضعیت در تاریخچه"""
+        return self.create_audit_record(
+            'STATUS_CHANGED',
+            user,
+            request,
+            description or f"تغییر وضعیت از {self.get_status_display()} به {self.get_status_display()}",
+            new_status=new_status
+        )
+    
+    def audit_edit(self, user, request=None, description=None):
+        """ثبت ویرایش در تاریخچه"""
+        return self.create_audit_record(
+            'EDITED',
+            user,
+            request,
+            description or "ویرایش اطلاعات چک"
+        )
+    
+    def audit_clear(self, user, request=None, description=None):
+        """ثبت وصول چک در تاریخچه"""
+        return self.create_audit_record(
+            'CLEARED',
+            user,
+            request,
+            description or "وصول چک"
+        )
+    
+    def audit_bounce(self, user, request=None, description=None):
+        """ثبت برگشت چک در تاریخچه"""
+        return self.create_audit_record(
+            'BOUNCED',
+            user,
+            request,
+            description or "برگشت چک"
+        )
+    
+    def audit_deposit(self, user, request=None, description=None):
+        """ثبت واگذاری چک به بانک در تاریخچه"""
+        return self.create_audit_record(
+            'DEPOSITED',
+            user,
+            request,
+            description or "واگذاری چک به بانک"
+        )
+    
+    def audit_spend(self, user, request=None, description=None):
+        """ثبت خرج چک در تاریخچه"""
+        return self.create_audit_record(
+            'SPENT',
+            user,
+            request,
+            description or "خرج چک"
+        )
+    
+    def audit_return(self, user, request=None, description=None):
+        """ثبت مسترد کردن چک در تاریخچه"""
+        return self.create_audit_record(
+            'RETURNED',
+            user,
+            request,
+            description or "مسترد کردن چک"
+        )
+    
+    def audit_manual_clear(self, user, request=None, description=None):
+        """ثبت وصول دستی چک در تاریخچه"""
+        return self.create_audit_record(
+            'MANUALLY_CLEARED',
+            user,
+            request,
+            description or "وصول دستی چک"
+        )
+    
+    def audit_delete(self, user, request=None, description=None):
+        """ثبت حذف چک در تاریخچه"""
+        return self.create_audit_record(
+            'DELETED',
+            user,
+            request,
+            description or "حذف چک"
+        )
+    
+    def audit_restore(self, user, request=None, description=None):
+        """ثبت بازگردانی چک در تاریخچه"""
+        return self.create_audit_record(
+            'RESTORED',
+            user,
+            request,
+            description or "بازگردانی چک"
+        )
+    
+    def set_deleting_user(self, user):
+        """تنظیم کاربر حذف کننده برای استفاده در سیگنال‌های حذف"""
+        self._deleting_user = user
+
 
 class FinancialOperation(models.Model):
     """
@@ -1911,6 +2380,8 @@ class FinancialOperation(models.Model):
         ('CHECK_RESET_FROM_CLEARED', 'بازگشت چک وصول شده به حالت اولیه'),
         ('CHECK_RESET_FROM_BOUNCED', 'بازگشت چک برگشت خورده به حالت اولیه'),
         ('CHECK_RESET_FROM_ISSUED', 'بازگشت چک صادر شده به حالت اولیه'),
+        ('PURCHASE_INVOICE', 'فاکتور خرید'),
+        ('SALES_INVOICE', 'فاکتور فروش'),
     ]
     
     STATUS_CHOICES = [
@@ -1935,13 +2406,15 @@ class FinancialOperation(models.Model):
     account_number = models.CharField(max_length=50, blank=True, verbose_name="شماره حساب")
     
     # اطلاعات روش پرداخت
-    payment_method = models.CharField(max_length=20, choices=[
+    payment_method = models.CharField(max_length=30, choices=[
         ('cash', 'نقدی'),
         ('bank_transfer', 'حواله بانکی'),
         ('cheque', 'چک'),
         ('spend_cheque', 'خرج چک'),
         ('mixed_cheque', 'ترکیب چک‌ها'),
         ('pos', 'دستگاه POS'),
+        ('cheque_return', 'چک برگشتی'),
+        ('bounced_cheque_return', 'برگشت چک برگشتی'),
     ], verbose_name="روش پرداخت")
     card_reader_device = models.ForeignKey('CardReaderDevice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دستگاه کارت‌خوان")
     spent_cheques = models.ManyToManyField(
@@ -2019,6 +2492,20 @@ class FinancialOperation(models.Model):
         
         super().save(*args, **kwargs)
         ordering = ['-date', '-created_at']
+        
+        # اختصاص شماره سند ثابت بعد از ذخیره
+        if hasattr(self, '_document_number_assigned') and not self._document_number_assigned:
+            try:
+                from .models import assign_document_number
+                assign_document_number(
+                    self, 
+                    'FINANCIAL_OPERATION', 
+                    self.created_by,
+                    f'عملیات مالی {self.get_operation_type_display()} - {self.operation_number}'
+                )
+                self._document_number_assigned = True
+            except Exception as e:
+                print(f"خطا در اختصاص شماره سند: {e}")
     
     def __str__(self):
         return f"{self.get_operation_type_display()} - {self.operation_number} - {self.amount:,}"
@@ -2062,11 +2549,6 @@ class FinancialOperation(models.Model):
         else:
             return ""  # مشکی برای عادی
     
-    def save(self, *args, **kwargs):
-        if not self.operation_number:
-            self.operation_number = self.generate_operation_number()
-        super().save(*args, **kwargs)
-    
     def generate_operation_number(self):
         """تولید شماره عملیات خودکار"""
         from datetime import datetime
@@ -2082,6 +2564,22 @@ class FinancialOperation(models.Model):
             new_number = 1
         
         return f"{prefix}{new_number:04d}"
+    
+    @property
+    def fixed_document_number(self):
+        """شماره سند ثابت برای عملیات مالی"""
+        from .models import get_document_number_display
+        return get_document_number_display(self)
+    
+    @property
+    def document_number_display(self):
+        """نمایش شماره سند ثابت (برای سازگاری)"""
+        return self.fixed_document_number
+    
+    def set_deleting_user(self, user):
+        """تنظیم کاربر حذف کننده برای استفاده در سیگنال‌های حذف"""
+        self._deleting_user = user
+
 
 @receiver(pre_save, sender=FinancialOperation)
 def handle_financial_operation_status_change(sender, instance, **kwargs):
@@ -2467,11 +2965,21 @@ class CustomerBalance(models.Model):
             is_deleted=False
         )
 
-        total_received = operations.filter(operation_type='RECEIVE_FROM_CUSTOMER').aggregate(models.Sum('amount'))['amount__sum'] or 0
-        
-        # A bank transfer to a customer is a form of payment to them, increasing their debt.
+        # عملیات‌های دریافت از مشتری (کاهش بدهی مشتری)
+        received_ops = ['RECEIVE_FROM_CUSTOMER']
+        # عملیات‌های پرداخت به مشتری (افزایش بدهی مشتری)
         paid_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER']
+        
+        # عملیات‌های برگشت چک باید از دریافت‌ها کم شوند
+        # چون وقتی چک برگشت می‌خورد، عملیات RECEIVE_FROM_CUSTOMER خنثی می‌شود
+        cheque_return_ops = ['cheque_return', 'bounced_cheque_return']
+        
+        total_received = operations.filter(operation_type__in=received_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
         total_paid = operations.filter(operation_type__in=paid_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
+        
+        # کم کردن عملیات‌های برگشت چک از دریافت‌ها
+        cheque_return_total = operations.filter(payment_method__in=cheque_return_ops).aggregate(models.Sum('amount'))['amount__sum'] or 0
+        total_received -= cheque_return_total
 
         self.current_balance = total_paid - total_received
         self.total_received = total_received
@@ -2572,6 +3080,20 @@ class PettyCashOperation(models.Model):
             self.date = jdatetime.date.today()
             
         super().save(*args, **kwargs)
+        
+        # اختصاص شماره سند ثابت بعد از ذخیره
+        if hasattr(self, '_document_number_assigned') and not self._document_number_assigned:
+            try:
+                from .models import assign_document_number
+                assign_document_number(
+                    self, 
+                    'PETTY_CASH', 
+                    self.created_by,
+                    f'عملیات تنخواه {self.get_operation_type_display()} - {self.operation_number}'
+                )
+                self._document_number_assigned = True
+            except Exception as e:
+                print(f"خطا در اختصاص شماره سند: {e}")
     
     def generate_operation_number(self):
         """تولید شماره عملیات تنخواه"""
@@ -2598,6 +3120,21 @@ class PettyCashOperation(models.Model):
             new_number = timestamp
         
         return f"{prefix}{new_number:04d}"
+    
+    @property
+    def fixed_document_number(self):
+        """شماره سند ثابت برای عملیات تنخواه"""
+        from .models import get_document_number_display
+        return get_document_number_display(self)
+    
+    @property
+    def document_number_display(self):
+        """نمایش شماره سند ثابت (برای سازگاری)"""
+        return self.fixed_document_number
+    
+    def set_deleting_user(self, user):
+        """تنظیم کاربر حذف کننده برای استفاده در سیگنال‌های حذف"""
+        self._deleting_user = user
 
 
 # Signals for automatic balance updates
@@ -2772,7 +3309,7 @@ def create_voucher_for_sales_invoice_save(sender, instance, created, **kwargs):
             # ایجاد سند حسابداری
             voucher = Voucher.objects.create(
                 financial_year=FinancialYear.get_current_year(),
-                number=get_next_voucher_number(),
+                number=1,  # TODO: Implement proper voucher numbering
                 date=instance.invoice_date,
                 type='PERMANENT',
                 description=f"فاکتور فروش {instance.invoice_number}",
@@ -2948,6 +3485,573 @@ def update_source_fund_balance_on_petty_cash_delete(sender, instance, **kwargs):
         ).first()
         if bank_fund:
             bank_fund.recalculate_balance()
+
+
+class ReceivedChequeAuditTrail(models.Model):
+    """
+    تاریخچه عملیات انجام شده روی چک‌های دریافتی
+    """
+    OPERATION_CHOICES = [
+        ('CREATED', 'ایجاد چک'),
+        ('STATUS_CHANGED', 'تغییر وضعیت'),
+        ('CLEARED', 'وصول چک'),
+        ('BOUNCED', 'برگشت چک'),
+        ('DEPOSITED', 'واگذار به بانک'),
+        ('SPENT', 'خرج چک'),
+        ('RETURNED', 'مسترد چک'),
+        ('MANUALLY_CLEARED', 'وصول دستی'),
+        ('EDITED', 'ویرایش اطلاعات'),
+        ('DELETED', 'حذف چک'),
+        ('RESTORED', 'بازگردانی چک'),
+    ]
+    
+    cheque = models.ForeignKey(
+        ReceivedCheque, 
+        on_delete=models.CASCADE, 
+        related_name='audit_trail',
+        verbose_name="چک دریافتی"
+    )
+    operation = models.CharField(
+        max_length=20, 
+        choices=OPERATION_CHOICES, 
+        verbose_name="نوع عملیات"
+    )
+    operation_date = models.DateTimeField(
+        auto_now_add=True, 
+        verbose_name="تاریخ عملیات"
+    )
+    performed_by = models.ForeignKey(
+        User, 
+        on_delete=models.PROTECT, 
+        verbose_name="انجام دهنده"
+    )
+    
+    # اطلاعات قبل از عملیات
+    old_status = models.CharField(
+        max_length=20, 
+        choices=ReceivedCheque.STATUS_CHOICES, 
+        null=True, 
+        blank=True, 
+        verbose_name="وضعیت قبلی"
+    )
+    old_amount = models.DecimalField(
+        max_digits=15, 
+        decimal_places=0, 
+        null=True, 
+        blank=True, 
+        verbose_name="مبلغ قبلی"
+    )
+    old_due_date = models.DateField(
+        null=True, 
+        blank=True, 
+        verbose_name="تاریخ سررسید قبلی"
+    )
+    old_recipient_name = models.CharField(
+        max_length=255, 
+        null=True, 
+        blank=True, 
+        verbose_name="گیرنده قبلی"
+    )
+    old_deposited_bank_account = models.ForeignKey(
+        'BankAccount', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='old_deposited_checks_audit',
+        verbose_name="حساب بانکی واگذار شده قبلی"
+    )
+    
+    # اطلاعات بعد از عملیات
+    new_status = models.CharField(
+        max_length=20, 
+        choices=ReceivedCheque.STATUS_CHOICES, 
+        null=True, 
+        blank=True, 
+        verbose_name="وضعیت جدید"
+    )
+    new_amount = models.DecimalField(
+        max_digits=15, 
+        decimal_places=0, 
+        null=True, 
+        blank=True, 
+        verbose_name="مبلغ جدید"
+    )
+    new_due_date = models.DateField(
+        null=True, 
+        blank=True, 
+        verbose_name="تاریخ سررسید جدید"
+    )
+    new_recipient_name = models.CharField(
+        max_length=255, 
+        null=True, 
+        blank=True, 
+        verbose_name="گیرنده جدید"
+    )
+    new_deposited_bank_account = models.ForeignKey(
+        'BankAccount', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='new_deposited_checks_audit',
+        verbose_name="حساب بانکی واگذار شده جدید"
+    )
+    
+    # اطلاعات تکمیلی
+    description = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="توضیحات عملیات"
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True, 
+        blank=True, 
+        verbose_name="آدرس IP"
+    )
+    user_agent = models.TextField(
+        blank=True, 
+        null=True, 
+        verbose_name="User Agent"
+    )
+    
+    class Meta:
+        verbose_name = "تاریخچه چک دریافتی"
+        verbose_name_plural = "تاریخچه چک‌های دریافتی"
+        ordering = ['-operation_date']
+        indexes = [
+            models.Index(fields=['cheque', 'operation_date']),
+            models.Index(fields=['operation', 'operation_date']),
+            models.Index(fields=['performed_by', 'operation_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.cheque.sayadi_id} - {self.get_operation_display()} - {self.operation_date.strftime('%Y/%m/%d %H:%M')}"
+    
+    @property
+    def jalali_operation_date(self):
+        """تاریخ عملیات به صورت شمسی"""
+        if self.operation_date:
+            return jdatetime.datetime.fromgregorian(datetime=self.operation_date).strftime('%Y/%m/%d %H:%M')
+        return '-'
+    
+    @property
+    def operation_summary(self):
+        """خلاصه عملیات برای نمایش"""
+        if self.operation == 'STATUS_CHANGED':
+            return f"تغییر وضعیت از {self.get_old_status_display()} به {self.get_new_status_display()}"
+        elif self.operation == 'EDITED':
+            changes = []
+            if self.old_amount != self.new_amount:
+                changes.append(f"مبلغ: {self.old_amount:,} → {self.new_amount:,}")
+            if self.old_due_date != self.new_due_date:
+                changes.append(f"تاریخ سررسید: {self.old_due_date} → {self.new_due_date}")
+            if self.old_recipient_name != self.new_recipient_name:
+                changes.append(f"گیرنده: {self.old_recipient_name} → {self.new_recipient_name}")
+            return f"ویرایش: {', '.join(changes)}"
+        else:
+            return self.get_operation_display()
+
+# Django Signals for Cascading Delete
+@receiver(pre_delete, sender=ReceivedCheque)
+def cascade_delete_received_cheque(sender, instance, **kwargs):
+    """
+    حذف آبشاری چک دریافتی - حذف تمام تأثیرات در سیستم
+    """
+    try:
+        # 1. حذف از spending_operations در FinancialOperation
+        spending_ops = FinancialOperation.objects.filter(spent_cheques=instance)
+        for operation in spending_ops:
+            operation.spent_cheques.remove(instance)
+            print(f"✅ چک {instance.sayadi_id} از عملیات مالی {operation.operation_number} حذف شد")
+        
+        # 1.5. اگر چک به عملیات مالی مرتبط است، موجودی‌ها را بروزرسانی کن
+        if instance.financial_operation:
+            operation = instance.financial_operation
+            print(f"⚠️ چک {instance.sayadi_id} به عملیات مالی {operation.operation_number} مرتبط است")
+            
+            # بروزرسانی موجودی صندوق
+            if operation.fund:
+                operation.fund.recalculate_balance()
+                print(f"✅ موجودی صندوق {operation.fund.name} بروزرسانی شد")
+            
+            # بروزرسانی موجودی مشتری
+            if operation.customer:
+                try:
+                    customer_balance, _ = CustomerBalance.objects.get_or_create(
+                        customer=operation.customer,
+                        defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+                    )
+                    customer_balance.update_balance()
+                    print(f"✅ موجودی مشتری {operation.customer.get_full_name()} بروزرسانی شد")
+                except Exception as e:
+                    print(f"⚠️ خطا در بروزرسانی موجودی مشتری: {e}")
+        
+        # 2. حذف FundTransaction های مرتبط
+        fund_transactions = FundTransaction.objects.filter(
+            reference_id=str(instance.pk),
+            reference_type='ReceivedCheque'
+        )
+        for transaction in fund_transactions:
+            print(f"✅ تراکنش صندوق {transaction.id} برای چک {instance.sayadi_id} حذف شد")
+            transaction.delete()
+        
+        # 3. Soft delete DocumentNumber مرتبط
+        content_type = ContentType.objects.get_for_model(ReceivedCheque)
+        try:
+            doc_number = DocumentNumber.objects.get(
+                content_type=content_type,
+                object_id=instance.pk
+            )
+            # فرض می‌کنیم کاربر حذف کننده را از کاربر فعلی بگیریم
+            # در صورت عدم دسترسی، از سیستم استفاده می‌کنیم
+            deleter = getattr(instance, '_deleting_user', None)
+            if not deleter:
+                deleter = User.objects.filter(is_superuser=True).first()
+            
+            doc_number.soft_delete(deleter)
+            print(f"✅ شماره سند {doc_number.document_number} برای چک {instance.sayadi_id} soft delete شد")
+        except DocumentNumber.DoesNotExist:
+            pass
+        
+        # 4. بروزرسانی موجودی صندوق‌ها و مشتریان
+        if instance.status in ['CLEARED', 'MANUALLY_CLEARED']:
+            # اگر چک وصول شده بود، باید موجودی صندوق را کم کنیم
+            if hasattr(instance, 'financial_operation') and instance.financial_operation:
+                fund = instance.financial_operation.fund
+                if fund:
+                    fund.recalculate_balance()
+                    print(f"✅ موجودی صندوق {fund.name} بروزرسانی شد")
+        
+        # 5. بروزرسانی موجودی مشتری
+        if instance.customer:
+            try:
+                customer_balance, _ = CustomerBalance.objects.get_or_create(
+                    customer=instance.customer,
+                    defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+                )
+                customer_balance.update_balance()
+                print(f"✅ موجودی مشتری {instance.customer.get_full_name()} بروزرسانی شد")
+            except Exception as e:
+                print(f"⚠️ خطا در بروزرسانی موجودی مشتری: {e}")
+        
+        print(f"🔥 حذف آبشاری چک {instance.sayadi_id} کامل شد")
+        
+    except Exception as e:
+        print(f"❌ خطا در حذف آبشاری چک {instance.sayadi_id}: {e}")
+
+
+@receiver(pre_delete, sender=FinancialOperation)
+def cascade_delete_financial_operation(sender, instance, **kwargs):
+    """
+    حذف آبشاری عملیات مالی - حذف تمام تأثیرات در سیستم
+    """
+    try:
+        # 1. Soft delete DocumentNumber مرتبط
+        content_type = ContentType.objects.get_for_model(FinancialOperation)
+        try:
+            doc_number = DocumentNumber.objects.get(
+                content_type=content_type,
+                object_id=instance.pk
+            )
+            deleter = getattr(instance, '_deleting_user', None)
+            if not deleter:
+                deleter = User.objects.filter(is_superuser=True).first()
+            
+            doc_number.soft_delete(deleter)
+            print(f"✅ شماره سند {doc_number.document_number} برای عملیات مالی {instance.operation_number} soft delete شد")
+        except DocumentNumber.DoesNotExist:
+            pass
+        
+        # 2. حذف FundTransaction های مرتبط
+        fund_transactions = FundTransaction.objects.filter(
+            reference_id=str(instance.pk),
+            reference_type='FinancialOperation'
+        )
+        for transaction in fund_transactions:
+            print(f"✅ تراکنش صندوق {transaction.id} برای عملیات مالی {instance.operation_number} حذف شد")
+            transaction.delete()
+        
+        # 3. بروزرسانی موجودی صندوق
+        if instance.fund:
+            instance.fund.recalculate_balance()
+            print(f"✅ موجودی صندوق {instance.fund.name} بروزرسانی شد")
+        
+        print(f"🔥 حذف آبشاری عملیات مالی {instance.operation_number} کامل شد")
+        
+    except Exception as e:
+        print(f"❌ خطا در حذف آبشاری عملیات مالی {instance.operation_number}: {e}")
+
+
+@receiver(pre_delete, sender=PettyCashOperation)
+def cascade_delete_petty_cash_operation(sender, instance, **kwargs):
+    """
+    حذف آبشاری عملیات تنخواه - حذف تمام تأثیرات در سیستم
+    """
+    try:
+        # 1. Soft delete DocumentNumber مرتبط
+        content_type = ContentType.objects.get_for_model(PettyCashOperation)
+        try:
+            doc_number = DocumentNumber.objects.get(
+                content_type=content_type,
+                object_id=instance.pk
+            )
+            deleter = getattr(instance, '_deleting_user', None)
+            if not deleter:
+                deleter = User.objects.filter(is_superuser=True).first()
+            
+            doc_number.soft_delete(deleter)
+            print(f"✅ شماره سند {doc_number.document_number} برای عملیات تنخواه {instance.operation_number} soft delete شد")
+        except DocumentNumber.DoesNotExist:
+            pass
+        
+        # 2. بروزرسانی موجودی صندوق مبدأ
+        if instance.source_fund:
+            instance.source_fund.recalculate_balance()
+            print(f"✅ موجودی صندوق {instance.source_fund.name} بروزرسانی شد")
+        
+        print(f"🔥 حذف آبشاری عملیات تنخواه {instance.operation_number} کامل شد")
+        
+    except Exception as e:
+        print(f"❌ خطا در حذف آبشاری عملیات تنخواه {instance.operation_number}: {e}")
+
+
+@receiver(pre_delete, sender=Order)
+def cascade_delete_order(sender, instance, **kwargs):
+    """
+    حذف آبشاری سفارش - حذف تمام تأثیرات در سیستم
+    """
+    try:
+        # 1. Soft delete DocumentNumber مرتبط
+        content_type = ContentType.objects.get_for_model(Order)
+        try:
+            doc_number = DocumentNumber.objects.get(
+                content_type=content_type,
+                object_id=instance.pk
+            )
+            deleter = getattr(instance, '_deleting_user', None)
+            if not deleter:
+                deleter = User.objects.filter(is_superuser=True).first()
+            
+            doc_number.soft_delete(deleter)
+            print(f"✅ شماره سند {doc_number.document_number} برای سفارش {instance.order_number} soft delete شد")
+        except DocumentNumber.DoesNotExist:
+            pass
+        
+        print(f"🔥 حذف آبشاری سفارش {instance.order_number} کامل شد")
+        
+    except Exception as e:
+        print(f"❌ خطا در حذف آبشاری سفارش {instance.order_number}: {e}")
+
+
+@receiver(pre_delete, sender=Customer)
+def cascade_delete_customer(sender, instance, **kwargs):
+    """
+    حذف آبشاری مشتری - حذف تمام تأثیرات در سیستم
+    """
+    try:
+        # 1. Soft delete DocumentNumber مرتبط
+        content_type = ContentType.objects.get_for_model(Customer)
+        try:
+            doc_number = DocumentNumber.objects.get(
+                content_type=content_type,
+                object_id=instance.pk
+            )
+            deleter = getattr(instance, '_deleting_user', None)
+            if not deleter:
+                deleter = User.objects.filter(is_superuser=True).first()
+            
+            doc_number.soft_delete(deleter)
+            print(f"✅ شماره سند {doc_number.document_number} برای مشتری {instance.name} soft delete شد")
+        except DocumentNumber.DoesNotExist:
+            pass
+        
+        print(f"🔥 حذف آبشاری مشتری {instance.name} کامل شد")
+        
+    except Exception as e:
+        print(f"❌ خطا در حذف آبشاری مشتری {instance.name}: {e}")
+
+
+@receiver(pre_delete, sender=Product)
+def cascade_delete_product(sender, instance, **kwargs):
+    """
+    حذف آبشاری محصول - حذف تمام تأثیرات در سیستم
+    """
+    try:
+        # 1. Soft delete DocumentNumber مرتبط
+        content_type = ContentType.objects.get_for_model(Product)
+        try:
+            doc_number = DocumentNumber.objects.get(
+                content_type=content_type,
+                object_id=instance.pk
+            )
+            deleter = getattr(instance, '_deleting_user', None)
+            if not deleter:
+                deleter = User.objects.filter(is_superuser=True).first()
+            
+            doc_number.soft_delete(deleter)
+            print(f"✅ شماره سند {doc_number.document_number} برای محصول {instance.name} soft delete شد")
+        except DocumentNumber.DoesNotExist:
+            pass
+        
+        print(f"🔥 حذف آبشاری محصول {instance.name} کامل شد")
+        
+    except Exception as e:
+        print(f"❌ خطا در حذف آبشاری محصول {instance.name}: {e}")
+
+
+# Django Signals for ReceivedCheque Audit Trail
+@receiver(post_save, sender=ReceivedCheque)
+def create_cheque_audit_record(sender, instance, created, **kwargs):
+    """ایجاد رکورد تاریخچه هنگام ایجاد چک جدید"""
+    if created and hasattr(instance, 'created_by') and instance.created_by:
+        try:
+            instance.create_audit_record(
+                'CREATED',
+                instance.created_by,
+                description="ایجاد چک جدید"
+            )
+        except Exception as e:
+            # Log error but don't break the save operation
+            print(f"Error creating audit record: {e}")
+
+@receiver(pre_save, sender=ReceivedCheque)
+def track_cheque_changes(sender, instance, **kwargs):
+    """پیگیری تغییرات چک قبل از ذخیره"""
+    if instance.pk:  # Only for existing records
+        try:
+            old_instance = ReceivedCheque.objects.get(pk=instance.pk)
+            
+            # Check for status changes
+            if old_instance.status != instance.status:
+                # Status change will be handled by the view/API
+                pass
+            
+            # Check for other field changes
+            changes = []
+            if old_instance.amount != instance.amount:
+                changes.append(f"مبلغ: {old_instance.amount:,} → {instance.amount:,}")
+            if old_instance.due_date != instance.due_date:
+                changes.append(f"تاریخ سررسید: {old_instance.due_date} → {instance.due_date}")
+            if old_instance.recipient_name != instance.recipient_name:
+                changes.append(f"گیرنده: {old_instance.recipient_name} → {instance.recipient_name}")
+            if old_instance.deposited_bank_account != instance.deposited_bank_account:
+                changes.append(f"حساب بانکی: {old_instance.deposited_bank_account} → {instance.deposited_bank_account}")
+            
+            # Store changes for later use in post_save
+            if changes:
+                instance._pending_changes = changes
+                
+        except ReceivedCheque.DoesNotExist:
+            pass
+
+@receiver(post_save, sender=ReceivedCheque)
+def create_edit_audit_record(sender, instance, created, **kwargs):
+    """ایجاد رکورد تاریخچه برای ویرایش چک"""
+    if not created and hasattr(instance, '_pending_changes'):
+        try:
+            # Find the user who made the changes (this should be set by the view)
+            user = getattr(instance, '_last_modified_by', instance.created_by)
+            if user:
+                instance.audit_edit(
+                    user,
+                    description=f"ویرایش اطلاعات: {' | '.join(instance._pending_changes)}"
+                )
+        except Exception as e:
+            print(f"Error creating edit audit record: {e}")
+        finally:
+            # Clean up
+            if hasattr(instance, '_pending_changes'):
+                delattr(instance, '_pending_changes')
+            if hasattr(instance, '_last_modified_by'):
+                delattr(instance, '_last_modified_by')
+
+@receiver(post_delete, sender=ReceivedCheque)
+def create_delete_audit_record(sender, instance, **kwargs):
+    """ایجاد رکورد تاریخچه هنگام حذف چک"""
+    try:
+        # Find the user who deleted the cheque
+        user = getattr(instance, '_deleted_by', None)
+        if user:
+            instance.audit_delete(
+                user,
+                description="حذف چک"
+            )
+    except Exception as e:
+        print(f"Error creating delete audit record: {e}")
+
+
+# Utility Functions for Document Numbering
+def assign_document_number(obj, document_type, user, description=None):
+    """
+    تابع اصلی برای اختصاص شماره سند به هر شیء
+    
+    Args:
+        obj: شیء مورد نظر
+        document_type: نوع سند از DocumentNumber.DOCUMENT_TYPES
+        user: کاربر ایجاد کننده
+        description: توضیحات اختیاری
+    
+    Returns:
+        DocumentNumber: رکورد شماره سند ایجاد شده
+    """
+    try:
+        # دریافت شماره سند بعدی
+        next_number = DocumentNumberSettings.get_next_number()
+        
+        # ایجاد رکورد شماره سند
+        content_type = ContentType.objects.get_for_model(obj)
+        
+        doc_number = DocumentNumber.objects.create(
+            document_type=document_type,
+            content_type=content_type,
+            object_id=obj.pk,
+            document_number=next_number,
+            created_by=user,
+            description=description
+        )
+        
+        # نمایش پیام موفقیت
+        print(f"✅ سند با شماره ثابت {next_number} ثبت گردید")
+        
+        return doc_number
+        
+    except Exception as e:
+        print(f"❌ خطا در اختصاص شماره سند: {e}")
+        return None
+
+def get_document_number(obj):
+    """
+    دریافت شماره سند برای یک شیء
+    
+    Args:
+        obj: شیء مورد نظر
+    
+    Returns:
+        DocumentNumber or None: رکورد شماره سند یا None
+    """
+    try:
+        content_type = ContentType.objects.get_for_model(obj)
+        return DocumentNumber.objects.filter(
+            content_type=content_type,
+            object_id=obj.pk,
+            is_deleted=False
+        ).first()
+    except:
+        return None
+
+def get_document_number_display(obj):
+    """
+    دریافت نمایش شماره سند برای یک شیء
+    
+    Args:
+        obj: شیء مورد نظر
+    
+    Returns:
+        str: شماره سند یا "-"
+    """
+    doc_number = get_document_number(obj)
+    if doc_number:
+        return str(doc_number.document_number)
+    return "-"
 
 
 

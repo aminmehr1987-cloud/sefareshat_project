@@ -163,10 +163,10 @@ urlpatterns = [
     # Received Cheques
     path('accounting/received-cheques/', views.received_cheque_list_view, name='received_cheque_list'),
     path('accounting/received-cheques/<int:cheque_id>/change-status/', views.change_received_cheque_status, name='change_received_cheque_status'),
+    path('accounting/received-checks/<int:cheque_id>/clear/', views.clear_received_cheque_view, name='clear_received_cheque'),
+    path('accounting/received-checks/<int:cheque_id>/bounce/', views.bounce_received_cheque_view, name='bounce_received_cheque'),
     path('accounting/received-cheques/<int:cheque_id>/detail/', views.received_cheque_detail_view, name='received_cheque_detail'),
     path('accounting/received-cheques/<int:cheque_id>/edit/', views.received_cheque_edit_view, name='received_cheque_edit'),
-    path('accounting/received-checks/<int:check_id>/clear/', views.clear_received_check, name='clear_received_check'),
-    path('accounting/received-checks/<int:check_id>/bounce/', views.bounce_received_check, name='bounce_received_check'),
     
     # URLs for check issuance
     path('accounting/combined-check-operation/', views.combined_check_operation_view, name='combined_check_operation'),
@@ -182,5 +182,13 @@ urlpatterns = [
     # URLs for spending received checks
     path('api/get-received-checks/', views.get_received_checks, name='get_received_checks'),
     path('accounting/spend-received-check/', views.spend_received_check_view, name='spend_received_check'),
+    
+    # Spent Cheques Management
+    path('accounting/spent-cheques/', views.spent_cheques_list_view, name='spent_cheques_list'),
+    path('accounting/spent-cheques/<int:cheque_id>/return/', views.return_spent_cheque_view, name='return_spent_cheque'),
+    path('accounting/bounced-cheques/<int:cheque_id>/return-to-customer/', views.return_bounced_to_customer_view, name='return_bounced_to_customer'),
+    path('accounting/bounced-cheques/<int:cheque_id>/transfer-to-fund/', views.transfer_bounced_to_fund_view, name='transfer_bounced_to_fund'),
+    
+
     
 ]

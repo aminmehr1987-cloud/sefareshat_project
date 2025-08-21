@@ -13,7 +13,7 @@
 <div class="list-page-container">
     <!-- Header -->
     <div class="list-header">
-        <h1><i class="bi bi-journal-check"></i> لیست چک‌های دریافتی</h1>
+        <h1><i class="bi bi-journal-check"></i> {{ page_title }}</h1>
         <div class="header-actions">
             <a href="{% url 'products:accounting_panel' %}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> بازگشت به پنل مالی
@@ -21,53 +21,76 @@
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="filters-card">
-        <form method="get" class="filters-form">
-            <div class="filter-row">
-                <div class="filter-group" style="flex-grow: 2;">
-                    <label for="q">جستجو:</label>
-                    <input type="text" name="q" id="q" class="form-control" placeholder="پشت نمره، سریال، شناسه، مشتری..." value="{{ filters.q }}">
-                </div>
-                <div class="filter-group">
-                    <label for="status">وضعیت:</label>
-                    <select name="status" id="status" class="form-control">
-                        <option value="">همه وضعیت‌ها</option>
-                        {% for value, name in status_choices %}
-                        <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label for="bank">نام بانک:</label>
-                    <input type="text" name="bank" id="bank" class="form-control" placeholder="مثال: ملت" value="{{ filters.bank }}">
-                </div>
-                 <div class="filter-group">
-                    <label for="start_date">از تاریخ سررسید:</label>
-                    <input type="text" name="start_date" id="start_date" class="form-control persian-datepicker" 
-                           value="{{ filters.start_date }}" placeholder="YYYY/MM/DD" readonly>
-                </div>
-                <div class="filter-group">
-                    <label for="end_date">تا تاریخ سررسید:</label>
-                    <input type="text" name="end_date" id="end_date" class="form-control persian-datepicker" 
-                           value="{{ filters.end_date }}" placeholder="YYYY/MM/DD" readonly>
-                </div>
+    <!-- باکس جستجوی پیشرفته - دقیقاً مثل صفحه حساب بانکی -->
+    <div class="advanced-search">
+        <button type="button" class="search-toggle" onclick="toggleAdvancedSearch()">
+            <i class="bi bi-search"></i>
+            جستجوی پیشرفته
+        </button>
+        
+        <div class="search-fields" id="search-fields">
+            <div class="search-field">
+                <label for="search-endorsement">پشت نمره:</label>
+                <input type="text" id="search-endorsement" placeholder="پشت نمره را وارد کنید" value="{{ filters.endorsement }}">
             </div>
-            <div class="filter-actions">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-search"></i> اعمال فیلتر
-                </button>
-                <a href="{% url 'products:received_cheque_list' %}" class="btn btn-secondary">
-                    <i class="bi bi-x-circle"></i> پاک کردن فیلتر
-                </a>
+
+            <div class="search-field">
+                <label for="search-serial">سریال چک:</label>
+                <input type="text" id="search-serial" placeholder="سریال چک را وارد کنید" value="{{ filters.serial }}">
             </div>
-        </form>
+            
+            <div class="search-field">
+                <label for="search-sayadi">شناسه صیادی:</label>
+                <input type="text" id="search-sayadi" placeholder="شناسه صیادی را وارد کنید" value="{{ filters.sayadi }}">
+            </div>
+            
+            <div class="search-field">
+                <label for="search-owner">صاحب حساب:</label>
+                <input type="text" id="search-owner" placeholder="نام صاحب حساب را وارد کنید" value="{{ filters.owner }}">
+            </div>
+            
+            <div class="search-field">
+                <label for="search-amount-min">مبلغ از:</label>
+                <input type="number" id="search-amount-min" placeholder="حداقل مبلغ" value="{{ filters.amount_min }}">
+            </div>
+            
+            <div class="search-field">
+                <label for="search-amount-max">مبلغ تا:</label>
+                <input type="number" id="search-amount-max" placeholder="حداکثر مبلغ" value="{{ filters.amount_max }}">
+            </div>
+            
+            <div class="search-field">
+                <label for="search-due-date-from">تاریخ سررسید از (شمسی):</label>
+                <input type="text" id="search-due-date-from" class="date-input persian-datepicker" placeholder="1403/05/15" readonly value="{{ filters.start_date }}">
+            </div>
+            
+            <div class="search-field">
+                <label for="search-due-date-to">تاریخ سررسید تا (شمسی):</label>
+                <input type="text" id="search-due-date-to" class="date-input persian-datepicker" placeholder="1403/06/15" readonly value="{{ filters.end_date }}">
+            </div>
+            
+            <div class="search-field">
+                <label for="search-customer">مشتری:</label>
+                <input type="text" id="search-customer" placeholder="نام مشتری را وارد کنید" value="{{ filters.customer }}">
+            </div>
+        </div>
+        
+        <div class="search-actions" id="search-actions" style="display: none;">
+            <button type="button" class="search-btn" onclick="applyAdvancedSearch()">
+                <i class="bi bi-search"></i>
+                اعمال فیلتر
+            </button>
+            <button type="button" class="clear-btn" onclick="clearAdvancedSearch()">
+                <i class="bi bi-x-circle"></i>
+                پاک کردن
+            </button>
+        </div>
     </div>
 
     <!-- Table -->
     <div class="list-table-card">
         <div class="table-header">
-            <h2>چک‌های دریافتی</h2>
+            <h2>{{ page_title }}</h2>
         </div>
         <div class="table-responsive">
             <table class="list-table">
@@ -79,14 +102,14 @@
                         <th>بانک</th>
                         <th>مبلغ</th>
                         <th>تاریخ سررسید</th>
-                        <th>دریافت کننده</th>
+                        <th>بانک/گیرنده</th>
                         <th>وضعیت</th>
                         <th>عملیات</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for cheque in page_obj %}
-                    <tr>
+                    <tr class="{{ cheque.row_class }}">
                         <td>{{ cheque.endorsement|default_if_none:"" }}</td>
                         <td>{{ cheque.serial|default:"-" }}</td>
                         <td>
@@ -108,6 +131,8 @@
                                 {% else %}
                                     -
                                 {% endif %}
+                            {% elif cheque.status == 'DEPOSITED' and cheque.deposited_bank_account %}
+                                {{ cheque.deposited_bank_account.bank.name }}
                             {% else %}
                                 -
                             {% endif %}
@@ -116,15 +141,81 @@
                         <td><span class="status-badge {{ cheque.status|lower }}">{{ cheque.get_status_display }}</span></td>
                         <td>
                             <div class="action-buttons">
+                                {% if cheque.status == 'SPENT' %}
+                                <!-- برای چک‌های خرج شده فقط دکمه برگشت چک نمایش داده می‌شود -->
+                                <form method="post" action="{% url 'products:return_spent_cheque' cheque_id=cheque.id %}" class="d-inline" onsubmit="return confirm('آیا از برگشت این چک اطمینان دارید؟')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="برگشت چک">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                </form>
+                                {% elif cheque.status == 'DEPOSITED' %}
+                                <!-- برای چک‌های واگذار شده، دکمه‌های وصول، برگشت چک و مشاهده جزئیات نمایش داده می‌شوند -->
+                                <div class="check-operations">
+                                    <button type="button" class="operation-btn clear-btn-op" 
+                                            onclick="clearCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}', {{ cheque.amount }})"
+                                            title="وصول چک">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                    <button type="button" class="operation-btn bounce-btn-op" 
+                                            onclick="bounceCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}')"
+                                            title="برگشت چک">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                    <a href="{% url 'products:received_cheque_detail' cheque_id=cheque.id %}" class="operation-btn view-btn-op" title="مشاهده جزئیات">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </div>
+                                {% elif cheque.status == 'BOUNCED' %}
+                                <!-- برای چک‌های برگشتی، دکمه‌های انتقال به صندوق و عودت به مشتری نمایش داده می‌شوند -->
+                                <div class="check-operations">
+                                    <form method="post" action="{% url 'products:transfer_bounced_to_fund' cheque_id=cheque.id %}" class="d-inline" onsubmit="return confirm('آیا از انتقال این چک به چکهای نزد صندوق اطمینان دارید؟')">
+                                        {% csrf_token %}
+                                        <button type="submit" class="operation-btn transfer-btn-op" title="انتقال به چکهای نزد صندوق">
+                                            <i class="bi bi-arrow-down-circle"></i>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'products:return_bounced_to_customer' cheque_id=cheque.id %}" class="d-inline" onsubmit="return confirm('آیا از عودت این چک به طرف حساب اطمینان دارید؟ مبلغ چک به حساب مشتری اضافه خواهد شد.')">
+                                        {% csrf_token %}
+                                        <button type="submit" class="operation-btn return-btn-op" title="عودت چک به طرف حساب">
+                                            <i class="bi bi-person-plus"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% elif cheque.status == 'RETURNED' %}
+                                <!-- برای چک‌های عودت داده شده، فقط دکمه مشاهده جزئیات نمایش داده می‌شود -->
+                                <a href="{% url 'products:received_cheque_detail' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% elif cheque.status == 'RECEIVED' %}
+                                <!-- برای چک‌های دریافتی، دکمه‌های وصول، برگشت چک، اصلاح و مشاهده جزئیات نمایش داده می‌شوند -->
+                                <div class="check-operations">
+                                    <button type="button" class="operation-btn clear-btn-op" 
+                                            onclick="clearReceivedCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}', {{ cheque.amount }})"
+                                            title="وصول چک">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                    <button type="button" class="operation-btn bounce-btn-op" 
+                                            onclick="bounceReceivedCheck({{ cheque.id }}, '{{ cheque.sayadi_id }}')"
+                                            title="برگشت چک">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                    <a href="{% url 'products:received_cheque_edit' cheque_id=cheque.id %}" class="operation-btn edit-btn-op" title="اصلاح">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'products:received_cheque_detail' cheque_id=cheque.id %}" class="operation-btn view-btn-op" title="مشاهده جزئیات">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </div>
+                                {% else %}
+                                <!-- برای چک‌های غیر خرج شده و غیر واگذار شده، همه دکمه‌ها نمایش داده می‌شوند -->
                                 <a href="{% url 'products:received_cheque_detail' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
                                     <i class="bi bi-eye"></i>
                                 </a>
                                 <a href="{% url 'products:received_cheque_edit' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-warning" title="ویرایش">
                                     <i class="bi bi-pencil"></i>
                                 </a>
-                                <a href="{% url 'products:change_received_cheque_status' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-danger" title="تغییر وضعیت">
-                                    <i class="bi bi-arrow-repeat"></i>
-                                </a>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -390,6 +481,8 @@
 .btn-outline-warning:hover { background: #f59e0b; color: white; }
 .btn-outline-danger { background: transparent; color: #ef4444; border: 1px solid #ef4444; }
 .btn-outline-danger:hover { background: #ef4444; color: white; }
+.btn-outline-info { background: transparent; color: #06b6d4; border: 1px solid #06b6d4; }
+.btn-outline-info:hover { background: #06b6d4; color: white; }
 
 .empty-message {
     padding: 3rem 1rem;
@@ -446,6 +539,473 @@
     background-color: #f3f4f6;
     border-color: #e5e7eb;
 }
+
+/* Row coloring based on cheque status */
+.table-danger-light {
+    background-color: #fef2f2 !important;
+}
+
+.table-danger {
+    background-color: #fee2e2 !important;
+}
+
+.table-warning {
+    background-color: #fef3c7 !important;
+}
+
+.table-success {
+    background-color: #dcfce7 !important;
+}
+
+/* باکس جستجوی پیشرفته */
+.advanced-search {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+/* باکس جستجوی پیشرفته - دقیقاً مثل صفحه حساب بانکی */
+.advanced-search {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.search-toggle {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+}
+
+.search-toggle:hover {
+    background: #138496;
+}
+
+.search-fields {
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.1);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.search-fields.show {
+    display: grid;
+}
+
+.search-field {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-width: 0;
+    width: 100%;
+}
+
+.search-field label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+    font-weight: bold;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-field input,
+.search-field select {
+    padding: 8px 10px;
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.9);
+    font-size: 13px;
+    height: 36px;
+    transition: all 0.3s;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.search-field input:focus,
+.search-field select:focus {
+    outline: none;
+    border-color: #17a2b8;
+    box-shadow: 0 0 0 2px rgba(23, 162, 184, 0.2);
+    background: white;
+}
+
+/* Specific styling for date inputs */
+.search-field input.date-input {
+    background: rgba(255,255,255,0.95);
+    cursor: pointer;
+}
+
+.search-field input.date-input:hover {
+    background: white;
+    border-color: #17a2b8;
+}
+
+/* Responsive grid adjustments */
+@media (max-width: 1400px) {
+    .search-fields {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 1000px) {
+    .search-fields {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+}
+
+@media (max-width: 600px) {
+    .search-fields {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .search-field input,
+    .search-field select {
+        height: 40px;
+        font-size: 16px;
+    }
+}
+
+.search-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    padding: 15px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.search-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.search-btn:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.clear-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.clear-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+/* باکس جستجوی پیشرفته - دقیقاً مثل صفحه حساب بانکی */
+.advanced-search {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.search-toggle {
+    background: #17a2b8;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 15px;
+    transition: all 0.3s;
+}
+
+.search-toggle:hover {
+    background: #138496;
+}
+
+.search-fields {
+    display: none;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.1);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.search-fields.show {
+    display: grid;
+}
+
+.search-field {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-width: 0;
+    width: 100%;
+}
+
+.search-field label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 8px;
+    font-weight: bold;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-field input,
+.search-field select {
+    padding: 8px 10px;
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.9);
+    font-size: 13px;
+    height: 36px;
+    transition: all 0.3s;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.search-field input:focus,
+.search-field select:focus {
+    outline: none;
+    border-color: #17a2b8;
+    box-shadow: 0 0 0 2px rgba(23, 162, 184, 0.2);
+    background: white;
+}
+
+/* Specific styling for date inputs */
+.search-field input.date-input {
+    background: rgba(255,255,255,0.95);
+    cursor: pointer;
+}
+
+.search-field input.date-input:hover {
+    background: white;
+    border-color: #17a2b8;
+}
+
+/* Responsive grid adjustments */
+@media (max-width: 1400px) {
+    .search-fields {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 1000px) {
+    .search-fields {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+}
+
+@media (max-width: 600px) {
+    .search-fields {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .search-field input,
+    .search-field select {
+        height: 40px;
+        font-size: 16px;
+    }
+}
+
+.search-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    padding: 15px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.search-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.search-btn:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.clear-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.clear-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+/* Check Operations Styles - exact copy from bank account detail page */
+.check-operations {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+}
+
+.operation-btn {
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.clear-btn-op {
+    background: #28a745;
+    color: white;
+}
+
+.clear-btn-op:hover {
+    background: #218838;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+}
+
+.bounce-btn-op {
+    background: #dc3545;
+    color: white;
+}
+
+.bounce-btn-op:hover {
+    background: #c82333;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
+}
+
+.transfer-btn-op {
+    background: #17a2b8;
+    color: white;
+}
+
+.transfer-btn-op:hover {
+    background: #138496;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.4);
+}
+
+.return-btn-op {
+    background: #28a745;
+    color: white;
+}
+
+.return-btn-op:hover {
+    background: #218838;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+}
+
+.view-btn-op {
+    background: #17a2b8;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-btn-op:hover {
+    background: #138496;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(23, 162, 184, 0.4);
+    color: white;
+    text-decoration: none;
+}
+
+.edit-btn-op {
+    background: #ffc107;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-btn-op:hover {
+    background: #e0a800;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+    color: white;
+    text-decoration: none;
+}
 </style>
 
 <!-- jQuery and Persian Datepicker CSS and JS -->
@@ -479,5 +1039,412 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// Persian Date Comparison Function - Enhanced to handle both formats
+function comparePersianDate(date1, date2, operator) {
+    if (!date1 || !date2) return true;
+    
+    // Convert Persian numbers to English numbers
+    function convertPersianToEnglish(str) {
+        return str.replace(/[۰-۹]/g, function(w) {
+            return String.fromCharCode(w.charCodeAt(0) - 1728);
+        });
+    }
+    
+    // Handle incomplete dates (only day numbers in Persian)
+    if (date1.match(/^[۰-۹]+$/) && date2.match(/^[۰-۹]+$/)) {
+        const day1 = parseInt(convertPersianToEnglish(date1));
+        const day2 = parseInt(convertPersianToEnglish(date2));
+        
+        switch (operator) {
+            case '>=': return day1 >= day2;
+            case '<=': return day1 <= day2;
+            case '>': return day1 > day2;
+            case '<': return day1 < day2;
+            case '==': return day1 === day2;
+            default: return true;
+        }
+    }
+    
+    // Handle complete dates (format: YYYY/MM/DD)
+    // Convert Persian numbers to English if present
+    const normalizedDate1 = convertPersianToEnglish(date1);
+    const normalizedDate2 = convertPersianToEnglish(date2);
+    
+    const parts1 = normalizedDate1.split('/').map(part => parseInt(part));
+    const parts2 = normalizedDate2.split('/').map(part => parseInt(part));
+    
+    if (parts1.length !== 3 || parts2.length !== 3) return true;
+    
+    const [year1, month1, day1] = parts1;
+    const [year2, month2, day2] = parts2;
+    
+    // Convert to comparable numbers (YYYYMMDD format)
+    const num1 = year1 * 10000 + month1 * 100 + day1;
+    const num2 = year2 * 10000 + month2 * 100 + day2;
+    
+    switch (operator) {
+        case '>=': return num1 >= num2;
+        case '<=': return num1 <= num2;
+        case '>': return num1 > num2;
+        case '<': return num1 < num2;
+        case '==': return num1 === num2;
+        default: return true;
+    }
+}
+
+// Advanced Search Functions - exactly like bank account detail page
+function toggleAdvancedSearch() {
+    const searchFields = document.getElementById('search-fields');
+    const searchActions = document.getElementById('search-actions');
+    const isVisible = searchFields.classList.contains('show');
+    
+    if (isVisible) {
+        searchFields.classList.remove('show');
+        searchActions.style.display = 'none';
+    } else {
+        searchFields.classList.add('show');
+        searchActions.style.display = 'flex';
+    }
+}
+
+function applyAdvancedSearch() {
+    const searchTerms = {
+        endorsement: document.getElementById('search-endorsement').value.toLowerCase(),
+        serial: document.getElementById('search-serial').value.toLowerCase(),
+        sayadi: document.getElementById('search-sayadi').value.toLowerCase(),
+        owner: document.getElementById('search-owner').value.toLowerCase(),
+        amountMin: parseFloat(document.getElementById('search-amount-min').value) || 0,
+        amountMax: parseFloat(document.getElementById('search-amount-max').value) || Infinity,
+        dueDateFrom: document.getElementById('search-due-date-from').value.trim(),
+        dueDateTo: document.getElementById('search-due-date-to').value.trim(),
+        customer: document.getElementById('search-customer').value.toLowerCase()
+    };
+    
+    console.log('Search Terms:', searchTerms);
+    console.log('Date From:', searchTerms.dueDateFrom);
+    console.log('Date To:', searchTerms.dueDateTo);
+    
+    const chequeRows = document.querySelectorAll('tbody tr');
+    let visibleCount = 0;
+    
+    chequeRows.forEach(row => {
+        if (row.classList.contains('empty-message')) return;
+        
+        const endorsement = row.cells[0]?.textContent?.toLowerCase() || '';
+        const serial = row.cells[1]?.textContent?.toLowerCase() || '';
+        const customer = row.cells[2]?.textContent?.toLowerCase() || '';
+        const bank = row.cells[3]?.textContent?.toLowerCase() || '';
+        const amountText = row.cells[4]?.textContent || '';
+        const dueDateText = row.cells[5]?.textContent?.trim() || '';
+        const recipient = row.cells[6]?.textContent?.toLowerCase() || '';
+        const status = row.cells[7]?.textContent?.toLowerCase() || '';
+        
+        // Extract amount from text
+        const cleanAmount = amountText.replace(/[^\d۰-۹]/g, '')
+                                     .replace(/[۰-۹]/g, function(w) {
+                                         return String.fromCharCode(w.charCodeAt(0) - 1728);
+                                     });
+        const amount = parseFloat(cleanAmount) || 0;
+        
+        let matches = true;
+        
+        // Check text fields
+        if (searchTerms.endorsement && !endorsement.includes(searchTerms.endorsement)) matches = false;
+        if (searchTerms.serial && !serial.includes(searchTerms.serial)) matches = false;
+        if (searchTerms.sayadi && !serial.includes(searchTerms.sayadi)) matches = false;
+        if (searchTerms.owner && !recipient.includes(searchTerms.owner)) matches = false;
+        if (searchTerms.customer && !customer.includes(searchTerms.customer)) matches = false;
+        
+        // Check amount range
+        if (amount < searchTerms.amountMin || amount > searchTerms.amountMax) matches = false;
+        
+        // Check date range with proper Persian date comparison
+        console.log(`Checking date: ${dueDateText} (from: ${searchTerms.dueDateFrom}, to: ${searchTerms.dueDateTo})`);
+        
+        if (searchTerms.dueDateFrom && dueDateText) {
+            const dateComparison = comparePersianDate(dueDateText, searchTerms.dueDateFrom, '>=');
+            console.log(`Date comparison: ${dueDateText} >= ${searchTerms.dueDateFrom} = ${dateComparison}`);
+            if (!dateComparison) {
+                matches = false;
+            }
+        }
+        
+        if (searchTerms.dueDateTo && dueDateText) {
+            const dateComparison = comparePersianDate(dueDateText, searchTerms.dueDateTo, '<=');
+            console.log(`Date comparison: ${dueDateText} <= ${searchTerms.dueDateTo} = ${dateComparison}`);
+            if (!dateComparison) {
+                matches = false;
+            }
+        }
+        
+        // Show/hide row
+        if (matches) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Show result message
+    if (visibleCount === 0) {
+        showMessage('هیچ چکی با این فیلترها پیدا نشد', 'warning');
+    } else {
+        showMessage(`${visibleCount} چک پیدا شد`, 'success');
+    }
+}
+
+function clearAdvancedSearch() {
+    // Clear all search fields
+    document.getElementById('search-endorsement').value = '';
+    document.getElementById('search-serial').value = '';
+    document.getElementById('search-sayadi').value = '';
+    document.getElementById('search-owner').value = '';
+    document.getElementById('search-amount-min').value = '';
+    document.getElementById('search-amount-max').value = '';
+    document.getElementById('search-due-date-from').value = '';
+    document.getElementById('search-due-date-to').value = '';
+    document.getElementById('search-customer').value = '';
+    
+    // Show all rows
+    const chequeRows = document.querySelectorAll('tbody tr');
+    chequeRows.forEach(row => {
+        if (!row.classList.contains('empty-message')) {
+            row.style.display = '';
+        }
+    });
+    
+    showMessage('فیلترها پاک شدند', 'success');
+}
+
+// Check Operations Functions - matching bank account detail page
+function clearCheck(checkId, sayadiId, amount) {
+    if (confirm(`آیا از وصول چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nمبلغ ${amount.toLocaleString()} ریال به حساب بانکی اضافه خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.clear-btn-op');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/received-checks/${checkId}/clear/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'clear'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI
+                const row = btn.closest('tr');
+                const operationsCell = row.querySelector('.action-buttons');
+                operationsCell.innerHTML = '<span class="status-badge cleared">وصول شده</span>';
+                
+                // Update status cell
+                const statusCell = row.querySelector('.status-badge');
+                statusCell.innerHTML = 'وصول شده';
+                statusCell.className = 'status-badge cleared';
+                
+                // Show success message
+                showMessage('چک با موفقیت وصول شد و مبلغ به حساب بانکی اضافه گردید.', 'success');
+                
+                // Refresh page after 2 seconds to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در وصول چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+function bounceCheck(checkId, sayadiId) {
+    if (confirm(`آیا از برگشت چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nچک به چک‌های نزد صندوق منتقل خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.bounce-btn-op');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/received-checks/${checkId}/bounce/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'bounce'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove row from deposited checks or update UI
+                const row = btn.closest('tr');
+                row.style.transition = 'opacity 0.5s';
+                row.style.opacity = '0';
+                
+                setTimeout(() => {
+                    // Refresh page to show updated data
+                    window.location.reload();
+                }, 500);
+                
+                showMessage('چک با موفقیت برگشت خورد و به چک‌های نزد صندوق منتقل شد.', 'success');
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در برگشت چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+// Functions for handling RECEIVED status cheques
+function clearReceivedCheck(checkId, sayadiId, amount) {
+    if (confirm(`آیا از وصول چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nمبلغ ${amount.toLocaleString()} ریال به حساب صندوق اضافه خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.clear-btn-op');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/received-checks/${checkId}/clear-received/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'clear_received'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI
+                const row = btn.closest('tr');
+                const operationsCell = row.querySelector('.action-buttons');
+                operationsCell.innerHTML = '<span class="status-badge cleared">وصول شده</span>';
+                
+                // Update status cell
+                const statusCell = row.querySelector('.status-badge');
+                statusCell.innerHTML = 'وصول شده';
+                statusCell.className = 'status-badge cleared';
+                
+                // Show success message
+                showMessage('چک با موفقیت وصول شد و مبلغ به حساب صندوق اضافه گردید.', 'success');
+                
+                // Refresh page after 2 seconds to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در وصول چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+function bounceReceivedCheck(checkId, sayadiId) {
+    if (confirm(`آیا از برگشت چک با شناسه صیادی ${sayadiId} اطمینان دارید؟\nچک به لیست چک‌های برگشتی منتقل خواهد شد.`)) {
+        // Show loading
+        const btn = event.target.closest('.bounce-btn-op');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        btn.disabled = true;
+        
+        fetch(`/accounting/received-checks/${checkId}/bounce-received/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                'action': 'bounce_received'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove row from received checks or update UI
+                const row = btn.closest('tr');
+                row.style.transition = 'opacity 0.5s';
+                row.style.opacity = '0';
+                
+                setTimeout(() => {
+                    // Refresh page to show updated data
+                    window.location.reload();
+                }, 500);
+                
+                showMessage('چک با موفقیت برگشت خورد و به لیست چک‌های برگشتی منتقل شد.', 'success');
+            } else {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                showMessage('خطا در برگشت چک: ' + (data.error || 'خطای نامشخص'), 'error');
+            }
+        })
+        .catch(error => {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+            showMessage('خطا در ارتباط با سرور', 'error');
+            console.error('Error:', error);
+        });
+    }
+}
+
+function showMessage(message, type) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        padding: 15px 20px;
+        border-radius: 5px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        max-width: 400px;
+        word-wrap: break-word;
+    `;
+    messageDiv.textContent = message;
+    document.body.appendChild(messageDiv);
+    
+    setTimeout(() => {
+        messageDiv.style.opacity = '0';
+        setTimeout(() => {
+            if (document.body.contains(messageDiv)) {
+                document.body.removeChild(messageDiv);
+            }
+        }, 300);
+    }, 3000);
+}
 </script>
 {% endblock %}

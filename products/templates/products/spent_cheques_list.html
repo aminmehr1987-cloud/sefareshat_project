@@ -1,0 +1,783 @@
+{% extends "products/base.html" %}
+{% load humanize %}
+{% load custom_filters %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}لیست چک‌های خرج شده{% endblock %}
+
+{% block content %}
+<div class="list-page-container">
+    <!-- Header -->
+    <div class="list-header">
+        <h1><i class="bi bi-arrow-up-circle"></i> لیست چک‌های خرج شده</h1>
+        <div class="header-actions">
+            <a href="{% url 'products:financial_dashboard' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> بازگشت به داشبورد
+            </a>
+        </div>
+    </div>
+
+    <!-- Advanced Search Section -->
+    <div class="advanced-search">
+        <button type="button" class="search-toggle" onclick="toggleAdvancedSearch()">
+            <i class="bi bi-search"></i>
+            جستجوی پیشرفته
+        </button>
+        
+        <div id="search-fields" class="search-fields">
+            <div class="search-field">
+                <label for="search-sayadi">شناسه صیادی:</label>
+                <input type="text" id="search-sayadi" placeholder="شناسه صیادی">
+            </div>
+            <div class="search-field">
+                <label for="search-customer">مشتری:</label>
+                <input type="text" id="search-customer" placeholder="نام مشتری">
+            </div>
+            <div class="search-field">
+                <label for="search-bank">بانک:</label>
+                <input type="text" id="search-bank" placeholder="نام بانک">
+            </div>
+            <div class="search-field">
+                <label for="search-amount-min">مبلغ از:</label>
+                <input type="number" id="search-amount-min" placeholder="حداقل مبلغ">
+            </div>
+            <div class="search-field">
+                <label for="search-amount-max">مبلغ تا:</label>
+                <input type="number" id="search-amount-max" placeholder="حداکثر مبلغ">
+            </div>
+            <div class="search-field">
+                <label for="search-due-date-from">تاریخ سررسید از:</label>
+                <input type="text" id="search-due-date-from" class="persian-datepicker" placeholder="تاریخ شروع">
+            </div>
+            <div class="search-field">
+                <label for="search-due-date-to">تاریخ سررسید تا:</label>
+                <input type="text" id="search-due-date-to" class="persian-datepicker" placeholder="تاریخ پایان">
+            </div>
+            <div class="search-field">
+                <label for="search-recipient">گیرنده:</label>
+                <input type="text" id="search-recipient" placeholder="نام گیرنده">
+            </div>
+        </div>
+        
+        <div id="search-actions" class="search-actions" style="display: none;">
+            <button type="button" class="search-btn" onclick="applyAdvancedSearch()">
+                <i class="bi bi-search"></i>
+                اعمال فیلتر
+            </button>
+            <button type="button" class="clear-btn" onclick="clearAdvancedSearch()">
+                <i class="bi bi-x-circle"></i>
+                پاک کردن
+            </button>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="list-table-card">
+        <div class="table-header">
+            <h2>چک‌های خرج شده</h2>
+            <p class="text-muted">چک‌هایی که به مشتریان پرداخت شده‌اند</p>
+        </div>
+        <div class="table-responsive">
+            <table class="list-table">
+                <thead>
+                    <tr>
+                        <th>شناسه صیادی</th>
+                        <th>مشتری</th>
+                        <th>بانک</th>
+                        <th>مبلغ</th>
+                        <th>تاریخ سررسید</th>
+                        <th>گیرنده</th>
+                        <th>تاریخ خرج</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cheque in page_obj %}
+                    <tr class="{{ cheque.row_class }}">
+                        <td>{{ cheque.sayadi_id }}</td>
+                        <td>
+                            {% if cheque.customer %}
+                                {{ cheque.customer.get_full_name }}
+                            {% else %}
+                                <span class="text-muted"><em>(حذف شده)</em></span>
+                            {% endif %}
+                        </td>
+                        <td>{{ cheque.bank_name }}</td>
+                        <td class="amount">{{ cheque.amount|persian_number_format }} ریال</td>
+                        <td>{{ cheque.due_date|jalali_date }}</td>
+                        <td>
+                            {% if cheque.recipient_name %}
+                                {{ cheque.recipient_name }}
+                            {% elif cheque.financial_operation and cheque.financial_operation.customer %}
+                                {{ cheque.financial_operation.customer.get_full_name }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ cheque.updated_at|jalali_date }}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <a href="{% url 'products:received_cheque_detail' cheque_id=cheque.id %}" class="btn btn-sm btn-outline-primary" title="مشاهده جزئیات">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <form method="post" action="{% url 'products:return_spent_cheque' cheque_id=cheque.id %}" class="d-inline" onsubmit="return confirm('آیا از برگشت این چک اطمینان دارید؟')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="برگشت چک">
+                                        <i class="bi bi-arrow-counterclockwise"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center empty-message">
+                            <i class="bi bi-inbox"></i>
+                            <p>هیچ چک خرج شده‌ای یافت نشد.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="pagination-container">
+            <ul class="pagination">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page=1&{{ request.GET.urlencode }}">&laquo; اول</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">قبلی</a></li>
+                {% endif %}
+
+                {% for i in page_obj.paginator.page_range %}
+                {% if page_obj.number == i %}
+                <li class="page-item active"><span class="page-link">{{ i }}</span></li>
+                {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                <li class="page-item"><a class="page-link" href="?page={{ i }}&{{ request.GET.urlencode }}">{{ i }}</a></li>
+                {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">بعدی</a></li>
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode }}">آخر &raquo;</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+.list-page-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    color: white;
+    box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.list-header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.filters-card {
+    background: white;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    border: 1px solid #e1e5e9;
+}
+
+.filters-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-group label {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.filter-group input,
+.filter-group select {
+    padding: 0.75rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+    font-family: 'BHoma', sans-serif;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.filter-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-start;
+    margin-top: 1rem;
+}
+
+.list-table-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    border: 1px solid #e1e5e9;
+}
+
+.table-header {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border-bottom: 1px solid #e1e5e9;
+}
+
+.table-header h2 {
+    margin: 0 0 0.5rem 0;
+    color: #1f2937;
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.list-table th {
+    background: #f8fafc;
+    padding: 1rem;
+    text-align: right;
+    font-weight: 700;
+    color: #374151;
+    border-bottom: 2px solid #e5e7eb;
+    white-space: nowrap;
+}
+
+.list-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    color: #6b7280;
+    vertical-align: middle;
+}
+
+.list-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.amount {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    color: #dc2626;
+    text-align: left;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    font-family: 'BHoma', sans-serif;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+    transform: translateY(-2px);
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+}
+
+.btn-outline-primary {
+    border: 1px solid #667eea;
+    color: #667eea;
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    background: #667eea;
+    color: white;
+}
+
+.btn-outline-danger {
+    border: 1px solid #dc2626;
+    color: #dc2626;
+    background: transparent;
+}
+
+.btn-outline-danger:hover {
+    background: #dc2626;
+    color: white;
+}
+
+.empty-message {
+    padding: 3rem;
+    text-align: center;
+    color: #9ca3af;
+}
+
+.empty-message i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-message p {
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.pagination-container {
+    padding: 1.5rem;
+    background: #f8fafc;
+    border-top: 1px solid #e5e7eb;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.page-item .page-link {
+    padding: 0.5rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    color: #374151;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.page-item.active .page-link {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.page-item .page-link:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.text-muted {
+    color: #6b7280 !important;
+}
+
+@media (max-width: 768px) {
+    .list-page-container {
+        padding: 1rem;
+    }
+    
+    .list-header {
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .filters-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .filter-actions {
+        flex-direction: column;
+    }
+    
+    .list-table {
+        font-size: 0.8rem;
+    }
+    
+    .list-table th,
+    .list-table td {
+        padding: 0.5rem;
+    }
+    
+    .action-buttons {
+        flex-direction: column;
+    }
+}
+
+/* Row coloring based on cheque status */
+.table-danger-light {
+    background-color: #fef2f2 !important;
+}
+
+.table-danger {
+    background-color: #fee2e2 !important;
+}
+
+.table-warning {
+    background-color: #fef3c7 !important;
+}
+
+.table-success {
+    background-color: #dcfce7 !important;
+}
+
+/* Advanced Search Styles */
+.advanced-search {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.search-toggle {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-toggle:hover {
+    background: #0056b3;
+}
+
+.search-fields {
+    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.search-fields.show {
+    display: grid;
+}
+
+.search-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.search-field label {
+    font-size: 12px;
+    font-weight: bold;
+    color: #333;
+}
+
+.search-field input,
+.search-field select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+}
+
+.search-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    justify-content: center;
+}
+
+.search-btn,
+.clear-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.search-btn {
+    background: #28a745;
+    color: white;
+}
+
+.search-btn:hover {
+    background: #218838;
+}
+
+.clear-btn {
+    background: #dc3545;
+    color: white;
+}
+
+.clear-btn:hover {
+    background: #c82333;
+}
+</style>
+
+<!-- Persian Datepicker -->
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+
+<script>
+// Advanced Search Functions
+function toggleAdvancedSearch() {
+    const searchFields = document.getElementById('search-fields');
+    const searchActions = document.getElementById('search-actions');
+    const isVisible = searchFields.classList.contains('show');
+    
+    if (isVisible) {
+        searchFields.classList.remove('show');
+        searchActions.style.display = 'none';
+    } else {
+        searchFields.classList.add('show');
+        searchActions.style.display = 'flex';
+    }
+}
+
+function applyAdvancedSearch() {
+    const sayadi = document.getElementById('search-sayadi').value.toLowerCase();
+    const customer = document.getElementById('search-customer').value.toLowerCase();
+    const bank = document.getElementById('search-bank').value.toLowerCase();
+    const amountMin = parseFloat(document.getElementById('search-amount-min').value) || 0;
+    const amountMax = parseFloat(document.getElementById('search-amount-max').value) || Infinity;
+    const dueDateFrom = document.getElementById('search-due-date-from').value;
+    const dueDateTo = document.getElementById('search-due-date-to').value;
+    const recipient = document.getElementById('search-recipient').value.toLowerCase();
+    
+    const rows = document.querySelectorAll('tbody tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const sayadiText = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const customerText = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const bankText = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        const amountText = parseFloat(row.querySelector('td:nth-child(4)').textContent.replace(/[^\d]/g, ''));
+        const dueDateText = row.querySelector('td:nth-child(5)').textContent;
+        const recipientText = row.querySelector('td:nth-child(6)').textContent.toLowerCase();
+        
+        let visible = true;
+        
+        // Check filters
+        if (sayadi && !sayadiText.includes(sayadi)) visible = false;
+        if (customer && !customerText.includes(customer)) visible = false;
+        if (bank && !bankText.includes(bank)) visible = false;
+        if (amountMin > 0 && amountText < amountMin) visible = false;
+        if (amountMax < Infinity && amountText > amountMax) visible = false;
+        if (dueDateFrom && !comparePersianDate(dueDateText, dueDateFrom, '>=')) visible = false;
+        if (dueDateTo && !comparePersianDate(dueDateText, dueDateTo, '<=')) visible = false;
+        if (recipient && !recipientText.includes(recipient)) visible = false;
+        
+        if (visible) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Show result message
+    showMessage(visibleCount, rows.length);
+}
+
+function clearAdvancedSearch() {
+    document.getElementById('search-sayadi').value = '';
+    document.getElementById('search-customer').value = '';
+    document.getElementById('search-bank').value = '';
+    document.getElementById('search-amount-min').value = '';
+    document.getElementById('search-amount-max').value = '';
+    document.getElementById('search-due-date-from').value = '';
+    document.getElementById('search-due-date-to').value = '';
+    document.getElementById('search-recipient').value = '';
+    
+    // Show all rows
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        row.style.display = '';
+    });
+    
+    showMessage(rows.length, rows.length);
+}
+
+function showMessage(visibleCount, totalCount) {
+    // Remove existing message
+    const existingMessage = document.querySelector('.search-result-message');
+    if (existingMessage) {
+        existingMessage.remove();
+    }
+    
+    const message = document.createElement('div');
+    message.className = 'search-result-message';
+    message.style.cssText = 'text-align: center; margin: 15px 0; padding: 10px; background: rgba(0,123,255,0.1); border-radius: 8px; color: #007bff; font-weight: bold;';
+    
+    if (visibleCount === 0) {
+        message.textContent = 'هیچ چکی با این فیلترها پیدا نشد';
+        message.style.background = 'rgba(220,53,69,0.1)';
+        message.style.color = '#dc3545';
+    } else if (visibleCount === totalCount) {
+        message.textContent = `همه ${totalCount} چک نمایش داده می‌شوند`;
+    } else {
+        message.textContent = `${visibleCount} چک از ${totalCount} چک پیدا شد`;
+    }
+    
+    const tableCard = document.querySelector('.list-table-card');
+    tableCard.insertBefore(message, tableCard.firstChild);
+}
+
+// Persian Date Comparison Function
+function comparePersianDate(date1, date2, operator) {
+    if (!date1 || !date2) return true;
+    
+    // Convert Persian numbers to English numbers
+    function convertPersianToEnglish(str) {
+        return str.replace(/[۰-۹]/g, function(w) {
+            return String.fromCharCode(w.charCodeAt(0) - 1728);
+        });
+    }
+    
+    // Handle incomplete dates (only day numbers in Persian)
+    if (date1.match(/^[۰-۹]+$/) && date2.match(/^[۰-۹]+$/)) {
+        const day1 = parseInt(convertPersianToEnglish(date1));
+        const day2 = parseInt(convertPersianToEnglish(date2));
+        
+        switch (operator) {
+            case '>=': return day1 >= day2;
+            case '<=': return day1 <= day2;
+            case '>': return day1 > day2;
+            case '<': return day1 < day2;
+            case '==': return day1 === day2;
+            default: return true;
+        }
+    }
+    
+    // Handle complete dates (format: YYYY/MM/DD)
+    // Convert Persian numbers to English if present
+    const normalizedDate1 = convertPersianToEnglish(date1);
+    const normalizedDate2 = convertPersianToEnglish(date2);
+    
+    const parts1 = normalizedDate1.split('/').map(part => parseInt(part));
+    const parts2 = normalizedDate2.split('/').map(part => parseInt(part));
+    
+    if (parts1.length !== 3 || parts2.length !== 3) return true;
+    
+    const [year1, month1, day1] = parts1;
+    const [year2, month2, day2] = parts2;
+    
+    // Convert to comparable numbers (YYYYMMDD format)
+    const num1 = year1 * 10000 + month1 * 100 + day1;
+    const num2 = year2 * 10000 + month2 * 100 + day2;
+    
+    switch (operator) {
+        case '>=': return num1 >= num2;
+        case '<=': return num1 <= num2;
+        case '>': return num1 > num2;
+        case '<': return num1 < num2;
+        case '==': return num1 === num2;
+        default: return true;
+    }
+}
+
+// Initialize Persian Datepickers
+document.addEventListener('DOMContentLoaded', function() {
+    $('.persian-datepicker').persianDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValue: false,
+        autoClose: true,
+        persianDigit: true,
+        observer: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

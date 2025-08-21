@@ -78,6 +78,56 @@ class AccountingVoucherManager:
                 return "0001"
         return "0001"
     
+    def _generate_detailed_operation_description(self, operation):
+        """تولید توضیحات دقیق عملیات مالی"""
+        description_parts = []
+        
+        # نوع عملیات
+        operation_type_display = operation.get_operation_type_display()
+        description_parts.append(f"نوع عملیات: {operation_type_display}")
+        
+        # مبلغ
+        description_parts.append(f"مبلغ: {operation.amount:,} ریال")
+        
+        # مشتری
+        if operation.customer:
+            description_parts.append(f"طرف حساب: {operation.customer.get_full_name()}")
+        
+        # صندوق
+        if operation.fund:
+            description_parts.append(f"صندوق: {operation.fund.name}")
+        
+        # روش پرداخت
+        if operation.payment_method:
+            payment_method_choices = {
+                'cash': 'نقدی',
+                'bank_transfer': 'حواله بانکی',
+                'cheque': 'چک',
+                'spend_cheque': 'خرج چک',
+                'mixed_cheque': 'ترکیب چک‌ها',
+                'pos': 'دستگاه POS',
+                'cheque_return': 'چک برگشتی',
+                'bounced_cheque_return': 'برگشت چک برگشتی',
+            }
+            payment_method_display = payment_method_choices.get(operation.payment_method, operation.payment_method)
+            description_parts.append(f"روش پرداخت: {payment_method_display}")
+        
+        # چک‌های مرتبط
+        if hasattr(operation, 'spent_cheques') and operation.spent_cheques.exists():
+            cheque_details = []
+            for cheque in operation.spent_cheques.all():
+                cheque_details.append(f"چک {cheque.sayadi_id} ({cheque.amount:,} ریال)")
+            description_parts.append(f"چک‌های خرج شده: {', '.join(cheque_details)}")
+        
+        # تاریخ
+        if operation.date:
+            description_parts.append(f"تاریخ: {operation.date}")
+        
+        # شماره عملیات
+        description_parts.append(f"شماره عملیات: {operation.operation_number}")
+        
+        return " | ".join(description_parts)
+    
     def create_voucher_from_financial_operation(self, operation):
         """
         Create voucher from financial operation
@@ -98,12 +148,13 @@ class AccountingVoucherManager:
                 created_by = User.objects.first()
             
             # Create voucher
+            detailed_description = self._generate_detailed_operation_description(operation)
             voucher = Voucher.objects.create(
                 financial_year=self.current_financial_year,
                 number=self.get_next_voucher_number(),
                 date=operation.date,
                 type='PERMANENT',
-                description=f"سند {operation.get_operation_type_display()} - {operation.operation_number}",
+                description=detailed_description,
                 created_by=created_by
             )
             
@@ -149,6 +200,62 @@ class AccountingVoucherManager:
             
             created_by = operation.created_by or User.objects.first()
             
+            # Create voucher with detailed description
+            detailed_description = self._generate_detailed_petty_cash_description(operation)
+            voucher = Voucher.objects.create(
+                financial_year=self.current_financial_year,
+                number=self.get_next_voucher_number(),
+                date=operation.date,
+                type='PERMANENT',
+                description=detailed_description,
+                created_by=created_by
+            )
+            
+            # Create voucher items
+            self._create_petty_cash_voucher_items(operation, voucher)
+            
+            return voucher
+            
+        except Exception as e:
+            print(f"Error creating voucher for petty cash operation {operation.id}: {e}")
+            return None
+    
+    def _generate_detailed_petty_cash_description(self, operation):
+        """تولید توضیحات دقیق عملیات تنخواه"""
+        description_parts = []
+        
+        # نوع عملیات
+        operation_type_display = operation.get_operation_type_display()
+        description_parts.append(f"نوع عملیات: {operation_type_display}")
+        
+        # مبلغ
+        description_parts.append(f"مبلغ: {operation.amount:,} ریال")
+        
+        # صندوق مبدأ
+        if operation.source_fund:
+            description_parts.append(f"صندوق مبدأ: {operation.source_fund.name}")
+        
+        # تاریخ
+        if operation.date:
+            description_parts.append(f"تاریخ: {operation.date}")
+        
+        # شماره عملیات
+        description_parts.append(f"شماره عملیات: {operation.operation_number}")
+        
+        return " | ".join(description_parts)
+    
+    def create_voucher_from_petty_cash_operation(self, operation):
+        """
+        Create voucher from petty cash operation.
+        This logic is moved from the old `create_petty_cash_voucher` function.
+        """
+        try:
+            if not self.current_financial_year:
+                self._initialize_defaults()
+            
+            created_by = operation.created_by or User.objects.first()
+            
+            # Create voucher with detailed description
             voucher = Voucher.objects.create(
                 financial_year=self.current_financial_year,
                 number=self.get_next_voucher_number(),

@@ -218,9 +218,9 @@
                         </p>
                     </div>
                     <div class="fund-details">
-                        <a href="{% url 'products:received_cheque_list' %}" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-eye"></i> جزئیات
-                        </a>
+                                        <a href="{% url 'products:received_cheque_list' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i> جزئیات
+                </a>
                     </div>
                 </div>
             </div>
@@ -235,9 +235,9 @@
                         </p>
                     </div>
                     <div class="fund-details">
-                        <a href="{% url 'products:received_cheque_list' %}?status=RECEIVED" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-eye"></i> جزئیات
-                        </a>
+                                        <a href="{% url 'products:received_cheque_list' %}?status=RECEIVED" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i> جزئیات
+                </a>
                     </div>
                 </div>
             </div>
@@ -252,9 +252,9 @@
                         </p>
                     </div>
                     <div class="fund-details">
-                        <a href="{% url 'products:received_cheque_list' %}?status=DEPOSITED" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-eye"></i> جزئیات
-                        </a>
+                                        <a href="{% url 'products:received_cheque_list' %}?status=DEPOSITED" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-eye"></i> جزئیات
+                </a>
                     </div>
                 </div>
             </div>
@@ -278,6 +278,23 @@
             <div class="fund-card glass-card">
                 <div class="card-body">
                     <div class="fund-header">
+                        <h4>چکهای خرج شده</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount warning">
+                            {{ spent_cheques_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:received_cheque_list' %}?status=SPENT" class="btn btn-sm btn-outline-warning">
+                            <i class="bi bi-arrow-up-circle"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
                         <h4>چکهای برگشتی</h4>
                     </div>
                     <div class="fund-balance">
@@ -288,6 +305,23 @@
                     <div class="fund-details">
                         <a href="{% url 'products:received_cheque_list' %}?status=BOUNCED" class="btn btn-sm btn-outline-danger">
                             <i class="bi bi-x-circle"></i> جزئیات
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="fund-card glass-card">
+                <div class="card-body">
+                    <div class="fund-header">
+                        <h4>چکهای عودت داده شده</h4>
+                    </div>
+                    <div class="fund-balance">
+                        <p class="amount positive">
+                            {{ returned_cheques_amount|persian_number_format }} ریال
+                        </p>
+                    </div>
+                    <div class="fund-details">
+                        <a href="{% url 'products:received_cheque_list' %}?status=RETURNED" class="btn btn-sm btn-outline-success">
+                            <i class="bi bi-person-check"></i> جزئیات
                         </a>
                     </div>
                 </div>

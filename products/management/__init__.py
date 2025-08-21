@@ -1,1 +1,1 @@
-# Management package 
+# Management package for products app 

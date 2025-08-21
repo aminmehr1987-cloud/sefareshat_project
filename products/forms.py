@@ -746,9 +746,17 @@ class ReceiveFromCustomerForm(forms.ModelForm):
         required=True
     )
     
+    bank_account = forms.ModelChoiceField(
+        label="حساب بانکی",
+        queryset=BankAccount.objects.filter(is_active=True),
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        empty_label="انتخاب حساب بانکی",
+        required=False
+    )
+    
     class Meta:
         model = FinancialOperation
-        fields = ['operation_type', 'customer', 'amount', 'payment_method', 'card_reader_device', 'description']
+        fields = ['operation_type', 'customer', 'amount', 'payment_method', 'card_reader_device', 'bank_account', 'description']
         widgets = {
             'operation_type': forms.HiddenInput(),
             'customer': forms.Select(attrs={'class': 'form-control'}),
@@ -774,9 +782,13 @@ class ReceiveFromCustomerForm(forms.ModelForm):
         current_date = jdatetime.datetime.now().strftime('%Y/%m/%d')
         self.fields['date_shamsi'].initial = current_date
 
-        # Filter payment_method choices to exclude 'spend_cheque'
-        payment_method_choices = [choice for choice in self.fields['payment_method'].choices if choice[0] != 'spend_cheque']
-        self.fields['payment_method'].choices = payment_method_choices
+        # Limit payment_method choices to only specific methods for receive from customer
+        self.fields['payment_method'].choices = [
+            ('cash', 'نقدی'),
+            ('bank_transfer', 'حواله بانکی'),
+            ('cheque', 'چک'),
+            ('pos', 'دستگاه POS'),
+        ]
 
 
 class PayToCustomerForm(forms.ModelForm):

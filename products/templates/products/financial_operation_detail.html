@@ -150,7 +150,7 @@
                 </div>
                 {% endif %}
 
-                {% if operation.payment_method == 'cheque' and operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}
+                {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' and operation.payment_method == 'cheque' %}
                     {% if operation.received_cheques.all %}
                         <h4 class="cheque-header">اطلاعات چک‌های دریافتی</h4>
                         {% for cheque in operation.received_cheques.all %}
@@ -162,7 +162,10 @@
                             </div>
                         {% endfor %}
                     {% endif %}
-                {% elif operation.payment_method == 'cheque' and operation.operation_type == 'PAY_TO_CUSTOMER' %}
+                {% elif operation.operation_type == 'PAY_TO_CUSTOMER' %}
+                    <!-- نمایش چک‌های پرداختی و خرج شده برای عملیات پرداخت به مشتری -->
+                    
+                    <!-- چک‌های صادر شده -->
                     {% if operation.issued_checks.all %}
                         <h4 class="cheque-header">اطلاعات چک‌های پرداختی</h4>
                         {% for cheque in operation.issued_checks.all %}
@@ -174,12 +177,29 @@
                                 <p><strong>بانک:</strong> {{ cheque.checkbook.bank_account.bank.name }}</p>
                             </div>
                         {% endfor %}
-                    {% else %}
+                    {% endif %}
+                    
+                    <!-- چک‌های خرج شده -->
+                    {% if operation.spent_cheques.all %}
+                        <h4 class="cheque-header">اطلاعات چک‌های خرج شده</h4>
+                        {% for cheque in operation.spent_cheques.all %}
+                            <div class="cheque-details">
+                                <p><strong>شناسه صیادی:</strong> {{ cheque.sayadi_id }}</p>
+                                <p><strong>مبلغ:</strong> {{ cheque.amount|intcomma }} ریال</p>
+                                <p><strong>تاریخ سررسید:</strong> {{ cheque.due_date|jalali_date }}</p>
+                                <p><strong>بانک:</strong> {{ cheque.bank_name }}</p>
+                                <p><strong>صاحب چک:</strong> {{ cheque.owner_name }}</p>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <!-- پیام در صورت عدم وجود چک -->
+                    {% if not operation.issued_checks.all and not operation.spent_cheques.all %}
                         <div class="no-cheques-message">
-                            <p>هیچ چک پرداختی‌ای برای این عملیات یافت نشد.</p>
+                            <p>هیچ چک پرداختی یا خرج شده‌ای برای این عملیات یافت نشد.</p>
                         </div>
                     {% endif %}
-                {% elif operation.payment_method == 'spend_cheque' %}
+                {% elif operation.payment_method == 'spend_cheque' and operation.operation_type != 'PAY_TO_CUSTOMER' %}
                     {% if operation.spent_cheques.all %}
                         <h4 class="cheque-header">اطلاعات چک‌های خرج شده</h4>
                         {% for cheque in operation.spent_cheques.all %}

@@ -4114,13 +4114,25 @@ def fund_detail_view(request, fund_id):
     # Reverse for display (newest first)
     display_list.reverse()
 
+    # Create dynamic page title based on fund type and name
+    fund_type_titles = {
+        'CASH': 'جزئیات صندوق نقدی',
+        'BANK': 'جزئیات حساب بانکی',
+        'PETTY_CASH': 'جزئیات تنخواه',
+        'OTHER': 'جزئیات صندوق',
+    }
+    
+    fund_type_title = fund_type_titles.get(fund.fund_type, 'جزئیات صندوق')
+    page_title = f"{fund_type_title} - {fund.name}"
+
     context = {
         'fund': fund,
         'operations': display_list,
         'total_in': total_in,
         'total_out': total_out,
         'current_balance': fund.current_balance,
-        'balance_history': fund.get_balance_history()[:20] if hasattr(fund, 'get_balance_history') else []
+        'balance_history': fund.get_balance_history()[:20] if hasattr(fund, 'get_balance_history') else [],
+        'page_title': page_title
     }
     
     return render(request, 'products/fund_detail.html', context)
@@ -4464,6 +4476,38 @@ def receive_from_customer_view(request):
                     cash_fund = Fund.objects.filter(fund_type='CASH').first()
                     if cash_fund:
                         operation.fund = cash_fund
+                elif operation.payment_method == 'bank_transfer':
+                    bank_account_id = request.POST.get('bank_account')
+                    if not bank_account_id:
+                        form.add_error('bank_account', 'برای حواله بانکی، انتخاب حساب بانکی الزامی است.')
+                        customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        banks = Bank.objects.filter(is_active=True).order_by('name')
+                        return render(request, 'financial_operations/receive_from_customer.html', {
+                            'form': form,
+                            'customers': customers,
+                            'banks': banks
+                        })
+
+                    try:
+                        bank_account = BankAccount.objects.get(id=bank_account_id, is_active=True)
+                    except BankAccount.DoesNotExist:
+                        form.add_error('bank_account', 'حساب بانکی انتخاب شده معتبر نیست.')
+                        customers = Customer.objects.all().order_by('first_name', 'last_name')
+                        banks = Bank.objects.filter(is_active=True).order_by('name')
+                        return render(request, 'financial_operations/receive_from_customer.html', {
+                            'form': form,
+                            'customers': customers,
+                            'banks': banks
+                        })
+                    
+                    operation.fund = None
+                    operation.bank_account = bank_account
+                    _update_bank_account_balance(bank_account.bank.name, bank_account.account_number)
+                    operation.bank_name = bank_account.bank.name
+                    operation.account_number = bank_account.account_number
+                    if not operation.description:
+                        operation.description = f"دریافت حواله بانکی از {operation.customer.get_full_name()} به حساب {bank_account.title}"
+                
                 elif operation.payment_method == 'pos':
                     device = operation.card_reader_device
                     if not device:
@@ -5110,10 +5154,11 @@ def combined_check_operation_view(request):
             spent_amount = sum(check.amount for check in spent_checks)
             spent_serials = ", ".join(check.serial for check in spent_checks)
             
-            # Update spent checks status and recipient name
+            # Update spent checks status and recipient information
             ReceivedCheque.objects.filter(id__in=spent_check_ids).update(
                 status='SPENT',
-                recipient_name=customer.get_full_name()
+                recipient_name=customer.get_full_name(),
+                recipient_customer=customer
             )
             
             total_amount += spent_amount
@@ -5310,6 +5355,73 @@ def received_cheque_edit_view(request, cheque_id):
         'cheque': cheque
     })
 
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def clear_received_cheque_view(request, cheque_id):
+    """
+    وصول چک واگذار شده - تبدیل از DEPOSITED به CLEARED
+    """
+    try:
+        with transaction.atomic():
+            cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='DEPOSITED')
+            
+            # Change status to CLEARED
+            cheque.status = 'CLEARED'
+            cheque.cleared_at = timezone.now()
+            cheque.cleared_by = request.user
+            cheque.save()
+            
+            # Update bank account balance if deposited to a bank account
+            if cheque.deposited_bank_account:
+                # Add cheque amount to bank account balance
+                bank_account = cheque.deposited_bank_account
+                # You may need to implement a method to update bank balance
+                # For now, we'll just update the cheque status
+                
+            return JsonResponse({
+                'success': True,
+                'message': f'چک شناسه صیادی {cheque.sayadi_id} با موفقیت وصول شد.'
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def bounce_received_cheque_view(request, cheque_id):
+    """
+    برگشت چک واگذار شده - تبدیل از DEPOSITED به RECEIVED
+    """
+    try:
+        with transaction.atomic():
+            cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='DEPOSITED')
+            
+            # Change status back to RECEIVED
+            cheque.status = 'RECEIVED'
+            cheque.bounced_at = timezone.now()
+            cheque.bounced_by = request.user
+            # Clear deposit information
+            cheque.deposited_bank_account = None
+            cheque.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'چک شناسه صیادی {cheque.sayadi_id} با موفقیت برگشت خورد و به چک‌های نزد صندوق منتقل شد.'
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
 @login_required
 @group_required('حسابداری')
 def received_cheque_list_view(request):
@@ -5318,12 +5430,19 @@ def received_cheque_list_view(request):
     """
     cheques_list = ReceivedCheque.objects.select_related('customer', 'created_by').order_by('-due_date', '-cleared_at', '-created_at')
     
-    # Filtering
-    search_query = request.GET.get('q')
-    status_filter = request.GET.get('status')
-    bank_filter = request.GET.get('bank')
-    start_date_filter = request.GET.get('start_date')
-    end_date_filter = request.GET.get('end_date')
+    # Enhanced filtering - similar to the deleted advanced_cheque_filter_view
+    search_query = request.GET.get('q', '')
+    status_filter = request.GET.get('status', '')
+    bank_filter = request.GET.get('bank', '')
+    start_date_filter = request.GET.get('start_date', '')
+    end_date_filter = request.GET.get('end_date', '')
+    customer_filter = request.GET.get('customer', '')
+    sayadi_filter = request.GET.get('sayadi', '')
+    owner_filter = request.GET.get('owner', '')
+    serial_filter = request.GET.get('serial', '')
+    endorsement_filter = request.GET.get('endorsement', '')
+    amount_min = request.GET.get('amount_min', '')
+    amount_max = request.GET.get('amount_max', '')
 
     if search_query:
         cheques_list = cheques_list.filter(
@@ -5341,6 +5460,21 @@ def received_cheque_list_view(request):
         
     if bank_filter:
         cheques_list = cheques_list.filter(bank_name__icontains=bank_filter)
+        
+    if customer_filter:
+        cheques_list = cheques_list.filter(customer_id=customer_filter)
+    
+    if sayadi_filter:
+        cheques_list = cheques_list.filter(sayadi_id__icontains=sayadi_filter)
+    
+    if owner_filter:
+        cheques_list = cheques_list.filter(owner_name__icontains=owner_filter)
+    
+    if serial_filter:
+        cheques_list = cheques_list.filter(serial__icontains=serial_filter)
+    
+    if endorsement_filter:
+        cheques_list = cheques_list.filter(endorsement__icontains=endorsement_filter)
 
     if start_date_filter:
         start_date_gregorian = convert_shamsi_to_gregorian(start_date_filter)
@@ -5349,26 +5483,74 @@ def received_cheque_list_view(request):
     if end_date_filter:
         end_date_gregorian = convert_shamsi_to_gregorian(end_date_filter)
         cheques_list = cheques_list.filter(due_date__lte=end_date_gregorian)
+        
+    if amount_min:
+        try:
+            from decimal import Decimal, InvalidOperation
+            min_amount = Decimal(amount_min.replace(',', ''))
+            cheques_list = cheques_list.filter(amount__gte=min_amount)
+        except (ValueError, InvalidOperation):
+            pass
+    
+    if amount_max:
+        try:
+            from decimal import Decimal, InvalidOperation
+            max_amount = Decimal(amount_max.replace(',', ''))
+            cheques_list = cheques_list.filter(amount__lte=max_amount)
+        except (ValueError, InvalidOperation):
+            pass
 
     # Pagination
     paginator = Paginator(cheques_list, 25)  # 25 cheques per page
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    # Get customers for filter dropdown
+    customers = Customer.objects.all().order_by('first_name', 'last_name')
+    
+    # Calculate totals for current filtered results
+    from django.db.models import Sum
+    total_amount = cheques_list.aggregate(Sum('amount'))['amount__sum'] or 0
+    total_count = cheques_list.count()
+
+    # Determine page title based on status filter
+    status_titles = {
+        'RECEIVED': 'لیست چکهای نزد صندوق',
+        'DEPOSITED': 'لیست چکهای واگذار شده به بانک',
+        'CLEARED': 'لیست چکهای وصول شده',
+        'SPENT': 'لیست چکهای خرج شده',
+        'BOUNCED': 'لیست چکهای برگشتی',
+        'RETURNED': 'لیست چکهای برگشت داده شده',
+    }
+    
+    if status_filter and status_filter in status_titles:
+        page_title = status_titles[status_filter]
+    else:
+        page_title = 'لیست چکهای دریافتی'
+
     context = {
         'page_obj': page_obj,
+        'customers': customers,
         'status_choices': ReceivedCheque.STATUS_CHOICES,
+        'total_amount': total_amount,
+        'total_count': total_count,
+        'page_title': page_title,
         'filters': {
-            'q': search_query or '',
-            'status': status_filter or '',
-            'bank': bank_filter or '',
-            'start_date': start_date_filter or '',
-            'end_date': end_date_filter or '',
+            'q': search_query,
+            'status': status_filter,
+            'bank': bank_filter,
+            'start_date': start_date_filter,
+            'end_date': end_date_filter,
+            'customer': customer_filter,
+            'sayadi': sayadi_filter,
+            'owner': owner_filter,
+            'serial': serial_filter,
+            'endorsement': endorsement_filter,
+            'amount_min': amount_min,
+            'amount_max': amount_max,
         }
     }
     return render(request, 'products/received_cheque_list.html', context)
-    
-    return render(request, 'products/customer_balance_detail.html', context)
 
 
 # Helper functions
@@ -5499,6 +5681,8 @@ def financial_dashboard_view(request):
     deposited_cheques_amount = all_cheques.filter(status='DEPOSITED').aggregate(Sum('amount'))['amount__sum'] or 0
     cleared_cheques_amount = all_cheques.filter(status='CLEARED').aggregate(Sum('amount'))['amount__sum'] or 0
     bounced_cheques_amount = all_cheques.filter(status='BOUNCED').aggregate(Sum('amount'))['amount__sum'] or 0
+    spent_cheques_amount = all_cheques.filter(status='SPENT').aggregate(Sum('amount'))['amount__sum'] or 0
+    returned_cheques_amount = all_cheques.filter(status='RETURNED').aggregate(Sum('amount'))['amount__sum'] or 0
     
     # Issued Checks Summary
     all_issued_checks = Check.objects.filter(checkbook__isnull=False)  # فقط چک‌های صادر شده
@@ -5528,6 +5712,8 @@ def financial_dashboard_view(request):
         'deposited_cheques_amount': deposited_cheques_amount,
         'cleared_cheques_amount': cleared_cheques_amount,
         'bounced_cheques_amount': bounced_cheques_amount,
+        'spent_cheques_amount': spent_cheques_amount,
+        'returned_cheques_amount': returned_cheques_amount,
         # Issued Checks context
         'total_issued_amount': total_issued_amount,
         'issued_checks_amount': issued_checks_amount,
@@ -5536,6 +5722,217 @@ def financial_dashboard_view(request):
     }
     
     return render(request, 'products/financial_dashboard.html', context)
+
+
+@login_required
+@group_required('حسابداری')
+def spent_cheques_list_view(request):
+    """
+    نمایش لیست چک‌های خرج شده با امکان فیلتر و برگشت
+    """
+    cheques_list = ReceivedCheque.objects.filter(status='SPENT').select_related('customer', 'created_by').order_by('-updated_at', '-created_at')
+    
+    # Filtering
+    search_query = request.GET.get('q')
+    customer_filter = request.GET.get('customer')
+    bank_filter = request.GET.get('bank')
+    start_date_filter = request.GET.get('start_date')
+    end_date_filter = request.GET.get('end_date')
+
+    if search_query:
+        cheques_list = cheques_list.filter(
+            Q(sayadi_id__icontains=search_query) |
+            Q(customer__first_name__icontains=search_query) |
+            Q(customer__last_name__icontains=search_query) |
+            Q(owner_name__icontains=search_query) |
+            Q(amount__icontains=search_query) |
+            Q(recipient_name__icontains=search_query) |
+            Q(serial__icontains=search_query)
+        )
+    
+    if customer_filter:
+        cheques_list = cheques_list.filter(customer_id=customer_filter)
+        
+    if bank_filter:
+        cheques_list = cheques_list.filter(bank_name__icontains=bank_filter)
+
+    if start_date_filter:
+        start_date_gregorian = convert_shamsi_to_gregorian(start_date_filter)
+        cheques_list = cheques_list.filter(due_date__gte=start_date_gregorian)
+        
+    if end_date_filter:
+        end_date_gregorian = convert_shamsi_to_gregorian(end_date_filter)
+        cheques_list = cheques_list.filter(due_date__lte=end_date_gregorian)
+
+    # Pagination
+    paginator = Paginator(cheques_list, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Get customers for filter dropdown
+    customers = Customer.objects.all().order_by('first_name', 'last_name')
+
+    context = {
+        'page_obj': page_obj,
+        'customers': customers,
+        'filters': {
+            'q': search_query or '',
+            'customer': customer_filter or '',
+            'bank': bank_filter or '',
+            'start_date': start_date_filter or '',
+            'end_date': end_date_filter or '',
+        }
+    }
+    return render(request, 'products/spent_cheques_list.html', context)
+
+
+
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def return_spent_cheque_view(request, cheque_id):
+    """
+    برگشت چک خرج شده و تبدیل به چک برگشتی
+    """
+    try:
+        with transaction.atomic():
+            cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='SPENT')
+            
+            # Change cheque status to BOUNCED
+            cheque.status = 'BOUNCED'
+            cheque.bounced_at = timezone.now()
+            cheque.bounced_by = request.user
+            cheque.save()
+            
+            # پیدا کردن گیرنده چک (کسی که چک را دریافت کرده)
+            # اول از فیلد recipient_customer استفاده کن، سپس از recipient_name
+            recipient_customer = cheque.recipient_customer
+            if not recipient_customer and cheque.recipient_name:
+                # جستجو در نام کامل مشتریان
+                from django.db.models import Q
+                recipient_customer = Customer.objects.filter(
+                    Q(first_name__icontains=cheque.recipient_name) | 
+                    Q(last_name__icontains=cheque.recipient_name) |
+                    Q(company_name__icontains=cheque.recipient_name)
+                ).first()
+            
+            # اگر گیرنده پیدا نشد، از صاحب چک استفاده کن
+            target_customer = recipient_customer if recipient_customer else cheque.customer
+            
+            # Create a financial operation for the cheque return
+            # This reverses the original PAY_TO_CUSTOMER operation
+            operation = FinancialOperation.objects.create(
+                operation_type='RECEIVE_FROM_CUSTOMER',  # بستانکار - خنثی کردن پرداخت قبلی
+                customer=target_customer,
+                amount=cheque.amount,  # مبلغ مثبت
+                payment_method='cheque_return',
+                date=timezone.now().date(),
+                description=f'چک برگشتی شماره صیادی {cheque.sayadi_id} (خنثی کردن پرداخت قبلی)',
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            # Update customer balance using the existing update_balance method
+            customer_balance, created = CustomerBalance.objects.get_or_create(
+                customer=target_customer,
+                defaults={'current_balance': 0}
+            )
+            customer_balance.update_balance()  # This recalculates from all operations
+            
+            # پیام مناسب بر اساس اینکه مبلغ در کدام حساب اعمال شده
+            if recipient_customer:
+                messages.success(request, f'چک شماره صیادی {cheque.sayadi_id} با موفقیت برگشت زده شد و مبلغ {cheque.amount:,} ریال به عنوان بستانکاری گیرنده چک ({recipient_customer.get_full_name()}) ثبت گردید. سند شماره: {operation.operation_number}')
+            else:
+                messages.success(request, f'چک شماره صیادی {cheque.sayadi_id} با موفقیت برگشت زده شد و مبلغ {cheque.amount:,} ریال به عنوان بستانکاری صاحب چک ({cheque.customer.get_full_name()}) ثبت گردید. سند شماره: {operation.operation_number}')
+            
+    except Exception as e:
+        messages.error(request, f'خطا در برگشت چک: {str(e)}')
+    
+    # Redirect based on the HTTP_REFERER or a next parameter
+    next_url = request.GET.get('next') or request.POST.get('next')
+    if next_url:
+        return redirect(next_url)
+    
+    # Check if request came from received cheque list
+    referer = request.META.get('HTTP_REFERER', '')
+    if 'received-cheques' in referer:
+        return redirect('products:received_cheque_list')
+    
+    return redirect('products:spent_cheques_list')
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def return_bounced_to_customer_view(request, cheque_id):
+    """
+    برگشت چک برگشتی به مشتری و اضافه کردن مبلغ به حساب
+    """
+    try:
+        with transaction.atomic():
+            cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='BOUNCED')
+            
+            # Change cheque status to RETURNED
+            cheque.status = 'RETURNED'
+            cheque.save()
+            
+            # Create a financial operation for returning bounced cheque to customer
+            operation = FinancialOperation.objects.create(
+                operation_type='PAY_TO_CUSTOMER',  # This adds to customer's debt (our receivable)
+                customer=cheque.customer,
+                amount=cheque.amount,
+                payment_method='bounced_cheque_return',
+                date=timezone.now().date(),
+                description=f'عودت چک شماره صیادی {cheque.sayadi_id}',
+                created_by=request.user,
+                status='CONFIRMED',
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            # Update customer balance using the existing update_balance method
+            customer_balance, created = CustomerBalance.objects.get_or_create(
+                customer=cheque.customer,
+                defaults={'current_balance': 0}
+            )
+            customer_balance.update_balance()  # This recalculates from all operations
+            
+            messages.success(request, f'چک برگشتی شماره صیادی {cheque.sayadi_id} با موفقیت به {cheque.customer.get_full_name()} برگشت داده شد و مبلغ {cheque.amount:,} ریال به عنوان بدهی مشتری ثبت گردید. سند شماره: {operation.operation_number}')
+            
+    except Exception as e:
+        messages.error(request, f'خطا در برگشت چک به طرف حساب: {str(e)}')
+    
+    return redirect('products:received_cheque_list')
+
+
+@login_required
+@group_required('حسابداری')
+@require_POST
+def transfer_bounced_to_fund_view(request, cheque_id):
+    """
+    انتقال چک برگشتی به چکهای نزد صندوق
+    """
+    try:
+        with transaction.atomic():
+            cheque = get_object_or_404(ReceivedCheque, id=cheque_id, status='BOUNCED')
+            
+            # Change cheque status to RECEIVED (back to fund)
+            cheque.status = 'RECEIVED'
+            cheque.bounced_at = None
+            cheque.bounced_by = None
+            cheque.save()
+            
+            messages.success(request, f'چک برگشتی شماره صیادی {cheque.sayadi_id} با موفقیت به چکهای نزد صندوق منتقل شد.')
+            
+    except Exception as e:
+        messages.error(request, f'خطا در انتقال چک به صندوق: {str(e)}')
+    
+    return redirect('products:received_cheque_list')
+
 
 # =============================================================================
 # توابع داده برای گزارشات مالی
@@ -7029,9 +7426,11 @@ def all_issued_checks_view(request):
     # فیلتر بر اساس وضعیت
     status_filter = request.GET.get('status', None)
     
-    # دریافت تمام چک‌های صادر شده
+    # دریافت تمام چک‌های صادر شده (بجز چک‌های استفاده نشده)
     issued_checks = Check.objects.filter(
         checkbook__isnull=False  # فقط چک‌های صادر شده
+    ).exclude(
+        status='UNUSED'  # حذف چک‌های استفاده نشده
     ).select_related('checkbook', 'checkbook__bank_account', 'created_by')
     
     if status_filter:
@@ -7059,6 +7458,20 @@ def all_issued_checks_view(request):
         total=models.Sum('amount')
     )['total'] or 0
     
+    # Determine page title based on status filter
+    status_titles = {
+        'ISSUED': 'لیست چکهای صادر شده',
+        'CLEARED': 'لیست چکهای وصول شده (صادری)',
+        'BOUNCED': 'لیست چکهای برگشتی (صادری)',
+        'RECEIVED': 'لیست چکهای دریافت شده',
+        'DEPOSITED': 'لیست چکهای واگذار شده',
+    }
+    
+    if status_filter and status_filter in status_titles:
+        page_title = status_titles[status_filter]
+    else:
+        page_title = 'لیست چکهای صادر شده'
+
     context = {
         'issued_checks': issued_checks,
         'total_amount': total_amount,
@@ -7066,7 +7479,8 @@ def all_issued_checks_view(request):
         'bounced_amount': bounced_amount,
         'pending_amount': pending_amount,
         'status_filter': status_filter,
-        'title': 'تمام چک‌های صادر شده'
+        'page_title': page_title,
+        'title': page_title  # Keep title for backward compatibility
     }
     
     return render(request, 'products/all_issued_checks.html', context)

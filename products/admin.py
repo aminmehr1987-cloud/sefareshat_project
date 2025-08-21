@@ -6,7 +6,7 @@ from io import BytesIO
 import jdatetime
 # django-jalali automatically provides jalali widgets for jDateField and jDateTimeField
 from django_jalali.admin.widgets import AdminjDateWidget
-from django.utils.html import format_html
+from django.utils.html import format_html, mark_safe
 from django.urls import reverse
 # مطمئن شوید که همه مدل‌هایتان را از models.py ایمپورت کرده‌اید
 from .models import (
@@ -16,11 +16,14 @@ from .models import (
     FinancialYear, Currency, AccountGroup, Account, BankAccount, 
     CashRegister, CheckBook, Check, Voucher, VoucherItem, SalesInvoiceItem,
     Fund, FundBalanceHistory, FinancialOperation, CustomerBalance, PettyCashOperation,
-    FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement, ReceivedCheque
+    FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement, ReceivedCheque, ReceivedChequeAuditTrail,
+    DocumentNumberSettings
 )
 import jdatetime as jmodels
 from django.db.models import Q, F, Sum
 from django.utils.html import format_html
+from django.utils import timezone
+from datetime import datetime
 
 
 
@@ -238,7 +241,7 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('order_number', 'document_number', 'package_count', 'courier_name', 'visitor_name', 'customer_name', 'created_at_jalali', 'payment_term', 'status', 'total_price')
+    list_display = ('fixed_document_number', 'order_number', 'document_number', 'package_count', 'courier_name', 'visitor_name', 'customer_name', 'created_at_jalali', 'payment_term', 'status', 'total_price')
     list_filter = (
         'status',
         'payment_term',
@@ -271,6 +274,11 @@ class OrderAdmin(admin.ModelAdmin):
         )
         return f"{total:,.0f} ریال"
     total_price.short_description = 'جمع کل مبلغ'
+    
+    def fixed_document_number(self, obj):
+        return obj.fixed_document_number or '-'
+    fixed_document_number.short_description = 'شماره سند ثابت'
+    fixed_document_number.admin_order_field = 'order_number'
 
     def get_status_display_name(self, status):
         status_dict = dict(Order.STATUS_CHOICES)
@@ -518,7 +526,7 @@ class SalesInvoiceAdmin(admin.ModelAdmin):
 # admin.site.register(SalesInvoice) # Will be registered with an inline
 admin.site.register(AccountingReport)
 admin.site.register(AccountingReportDetail)
-admin.site.register(DocumentNumber)
+# admin.site.register(DocumentNumber)  # Replaced with new DocumentNumberAdmin
 admin.site.register(OrderStatusHistory)
 @admin.register(FinancialYear)
 class FinancialYearAdmin(admin.ModelAdmin):
@@ -735,37 +743,166 @@ class CardReaderDeviceAdmin(admin.ModelAdmin):
 
 
 
+class CheckForm(forms.ModelForm):
+    """فرم سفارشی برای چک با اعتبارسنجی پویا"""
+    
+    class Meta:
+        model = Check
+        fields = '__all__'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # اگر چک استفاده نشده است، فیلدهای غیرضروری را اختیاری کن
+        if self.instance and self.instance.status == 'UNUSED':
+            self.fields['date'].required = False
+            self.fields['payee'].required = False
+            self.fields['amount'].required = False
+            self.fields['description'].required = False
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get('status')
+        
+        # اگر چک استفاده شده است، فیلدهای ضروری را بررسی کن
+        if status and status != 'UNUSED':
+            if not cleaned_data.get('date'):
+                self.add_error('date', 'برای چک‌های استفاده شده، تاریخ الزامی است.')
+            if not cleaned_data.get('payee'):
+                self.add_error('payee', 'برای چک‌های استفاده شده، در وجه الزامی است.')
+            if not cleaned_data.get('amount'):
+                self.add_error('amount', 'برای چک‌های استفاده شده، مبلغ الزامی است.')
+        
+        return cleaned_data
+
 @admin.register(Check)
 class CheckAdmin(admin.ModelAdmin):
-    list_display = ('number', 'checkbook', 'amount', 'date', 'payee', 'status', 'created_at')
+    form = CheckForm
+    list_display = ('number', 'checkbook', 'conditional_amount_display', 'conditional_date_display', 'conditional_payee_display', 'status', 'created_at')
     list_filter = ('status', 'date', 'checkbook__bank_account__bank', 'checkbook')
     search_fields = ('number', 'payee', 'description', 'checkbook__serial')
     readonly_fields = ('created_at', 'created_by')
     date_hierarchy = 'date'
     ordering = ('-date', '-created_at')
     
-    fieldsets = (
-        (None, {
-            'fields': ('checkbook', 'number', 'amount', 'date', 'payee', 'status')
-        }),
-        ('اطلاعات اضافی', {
-            'fields': ('description', 'bank_name', 'bank_branch', 'account_number'),
-            'classes': ('collapse',)
-        }),
-        ('اطلاعات سیستمی', {
-            'fields': ('created_by', 'created_at'),
-            'classes': ('collapse',)
-        }),
-    )
+    def get_fieldsets(self, request, obj=None):
+        """فیلدست‌های پویا بر اساس وضعیت چک"""
+        if obj and obj.status == 'UNUSED':
+            # برای چک‌های استفاده نشده
+            return (
+                (None, {
+                    'fields': ('checkbook', 'number', 'status')
+                }),
+                ('اطلاعات سیستمی', {
+                    'fields': ('created_by', 'created_at'),
+                    'classes': ('collapse',)
+                }),
+            )
+        else:
+            # برای چک‌های استفاده شده
+            return (
+                (None, {
+                    'fields': ('checkbook', 'number', 'amount', 'date', 'payee', 'status')
+                }),
+                ('اطلاعات اضافی', {
+                    'fields': ('description', 'bank_name', 'bank_branch', 'account_number'),
+                    'classes': ('collapse',)
+                }),
+                ('اطلاعات سیستمی', {
+                    'fields': ('created_by', 'created_at'),
+                    'classes': ('collapse',)
+                }),
+            )
     
     formfield_overrides = {
         'jDateField': {'widget': AdminjDateWidget},
     }
     
+    def conditional_date_display(self, obj):
+        """نمایش تاریخ فقط برای چک‌های استفاده شده"""
+        if obj.status == 'UNUSED':
+            return '-'
+        elif obj.date:
+            return obj.date.strftime('%Y/%m/%d')
+        else:
+            return '-'
+    conditional_date_display.short_description = 'تاریخ'
+    conditional_date_display.admin_order_field = 'date'
+    
+    def conditional_amount_display(self, obj):
+        """نمایش مبلغ فقط برای چک‌های استفاده شده"""
+        if obj.status == 'UNUSED':
+            return '-'
+        elif obj.amount:
+            return f"{obj.amount:,} ریال"
+        else:
+            return '-'
+    conditional_amount_display.short_description = 'مبلغ'
+    
+    def conditional_payee_display(self, obj):
+        """نمایش در وجه فقط برای چک‌های استفاده شده"""
+        if obj.status == 'UNUSED':
+            return '-'
+        elif obj.payee:
+            return obj.payee
+        else:
+            return '-'
+    conditional_payee_display.short_description = 'در وجه'
+    
+    def get_fields(self, request, obj=None):
+        """مشخص کردن فیلدهای قابل ویرایش بر اساس وضعیت"""
+        fields = list(super().get_fields(request, obj))
+        
+        # اگر چک استفاده نشده است، فیلدهای غیرضروری را حذف کن
+        if obj and obj.status == 'UNUSED':
+            # فیلدهای که برای چک‌های استفاده نشده نیاز نیستند
+            unnecessary_fields = ['date', 'payee', 'amount', 'description']
+            fields = [f for f in fields if f not in unnecessary_fields]
+        
+        return fields
+    
+    def get_readonly_fields(self, request, obj=None):
+        """فیلدهای فقط خواندنی بر اساس وضعیت"""
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+        
+        if obj and obj.status == 'UNUSED':
+            # برای چک‌های استفاده نشده، فیلدهای اصلی فقط خواندنی باشند
+            readonly_fields.extend(['checkbook', 'number', 'status'])
+        
+        return readonly_fields
+    
     def save_model(self, request, obj, form, change):
         if not change:  # Only for new objects
             obj.created_by = request.user
+            # برای چک‌های جدید، وضعیت را UNUSED قرار بده
+            if not obj.status:
+                obj.status = 'UNUSED'
+            
+            # برای چک‌های استفاده نشده، فیلدهای غیرضروری را خالی کن
+            if obj.status == 'UNUSED':
+                obj.date = None
+                obj.payee = ''
+                obj.amount = 0
+                obj.description = ''
         super().save_model(request, obj, form, change)
+    
+    def get_queryset(self, request):
+        """بهینه‌سازی کوئری برای نمایش بهتر"""
+        return super().get_queryset(request).select_related('checkbook', 'checkbook__bank_account', 'checkbook__bank_account__bank')
+    
+    def mark_as_issued(self, request, queryset):
+        """علامت‌گذاری چک‌ها به عنوان صادر شده"""
+        count = queryset.update(status='ISSUED')
+        self.message_user(request, f'{count} چک به عنوان صادر شده علامت‌گذاری شد.')
+    mark_as_issued.short_description = "علامت‌گذاری به عنوان صادر شده"
+    
+    def mark_as_unused(self, request, queryset):
+        """بازگرداندن چک‌ها به حالت استفاده نشده"""
+        count = queryset.update(status='UNUSED', date=None, payee='', amount=0, description='')
+        self.message_user(request, f'{count} چک به حالت استفاده نشده بازگردانده شد.')
+    mark_as_unused.short_description = "بازگرداندن به حالت استفاده نشده"
+    
+    actions = ['mark_as_issued', 'mark_as_unused']
 
 class VoucherItemInline(admin.TabularInline):
     model = VoucherItem
@@ -779,6 +916,20 @@ class VoucherAdmin(admin.ModelAdmin):
     list_display = ('number', 'date', 'type', 'description', 'is_confirmed', 'created_by', 'created_at')
     list_filter = ('type', 'is_confirmed', 'date')
     search_fields = ('number', 'description')
+    readonly_fields = ('created_at', 'created_by')
+    
+    fieldsets = (
+        (None, {
+            'fields': ('financial_year', 'number', 'date', 'type', 'description')
+        }),
+        ('وضعیت', {
+            'fields': ('is_confirmed', 'confirmed_by', 'confirmed_at')
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_by', 'created_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 admin.site.register(VoucherItem)
 
@@ -1076,7 +1227,7 @@ class FundBalanceHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(FinancialOperation)
 class FinancialOperationAdmin(admin.ModelAdmin):
-    list_display = ('operation_number', 'operation_type', 'date', 'amount', 'status', 'customer', 'fund_info', 'created_by', 'bank_name', 'account_number')
+    list_display = ('fixed_document_number', 'operation_number', 'operation_type', 'date', 'amount', 'status', 'customer', 'fund_info', 'created_by', 'bank_name', 'account_number')
     list_filter = ('operation_type', 'status', 'date', 'payment_method', 'fund', 'bank_name', 'card_reader_device', 'customer')
     search_fields = ('operation_number', 'description', 'customer__first_name', 'customer__last_name', 'fund__name', 'fund__fund_type', 'bank_name', 'account_number')
     readonly_fields = ('operation_number', 'created_at', 'updated_at')
@@ -1117,6 +1268,11 @@ class FinancialOperationAdmin(admin.ModelAdmin):
             return format_html('<span style="color: blue;">{}</span>', obj.fund.name)
         return '-'
     fund_info.short_description = 'صندوق مرتبط'
+    
+    def fixed_document_number(self, obj):
+        return obj.fixed_document_number or '-'
+    fixed_document_number.short_description = 'شماره سند ثابت'
+    fixed_document_number.admin_order_field = 'operation_number'
 
     def confirm_operations(self, request, queryset):
         """تأیید عملیات‌های انتخاب شده"""
@@ -1136,6 +1292,17 @@ class FinancialOperationAdmin(admin.ModelAdmin):
         return export_model_to_excel(self, request, queryset)
     export_operations_to_excel.short_description = "خروجی اکسل"
     
+    def delete_model(self, request, obj):
+        """حذف عملیات مالی با تنظیم کاربر حذف کننده"""
+        obj.set_deleting_user(request.user)
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """حذف دسته‌ای عملیات مالی با تنظیم کاربر حذف کننده"""
+        for obj in queryset:
+            obj.set_deleting_user(request.user)
+        super().delete_queryset(request, queryset)
+    
     class Meta:
         verbose_name = "عملیات مالی"
         verbose_name_plural = "عملیات‌های مالی"
@@ -1147,7 +1314,7 @@ class CustomerBalanceAdmin(admin.ModelAdmin):
     list_filter = ('last_transaction_date',)
     search_fields = ('customer__first_name', 'customer__last_name')
     readonly_fields = ('customer', 'current_balance', 'total_received', 'total_paid', 'last_transaction_date')
-    actions = ['recalculate_customer_balances']
+    actions = ['recalculate_customer_balances', 'recalculate_all_balances']
 
     def recalculate_customer_balances(self, request, queryset):
         """محاسبه مجدد مانده مشتریان"""
@@ -1178,16 +1345,57 @@ class CustomerBalanceAdmin(admin.ModelAdmin):
         
         self.message_user(request, f'مانده {updated_count} مشتری به‌روزرسانی شد.')
     recalculate_customer_balances.short_description = "محاسبه مجدد مانده مشتریان"
+    
+    def recalculate_all_balances(self, request, queryset):
+        """محاسبه مجدد تمام موجودی‌ها (مشتریان، صندوق‌ها، حساب‌های بانکی)"""
+        from .models import Fund, BankAccount
+        
+        updated_count = 0
+        
+        # محاسبه مجدد موجودی مشتریان
+        for balance in queryset:
+            try:
+                balance.update_balance()
+                updated_count += 1
+            except Exception as e:
+                self.message_user(request, f'خطا در محاسبه مانده مشتری {balance.customer}: {str(e)}', level='ERROR')
+        
+        # محاسبه مجدد موجودی صندوق‌ها
+        funds = Fund.objects.all()
+        for fund in funds:
+            try:
+                fund.recalculate_balance()
+                updated_count += 1
+            except Exception as e:
+                self.message_user(request, f'خطا در محاسبه مانده صندوق {fund.name}: {str(e)}', level='ERROR')
+        
+        # محاسبه مجدد موجودی حساب‌های بانکی
+        bank_accounts = BankAccount.objects.all()
+        for account in bank_accounts:
+            try:
+                from .views import _update_bank_account_balance
+                _update_bank_account_balance(account.bank.name, account.account_number)
+                updated_count += 1
+            except Exception as e:
+                self.message_user(request, f'خطا در محاسبه مانده حساب بانکی {account.bank.name} - {account.account_number}: {str(e)}', level='ERROR')
+        
+        self.message_user(request, f'تعداد {updated_count} موجودی به‌روزرسانی شد.')
+    recalculate_all_balances.short_description = "محاسبه مجدد تمام موجودی‌ها"
 
 
 @admin.register(PettyCashOperation)
 class PettyCashOperationAdmin(admin.ModelAdmin):
-    list_display = ('operation_number', 'operation_type', 'date', 'amount', 'reason', 'source_fund', 'created_by')
+    list_display = ('fixed_document_number', 'operation_number', 'operation_type', 'date', 'amount', 'reason', 'source_fund', 'created_by')
     list_filter = ('operation_type', 'date', 'reason', 'source_fund')
     search_fields = ('operation_number', 'reason', 'description')
     readonly_fields = ('operation_number', 'created_at')
     date_hierarchy = 'date'
     actions = ['calculate_petty_cash_balance']
+    
+    def fixed_document_number(self, obj):
+        return obj.fixed_document_number or '-'
+    fixed_document_number.short_description = 'شماره سند ثابت'
+    fixed_document_number.admin_order_field = 'operation_number'
     
     fieldsets = (
         (None, {
@@ -1235,10 +1443,22 @@ class PettyCashOperationAdmin(admin.ModelAdmin):
             'total_withdraw': total_withdraw,
             'current_balance': current_balance,
         }
+    
+    def delete_model(self, request, obj):
+        """حذف عملیات تنخواه با تنظیم کاربر حذف کننده"""
+        obj.set_deleting_user(request.user)
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """حذف دسته‌ای عملیات تنخواه با تنظیم کاربر حذف کننده"""
+        for obj in queryset:
+            obj.set_deleting_user(request.user)
+        super().delete_queryset(request, queryset)
+
 
 @admin.register(ReceivedCheque)
 class ReceivedChequeAdmin(admin.ModelAdmin):
-    list_display = ('sayadi_id', 'customer', 'amount', 'jalali_due_date', 'bank_name', 'status', 'recipient_name', 'deposited_bank_account', 'created_by', 'jalali_created_at')
+    list_display = ('sayadi_id', 'customer', 'amount', 'jalali_due_date', 'bank_name', 'status', 'recipient_customer', 'deposited_bank_account', 'created_by', 'jalali_created_at')
     list_filter = ('status', 'bank_name', 'due_date', 'created_by')
     search_fields = (
         'sayadi_id', 
@@ -1255,6 +1475,8 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
         'recipient_name'
     )
     readonly_fields = ('jalali_created_at', 'jalali_updated_at', 'created_by')
+    actions = ['recalculate_related_balances']
+    
     fieldsets = (
         (None, {
             'fields': ('customer', 'financial_operation', 'status')
@@ -1263,9 +1485,48 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
             'fields': ('sayadi_id', 'amount', 'due_date', 'bank_name', 'branch_name', 'account_number', 'owner_name', 'national_id', 'series', 'serial')
         }),
         ('اطلاعات تکمیلی', {
-            'fields': ('endorsement', 'recipient_name', 'deposited_bank_account', 'created_by', 'jalali_created_at', 'jalali_updated_at')
+            'fields': ('endorsement', 'recipient_name', 'recipient_customer', 'deposited_bank_account', 'created_by', 'jalali_created_at', 'jalali_updated_at')
+        }),
+        ('تاریخچه عملیات', {
+            'fields': ('audit_trail_display',),
+            'classes': ('collapse',)
         }),
     )
+    
+    def get_queryset(self, request):
+        """اضافه کردن تاریخچه به کوئری‌ست"""
+        return super().get_queryset(request).prefetch_related('audit_trail')
+    
+    def get_readonly_fields(self, request, obj=None):
+        """اضافه کردن فیلد تاریخچه به فیلدهای فقط خواندنی"""
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+        if obj:  # Only for existing records
+            readonly_fields.append('audit_trail_display')
+        return readonly_fields
+    
+    def audit_trail_display(self, obj):
+        """نمایش تاریخچه عملیات چک"""
+        audit_records = obj.audit_trail.all()[:10]  # Show last 10 records
+        
+        if not audit_records:
+            return "هیچ عملیاتی ثبت نشده است."
+        
+        html = '<div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #f9f9f9;">'
+        html += '<h4 style="margin: 0 0 10px 0; color: #333;">تاریخچه عملیات:</h4>'
+        
+        for record in audit_records:
+            html += f'<div style="margin-bottom: 8px; padding: 8px; border-left: 3px solid #007cba; background: white;">'
+            html += f'<strong>{record.get_operation_display()}</strong><br>'
+            html += f'<small style="color: #666;">تاریخ: {record.jalali_operation_date}</small><br>'
+            html += f'<small style="color: #666;">انجام دهنده: {record.performed_by.get_full_name() or record.performed_by.username}</small>'
+            if record.description:
+                html += f'<br><small style="color: #333;">{record.description}</small>'
+            html += '</div>'
+        
+        html += '</div>'
+        return mark_safe(html)
+    
+    audit_trail_display.short_description = "تاریخچه عملیات"
 
     def jalali_due_date(self, obj):
         if obj.due_date:
@@ -1292,3 +1553,250 @@ class ReceivedChequeAdmin(admin.ModelAdmin):
         if not obj.pk:
             obj.created_by = request.user
         super().save_model(request, obj, form, change)
+    
+    def delete_model(self, request, obj):
+        """حذف چک با تنظیم کاربر حذف کننده"""
+        obj.set_deleting_user(request.user)
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """حذف دسته‌ای چک‌ها با تنظیم کاربر حذف کننده"""
+        for obj in queryset:
+            obj.set_deleting_user(request.user)
+        super().delete_queryset(request, queryset)
+    
+    def recalculate_related_balances(self, request, queryset):
+        """محاسبه مجدد موجودی‌های مرتبط با چک‌های انتخاب شده"""
+        from .models import CustomerBalance, Fund
+        
+        updated_count = 0
+        
+        # محاسبه مجدد موجودی مشتریان مرتبط
+        customers = set()
+        for cheque in queryset:
+            if cheque.customer:
+                customers.add(cheque.customer)
+        
+        for customer in customers:
+            try:
+                customer_balance, _ = CustomerBalance.objects.get_or_create(
+                    customer=customer,
+                    defaults={'current_balance': 0, 'total_received': 0, 'total_paid': 0}
+                )
+                customer_balance.update_balance()
+                updated_count += 1
+            except Exception as e:
+                self.message_user(request, f'خطا در محاسبه مانده مشتری {customer.get_full_name()}: {str(e)}', level='ERROR')
+        
+        # محاسبه مجدد موجودی صندوق‌های مرتبط
+        funds = set()
+        for cheque in queryset:
+            if hasattr(cheque, 'financial_operation') and cheque.financial_operation and cheque.financial_operation.fund:
+                funds.add(cheque.financial_operation.fund)
+        
+        for fund in funds:
+            try:
+                fund.recalculate_balance()
+                updated_count += 1
+            except Exception as e:
+                self.message_user(request, f'خطا در محاسبه مانده صندوق {fund.name}: {str(e)}', level='ERROR')
+        
+        self.message_user(request, f'تعداد {updated_count} موجودی مرتبط به‌روزرسانی شد.')
+    recalculate_related_balances.short_description = "محاسبه مجدد موجودی‌های مرتبط"
+
+
+@admin.register(ReceivedChequeAuditTrail)
+class ReceivedChequeAuditTrailAdmin(admin.ModelAdmin):
+    list_display = ('cheque_sayadi_id', 'operation', 'performed_by', 'jalali_operation_date', 'operation_summary_display')
+    list_filter = ('operation', 'operation_date', 'performed_by', 'cheque__status')
+    search_fields = (
+        'cheque__sayadi_id',
+        'cheque__customer__first_name',
+        'cheque__customer__last_name',
+        'performed_by__username',
+        'performed_by__first_name',
+        'performed_by__last_name',
+        'description'
+    )
+    readonly_fields = ('operation_date', 'performed_by', 'ip_address', 'user_agent')
+    date_hierarchy = 'operation_date'
+    ordering = ['-operation_date']
+    actions = ['delete_selected', 'delete_selected_audit_records']
+    
+    fieldsets = (
+        (None, {
+            'fields': ('cheque', 'operation', 'performed_by', 'operation_date')
+        }),
+        ('اطلاعات قبل از عملیات', {
+            'fields': ('old_status', 'old_amount', 'old_due_date', 'old_recipient_name', 'old_deposited_bank_account'),
+            'classes': ('collapse',)
+        }),
+        ('اطلاعات بعد از عملیات', {
+            'fields': ('new_status', 'new_amount', 'new_due_date', 'new_recipient_name', 'new_deposited_bank_account'),
+            'classes': ('collapse',)
+        }),
+        ('اطلاعات تکمیلی', {
+            'fields': ('description', 'ip_address', 'user_agent'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def cheque_sayadi_id(self, obj):
+        return obj.cheque.sayadi_id
+    cheque_sayadi_id.short_description = "شناسه صیادی چک"
+    cheque_sayadi_id.admin_order_field = 'cheque__sayadi_id'
+    
+    def operation_summary_display(self, obj):
+        return obj.operation_summary
+    operation_summary_display.short_description = "خلاصه عملیات"
+    
+    def jalali_operation_date(self, obj):
+        return obj.jalali_operation_date
+    jalali_operation_date.short_description = "تاریخ عملیات"
+    jalali_operation_date.admin_order_field = 'operation_date'
+    
+    def has_add_permission(self, request):
+        """غیرفعال کردن ایجاد دستی رکوردهای تاریخچه"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """غیرفعال کردن ویرایش رکوردهای تاریخچه"""
+        return False
+    
+    def has_delete_permission(self, request, obj=None):
+        """فعال کردن حذف رکوردهای تاریخچه"""
+        return True
+    
+    def delete_model(self, request, obj):
+        """حذف رکورد تاریخچه"""
+        super().delete_model(request, obj)
+    
+    def delete_queryset(self, request, queryset):
+        """حذف دسته‌ای رکوردهای تاریخچه"""
+        super().delete_queryset(request, queryset)
+    
+    def delete_selected_audit_records(self, request, queryset):
+        """حذف دسته‌ای رکوردهای تاریخچه انتخاب شده"""
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(
+            request, 
+            f'{count} رکورد تاریخچه با موفقیت حذف شد.',
+            level='SUCCESS'
+        )
+    delete_selected_audit_records.short_description = "حذف رکوردهای تاریخچه انتخاب شده"
+
+@admin.register(DocumentNumber)
+class DocumentNumberAdmin(admin.ModelAdmin):
+    list_display = ('document_number', 'document_type', 'related_object_str', 'created_by', 'jalali_created_at', 'is_deleted')
+    list_filter = ('document_type', 'is_deleted', 'created_at', 'created_by')
+    search_fields = (
+        'document_number',
+        'document_type',
+        'description',
+        'created_by__username',
+        'created_by__first_name',
+        'created_by__last_name'
+    )
+    readonly_fields = ('document_number', 'created_at', 'created_by', 'jalali_created_at')
+    date_hierarchy = 'created_at'
+    ordering = ['-document_number']
+    
+    fieldsets = (
+        (None, {
+            'fields': ('document_type', 'document_number', 'description')
+        }),
+        ('مرتبط با', {
+            'fields': ('content_type', 'object_id', 'related_object_str'),
+            'classes': ('collapse',)
+        }),
+        ('وضعیت', {
+            'fields': ('is_deleted', 'deleted_at', 'deleted_by'),
+            'classes': ('collapse',)
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_by', 'created_at', 'jalali_created_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def related_object_str(self, obj):
+        return obj.related_object_str
+    related_object_str.short_description = "شیء مرتبط"
+    
+    def jalali_created_at(self, obj):
+        return obj.jalali_created_at
+    jalali_created_at.short_description = "تاریخ ایجاد"
+    jalali_created_at.admin_order_field = 'created_at'
+    
+    def has_add_permission(self, request):
+        """غیرفعال کردن ایجاد دستی شماره‌های سند"""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """فقط امکان تغییر توضیحات"""
+        if obj:
+            return request.user.is_superuser
+        return False
+    
+    actions = ['soft_delete_selected', 'restore_selected']
+    
+    def soft_delete_selected(self, request, queryset):
+        """حذف نرم شماره‌های سند انتخاب شده"""
+        count = queryset.update(
+            is_deleted=True,
+            deleted_at=timezone.now(),
+            deleted_by=request.user
+        )
+        self.message_user(request, f'{count} شماره سند حذف نرم شد.')
+    soft_delete_selected.short_description = "حذف نرم شماره‌های انتخاب شده"
+    
+    def restore_selected(self, request, queryset):
+        """بازگردانی شماره‌های سند انتخاب شده"""
+        count = queryset.update(
+            is_deleted=False,
+            deleted_at=None,
+            deleted_by=None
+        )
+        self.message_user(request, f'{count} شماره سند بازگردانده شد.')
+    restore_selected.short_description = "بازگردانی شماره‌های انتخاب شده"
+
+@admin.register(DocumentNumberSettings)
+class DocumentNumberSettingsAdmin(admin.ModelAdmin):
+    list_display = ('current_number', 'next_number', 'is_active', 'jalali_updated_at', 'updated_by')
+    readonly_fields = ('created_at', 'jalali_created_at', 'jalali_updated_at')
+    
+    fieldsets = (
+        (None, {
+            'fields': ('current_number', 'next_number', 'is_active')
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('updated_by', 'created_at', 'jalali_created_at', 'jalali_updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def jalali_created_at(self, obj):
+        if obj.created_at:
+            return jdatetime.datetime.fromgregorian(datetime=obj.created_at).strftime('%Y/%m/%d %H:%M')
+        return '-'
+    jalali_created_at.short_description = "تاریخ ایجاد"
+    
+    def jalali_updated_at(self, obj):
+        if obj.updated_at:
+            return jdatetime.datetime.fromgregorian(datetime=obj.updated_at).strftime('%Y/%m/%d %H:%M')
+        return '-'
+    jalali_updated_at.short_description = "تاریخ بروزرسانی"
+    
+    def save_model(self, request, obj, form, change):
+        if change:
+            obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+    
+    def has_delete_permission(self, request, obj=None):
+        """غیرفعال کردن حذف تنظیمات"""
+        return False
+    
+    def has_add_permission(self, request):
+        """فقط یک رکورد تنظیمات مجاز است"""
+        return DocumentNumberSettings.objects.count() == 0

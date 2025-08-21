@@ -368,6 +368,16 @@
                     <span class="label">وضعیت:</span>
                     <span class="status-badge {{ cheque.status|lower }}">{{ cheque.get_status_display }}</span>
                 </div>
+                {% if cheque.status == 'DEPOSITED' and cheque.deposited_bank_account %}
+                <div class="info-row">
+                    <span class="label">واگذار به بانک:</span>
+                    <span class="value">{{ cheque.deposited_bank_account.bank.name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">حساب بانکی:</span>
+                    <span class="value">{{ cheque.deposited_bank_account.title }}</span>
+                </div>
+                {% endif %}
                 {% if cheque.status == 'SPENT' and cheque.recipient_name %}
                 <div class="info-row">
                     <span class="label">نام دریافت کننده:</span>

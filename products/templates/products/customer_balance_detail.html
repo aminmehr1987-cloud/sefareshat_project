@@ -33,11 +33,11 @@
             </p>
         </div>
         <div class="balance-card">
-            <h3>مجموع دریافتی</h3>
+            <h3>بستانکار</h3>
             <p class="received">{{ customer_balance.total_received|persian_number_format }} ریال</p>
         </div>
         <div class="balance-card">
-            <h3>مجموع پرداختی</h3>
+            <h3>بدهکار</h3>
             <p class="paid">{{ customer_balance.total_paid|persian_number_format }} ریال</p>
         </div>
     </div>
@@ -62,13 +62,19 @@
                     <td>{{ operation.date|jalali_date }}</td>
                     <td>{{ operation.operation_number }}</td>
                     <td>
-                        <span class="operation-type {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}received{% else %}paid{% endif %}">
-                            {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}
-                                <i class="bi bi-arrow-down-circle"></i> {{ operation.get_operation_type_display }}
-                            {% else %}
-                                <i class="bi bi-arrow-up-circle"></i> {{ operation.get_operation_type_display }}
-                            {% endif %}
-                        </span>
+                        {% if operation.payment_method == 'cheque_return' or operation.payment_method == 'bounced_cheque_return' %}
+                            <span class="operation-type received">
+                                <i class="bi bi-arrow-counterclockwise"></i> چک برگشتی
+                            </span>
+                        {% else %}
+                            <span class="operation-type {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}received{% else %}paid{% endif %}">
+                                {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}
+                                    <i class="bi bi-arrow-down-circle"></i> {{ operation.get_operation_type_display }}
+                                {% else %}
+                                    <i class="bi bi-arrow-up-circle"></i> {{ operation.get_operation_type_display }}
+                                {% endif %}
+                            </span>
+                        {% endif %}
                     </td>
                     <td class="{% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' %}received{% else %}paid{% endif %}">
                         {{ operation.amount|persian_number_format }} ریال
