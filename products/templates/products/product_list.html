@@ -62,7 +62,7 @@
         <a href="?excel_output=all&q={{ q_all|default_if_none:'' }}&brand={{ selected_brand_all|default_if_none:'' }}&car_group={{ selected_car_group_all|default_if_none:'' }}" class="btn btn-green" > خروجی اکسل</a>
     </form>
 
-    <div style="overflow-x: auto;" class="printable">
+    <div class="printable">
         <table class="price-table"> <!-- **کلاس price-table اضافه شد** -->
             <thead>
                 <tr>
@@ -104,7 +104,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <img src="/static/images/add-to-cart-green-3d.png"
+                            <img src="{% static 'images/add-to-cart-green-3d.png' %}"
                                     alt="افزودن به سبد خرید"
                                     style="width:32px;cursor:pointer;"
                                     onclick="addToCart('{{ product.id }}')">
@@ -112,7 +112,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="9">محصولی موجود نیست.</td>
+                                        <td colspan="9">محصولی موجود نیست.</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -165,20 +165,20 @@
         <button type="submit" style="padding:0.4rem 1.5rem; border-radius:8px; background:#be185d; color:#fff;">فیلتر</button>
         <a href="?excel_output=price&q_price={{ q_price|default_if_none:'' }}&brand_price={{ selected_brand_price|default_if_none:'' }}&car_group_price={{ selected_car_group_price|default_if_none:'' }}" class="btn btn-green">خروجی اکسل</a>
     </form>
-    <div style="overflow-x: auto;" class="printable">
-        <table class="price-table">
+    <div class="printable">
+        <table class="price-table" style="table-layout: fixed; width: 100%;">
             <thead>
                 <tr>
-                    <th>کد</th>
-                    <th>نام کالا</th>
-                    <th class="hide-on-mobile">ق. قدیم</th>
-                    <th>ق. جدید</th>
-                    <th>درصد</th>
-                    <th class="hide-on-mobile">روند</th>
-                    <th class="hide-on-tablet">تاریخ</th>
-                    <th class="hide-on-tablet">تسویه</th>
-                    <th>تصویر </th>
-                    <th>سبد</th>
+                    <th style="width: 8%;">کد</th>
+                    <th style="width: 23%;">نام کالا</th>
+                    <th class="hide-on-mobile" style="width: 10%;">ق. قدیم</th>
+                    <th style="width: 10%;">ق. جدید</th>
+                    <th style="width: 8%;">درصد</th>
+                    <th class="hide-on-mobile" style="width: 6%;">روند</th>
+                    <th class="hide-on-tablet" style="width: 12%;">تاریخ</th>
+                    <th class="hide-on-tablet" style="width: 10%;">تسویه</th>
+                    <th style="width: 10%;">تصویر </th>
+                    <th style="width: 3%;">سبد</th>
                 </tr>
             </thead>
             <tbody>
@@ -221,7 +221,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <img src="/static/images/add-to-cart-green-3d.png" alt="افزودن" style="width:28px;cursor:pointer;" onclick="addToCart('{{ change.product.id }}')">
+                            <img src="{% static 'images/add-to-cart-green-3d.png' %}" alt="افزودن" style="width:28px;cursor:pointer;" onclick="addToCart('{{ change.product.id }}')">
                         </td>
                     </tr>
                 {% empty %}
@@ -283,7 +283,7 @@
         <a href="?excel_output=new" class="btn btn-green" > خروجی اکسل</a>
     </form>
     
-    <div style="overflow-x: auto;" class="printable">
+    <div class="printable">
         <table class="price-table"> <!-- از همان استایل قبلی استفاده می‌کنیم -->
             <thead>
                 <tr>
@@ -325,7 +325,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <img src="/static/images/add-to-cart-green-3d.png"
+                            <img src="{% static 'images/add-to-cart-green-3d.png' %}"
                                     alt="افزودن به سبد خرید"
                                     style="width:32px;cursor:pointer;"
                                     onclick="addToCart('{{ product.id }}')">
@@ -379,65 +379,202 @@
 .price-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed; /* Fixed table layout for better control */
 }
 
 .price-table th, .price-table td {
-    padding: 8px;
+    padding: 8px 4px; /* Reduced padding */
     text-align: center;
     border: 1px solid #ddd;
+    overflow: hidden; /* Hide overflow */
+    text-overflow: ellipsis; /* Show ellipsis for long text */
+    white-space: nowrap; /* Prevent text wrapping initially */
+    max-width: 0; /* Allow text-overflow to work */
+    font-size: clamp(0.7rem, 2vw, 0.9rem); /* Responsive font size */
 }
+
+/* Responsive text handling */
+.price-table td {
+    white-space: normal; /* Allow text to wrap when needed */
+    word-wrap: break-word; /* Break long words */
+    hyphens: auto; /* Auto-hyphenation */
+    line-height: 1.2; /* Compact line height */
+}
+
+/* Specific column widths for better fit */
+.price-table th:nth-child(1), .price-table td:nth-child(1) { width: 4%; } /* ردیف */
+.price-table th:nth-child(2), .price-table td:nth-child(2) { width: 9%; } /* کد کالا */
+.price-table th:nth-child(3), .price-table td:nth-child(3) { width: 25%; } /* نام کالا */
+.price-table th:nth-child(4), .price-table td:nth-child(4) { width: 7%; } /* گروه خودرو */
+.price-table th:nth-child(5), .price-table td:nth-child(5) { width: 10%; } /* برند */
+.price-table th:nth-child(6), .price-table td:nth-child(6) { width: 11%; } /* قیمت */
+.price-table th:nth-child(7), .price-table td:nth-child(7) { width: 8%; } /* تصویر */
+.price-table th:nth-child(8), .price-table td:nth-child(8) { width: 10%; } /* حداکثر تسویه */
+.price-table th:nth-child(9), .price-table td:nth-child(9) { width: 10%; } /* سبد خرید */
+
+/* Specific widths for price changes table (tab-price) */
+.price-table th:nth-child(1), .price-table td:nth-child(1) { width: 8%; } /* کد */
+.price-table th:nth-child(2), .price-table td:nth-child(2) { width: 23%; } /* نام کالا - 2% کم شد */
+.price-table th:nth-child(3), .price-table td:nth-child(3) { width: 10%; } /* ق. قدیم - 2% زیاد شد */
+.price-table th:nth-child(4), .price-table td:nth-child(4) { width: 10%; } /* ق. جدید */
+.price-table th:nth-child(5), .price-table td:nth-child(5) { width: 8%; } /* درصد */
+.price-table th:nth-child(6), .price-table td:nth-child(6) { width: 6%; } /* روند */
+.price-table th:nth-child(7), .price-table td:nth-child(7) { width: 12%; } /* تاریخ */
+.price-table th:nth-child(8), .price-table td:nth-child(8) { width: 10%; } /* تسویه */
+.price-table th:nth-child(9), .price-table td:nth-child(9) { width: 10%; } /* تصویر */
+.price-table th:nth-child(10), .price-table td:nth-child(10) { width: 3%; } /* سبد */
+
+/* Force column widths for price changes table */
+#tab-price .price-table th:nth-child(1), #tab-price .price-table td:nth-child(1) { width: 8% !important; }
+#tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) { width: 30% !important; }
+#tab-price .price-table th:nth-child(3), #tab-price .price-table td:nth-child(3) { width: 6% !important; }
+#tab-price .price-table th:nth-child(4), #tab-price .price-table td:nth-child(4) { width: 10% !important; }
+#tab-price .price-table th:nth-child(5), #tab-price .price-table td:nth-child(5) { width: 8% !important; }
+#tab-price .price-table th:nth-child(6), #tab-price .price-table td:nth-child(6) { width: 6% !important; }
+#tab-price .price-table th:nth-child(7), #tab-price .price-table td:nth-child(7) { width: 12% !important; }
+#tab-price .price-table th:nth-child(8), #tab-price .price-table td:nth-child(8) { width: 10% !important; }
+#tab-price .price-table th:nth-child(9), #tab-price .price-table td:nth-child(9) { width: 10% !important; }
+#tab-price .price-table th:nth-child(10), #tab-price .price-table td:nth-child(10) { width: 3% !important; }
+
+/* Specific widths for new products table (tab-new) */
+.price-table th:nth-child(1), .price-table td:nth-child(1) { width: 4%; } /* ردیف */
+.price-table th:nth-child(2), .price-table td:nth-child(2) { width: 9%; } /* کد کالا */
+.price-table th:nth-child(3), .price-table td:nth-child(3) { width: 25%; } /* نام کالا */
+.price-table th:nth-child(4), .price-table td:nth-child(4) { width: 7%; } /* گروه خودرو */
+.price-table th:nth-child(5), .price-table td:nth-child(5) { width: 10%; } /* برند */
+.price-table th:nth-child(6), .price-table td:nth-child(6) { width: 11%; } /* قیمت */
+.price-table th:nth-child(7), .price-table td:nth-child(7) { width: 8%; } /* تصویر */
+.price-table th:nth-child(8), .price-table td:nth-child(8) { width: 8%; } /* حداکثر تسویه */
+.price-table th:nth-child(9), .price-table td:nth-child(9) { width: 5%; } /* سبد خرید */
 
 /* Media queries for hiding columns */
 @media (max-width: 992px) {
     .hide-on-tablet { display: none; }
+    .price-table th, .price-table td {
+        font-size: clamp(0.65rem, 1.8vw, 0.8rem);
+        padding: 6px 3px;
+    }
 }
 
 @media (max-width: 768px) {
     .hide-on-mobile { display: none; }
-    .price-table { font-size: 0.85rem; }
+    .price-table th, .price-table td {
+        font-size: clamp(0.6rem, 1.5vw, 0.75rem);
+        padding: 4px 2px;
+    }
 }
-/* Container for responsive table with horizontal scroll */
+
+/* Container for responsive table - remove horizontal scroll */
 .price-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    overflow: hidden; /* Remove horizontal scroll */
     border-radius: 8px;
     border: 1px solid rgba(0,0,0,0.1);
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
-/* The table itself */
+/* The table itself - ensure no horizontal overflow */
 .price-table {
     width: 100%;
     border-collapse: collapse;
-    white-space: nowrap; /* Prevents text from wrapping */
+    min-width: 100%; /* Ensure table takes full width */
+    max-width: 100%; /* Prevent exceeding container width */
 }
 
 .price-table th, .price-table td {
-    padding: 10px 12px;
+    padding: 8px 6px; /* Balanced padding */
     text-align: center;
     border-bottom: 1px solid #eee;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .price-table thead th {
     background-color: #f9fafb;
     font-weight: 600;
     color: #374151;
+    font-size: clamp(0.75rem, 2.2vw, 0.95rem); /* Slightly larger headers */
 }
 
 .price-table tbody tr:hover {
     background-color: #f5f5f5;
 }
 
-/* Font size adjustments for smaller screens */
-@media (max-width: 992px) {
-    .price-table {
-        font-size: 0.9rem;
+/* Enhanced responsive design */
+@media (max-width: 1200px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.7rem, 1.9vw, 0.85rem);
     }
+    /* Adjust column widths for medium screens */
+    .price-table th:nth-child(3), .price-table td:nth-child(3) { width: 18%; } /* نام کالا */
+    .price-table th:nth-child(6), .price-table td:nth-child(6) { width: 14%; } /* قیمت */
 }
-@media (max-width: 768px) {
-    .price-table {
-        font-size: 0.85rem;
+
+@media (max-width: 992px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.65rem, 1.7vw, 0.8rem);
+        padding: 6px 4px;
     }
+    /* Further adjust column widths for tablets */
+    .price-table th:nth-child(3), .price-table td:nth-child(3) { width: 16%; } /* نام کالا */
+    .price-table th:nth-child(6), .price-table td:nth-child(6) { width: 13%; } /* قیمت */
+}
+
+@media (max-width: 768px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.6rem, 1.4vw, 0.75rem);
+        padding: 4px 3px;
+    }
+    /* Mobile-specific column adjustments */
+    .price-table th:nth-child(3), .price-table td:nth-child(3) { width: 15%; } /* نام کالا */
+    .price-table th:nth-child(6), .price-table td:nth-child(6) { width: 12%; } /* قیمت */
+    .price-table th:nth-child(7), .price-table td:nth-child(7) { width: 8%; } /* تصویر */
+}
+
+@media (max-width: 576px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.55rem, 1.2vw, 0.7rem);
+        padding: 3px 2px;
+    }
+    /* Small mobile adjustments */
+    .price-table th:nth-child(3), .price-table td:nth-child(3) { width: 14%; } /* نام کالا */
+    .price-table th:nth-child(6), .price-table td:nth-child(6) { width: 11%; } /* قیمت */
+}
+
+/* Ensure text always fits in cells */
+.price-table td {
+    max-width: 0; /* Allow text-overflow to work */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap; /* Prevent wrapping by default */
+}
+
+/* Allow text wrapping for specific columns that need it */
+.price-table td:nth-child(3) { /* نام کالا */
+    white-space: normal;
+    word-wrap: break-word;
+    hyphens: auto;
+    line-height: 1.1;
+}
+
+/* Optimize image columns */
+.price-table td:nth-child(7) img { /* تصویر */
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+/* Ensure table never exceeds container width */
+.price-table {
+    min-width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+}
+
+/* Container optimization */
+.printable {
+    width: 100%;
+    overflow: hidden;
+    max-width: 100%;
 }
 
 /* Import Google Fonts if needed, otherwise use local or system fonts */
@@ -1001,6 +1138,120 @@ body {
         padding: 0.5rem 1.5rem;
         border: 2px solid #000000;
     }
+}
+
+/* Enhanced responsive design for price changes table */
+@media (max-width: 1200px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.7rem, 1.9vw, 0.85rem);
+    }
+    /* Adjust column widths for medium screens */
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) { width: 23% !important; } /* نام کالا */
+    #tab-price .price-table th:nth-child(3), #tab-price .price-table td:nth-child(3) { width: 10% !important; } /* ق. قدیم */
+    #tab-price .price-table th:nth-child(4), #tab-price .price-table td:nth-child(4) { width: 11% !important; } /* ق. جدید */
+}
+
+@media (max-width: 992px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.65rem, 1.7vw, 0.8rem);
+        padding: 6px 4px;
+    }
+    /* Further adjust column widths for tablets */
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) { width: 22% !important; } /* نام کالا */
+    #tab-price .price-table th:nth-child(3), #tab-price .price-table td:nth-child(3) { width: 10% !important; } /* ق. قدیم */
+    #tab-price .price-table th:nth-child(4), #tab-price .price-table td:nth-child(4) { width: 12% !important; } /* ق. جدید */
+}
+
+@media (max-width: 768px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.6rem, 1.4vw, 0.75rem);
+        padding: 4px 3px;
+    }
+    /* Mobile-specific column adjustments */
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) { width: 21% !important; } /* نام کالا */
+    #tab-price .price-table th:nth-child(3), #tab-price .price-table td:nth-child(3) { width: 11% !important; } /* ق. قدیم */
+    #tab-price .price-table th:nth-child(4), #tab-price .price-table td:nth-child(4) { width: 13% !important; } /* ق. جدید */
+}
+
+@media (max-width: 576px) {
+    .price-table th, .price-table td {
+        font-size: clamp(0.55rem, 1.2vw, 0.7rem);
+        padding: 3px 2px;
+    }
+    /* Small mobile adjustments */
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) { width: 20% !important; } /* نام کالا */
+    #tab-price .price-table th:nth-child(3), #tab-price .price-table td:nth-child(3) { width: 12% !important; } /* ق. قدیم */
+    #tab-price .price-table th:nth-child(4), #tab-price .price-table td:nth-child(4) { width: 14% !important; } /* ق. جدید */
+}
+
+/* Container optimization */
+.printable {
+    width: 100%;
+    overflow: hidden;
+    max-width: 100%;
+}
+
+/* Force column widths for price changes table - Simple approach */
+#tab-price .price-table th:nth-child(1), #tab-price .price-table td:nth-child(1) { width: 8% !important; }
+#tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) { width: 23% !important; }
+#tab-price .price-table th:nth-child(3), #tab-price .price-table td:nth-child(3) { width: 10% !important; }
+#tab-price .price-table th:nth-child(4), #tab-price .price-table td:nth-child(4) { width: 10% !important; }
+#tab-price .price-table th:nth-child(5), #tab-price .price-table td:nth-child(5) { width: 8% !important; }
+#tab-price .price-table th:nth-child(6), #tab-price .price-table td:nth-child(6) { width: 6% !important; }
+#tab-price .price-table th:nth-child(7), #tab-price .price-table td:nth-child(7) { width: 12% !important; }
+#tab-price .price-table th:nth-child(8), #tab-price .price-table td:nth-child(8) { width: 10% !important; }
+#tab-price .price-table th:nth-child(9), #tab-price .price-table td:nth-child(9) { width: 10% !important; }
+#tab-price .price-table th:nth-child(10), #tab-price .price-table td:nth-child(10) { width: 3% !important; }
+
+/* Additional CSS to ensure table layout is fixed */
+#tab-price .price-table {
+    table-layout: fixed !important;
+    width: 100% !important;
+}
+
+/* Optimize text fitting for product name column */
+#tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) {
+    font-size: 0.8rem !important; /* کوچک‌تر کردن فونت - 2 شماره کمتر */
+    line-height: 1.1 !important; /* کاهش فاصله خطوط */
+    padding: 4px 2px !important; /* کاهش padding */
+    word-wrap: break-word !important; /* شکستن کلمات طولانی */
+    hyphens: auto !important; /* هیفن خودکار */
+    white-space: normal !important; /* اجازه شکستن متن */
+    overflow: hidden !important; /* مخفی کردن overflow */
+    text-overflow: ellipsis !important; /* نمایش ... برای متن‌های خیلی طولانی */
+    max-height: 3.2em !important; /* حداکثر ارتفاع برای 3 خط */
+}
+
+/* Responsive font sizing for product name column */
+@media (max-width: 1200px) {
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) {
+        font-size: 0.55rem !important;
+    }
+}
+
+@media (max-width: 992px) {
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) {
+        font-size: 0.5rem !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) {
+        font-size: 0.45rem !important;
+        max-height: 2.8em !important;
+    }
+}
+
+@media (max-width: 576px) {
+    #tab-price .price-table th:nth-child(2), #tab-price .price-table td:nth-child(2) {
+        font-size: 0.4rem !important;
+        max-height: 2.4em !important;
+    }
+}
+
+/* Reduce font size for product name in "کلیه محصولات" table */
+#tab-all .price-table th:nth-child(3), #tab-all .price-table td:nth-child(3) {
+    font-size: 0.8rem !important; /* 0.1 کوچک‌تر از فونت پیش‌فرض */
 }
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">

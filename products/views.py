@@ -512,6 +512,17 @@ def create_customer(request):
 
     return render(request, 'products/create_customer.html', {'form': form})
 
+
+@login_required
+def get_counties(request):
+    """API endpoint برای دریافت لیست شهرستان‌ها"""
+    from django.http import JsonResponse
+    from .models import County
+    
+    counties = County.objects.select_related('province').values('id', 'name', 'province_id')
+    return JsonResponse(list(counties), safe=False)
+
+
 @csrf_exempt
 @login_required
 @require_POST

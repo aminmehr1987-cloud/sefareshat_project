@@ -17,7 +17,7 @@ from .models import (
     CashRegister, CheckBook, Check, Voucher, VoucherItem, SalesInvoiceItem,
     Fund, FundBalanceHistory, FinancialOperation, CustomerBalance, PettyCashOperation,
     FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement, ReceivedCheque, ReceivedChequeAuditTrail,
-    DocumentNumberSettings
+    DocumentNumberSettings, Province, County
 )
 import jdatetime as jmodels
 from django.db.models import Q, F, Sum
@@ -32,6 +32,22 @@ from datetime import datetime
 
 
 # --- اینها کلاس‌هایی هستند که باید در admin.py باشند ---
+
+@admin.register(Province)
+class ProvinceAdmin(admin.ModelAdmin):
+    list_display = ['name']
+    search_fields = ['name']
+    ordering = ['name']
+
+
+@admin.register(County)
+class CountyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'province']
+    list_filter = ['province']
+    search_fields = ['name', 'province__name']
+    ordering = ['province__name', 'name']
+
+
 class ShipmentItemInline(admin.TabularInline):
     model = ShipmentItem
     extra = 1
@@ -77,6 +93,8 @@ class CustomerAdmin(admin.ModelAdmin):
             "fields": (
                 "mobile", 
                 "phone", 
+                "province", 
+                "county", 
                 "address", 
                 "user",
             )

@@ -3,7 +3,7 @@ from django.forms import inlineformset_factory
 from .models import Order, OrderItem, Product, Customer, ReceivedCheque
 from .models import FinancialYear, Currency
 from .models import FinancialOperation, Fund, PettyCashOperation, CustomerBalance
-from .models import BankAccount, Bank, CheckBook, Check
+from .models import BankAccount, Bank, CheckBook, Check, Province, County
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 import jdatetime
@@ -231,6 +231,28 @@ class CustomerForm(forms.ModelForm):
             'unique': 'مشتری دیگری با این شماره همراه قبلاً ثبت شده است'
         }
     )
+    province = forms.ModelChoiceField(
+        queryset=Province.objects.all().order_by('name'),
+        required=True,
+        empty_label="انتخاب استان",
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'province-select'
+        }),
+        label="استان"
+    )
+    
+    county = forms.ModelChoiceField(
+        queryset=County.objects.all().order_by('province__name', 'name'),
+        required=True,
+        empty_label="انتخاب شهرستان",
+        widget=forms.Select(attrs={
+            'class': 'form-control',
+            'id': 'county-select'
+        }),
+        label="شهرستان"
+    )
+    
     address = forms.CharField(
         required=True,
         widget=forms.Textarea(attrs={
@@ -245,7 +267,7 @@ class CustomerForm(forms.ModelForm):
 
     class Meta:
         model = Customer
-        fields = ['first_name', 'last_name', 'store_name', 'phone', 'mobile', 'address']
+        fields = ['first_name', 'last_name', 'store_name', 'phone', 'mobile', 'province', 'county', 'address']
 
     def clean_mobile(self):
         mobile = self.cleaned_data.get('mobile')

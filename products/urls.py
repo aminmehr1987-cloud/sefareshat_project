@@ -24,6 +24,7 @@ urlpatterns = [
     # مشتریان
     path('create-customer/', views.create_customer, name='create_customer'),
     path('search-customers/', views.search_customers, name='search_customers'),
+    path('api/counties/', views.get_counties, name='get_counties'),
 
     # سبد خرید و تخصیص
     path('api/cart/', views.get_cart, name='get_cart'),  # باید view مربوطه را بسازی

@@ -233,6 +233,26 @@
         {% endif %}
       </div>
     </div>
+    <div class="form-row">
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.province.id_for_label }}" class="required">استان</label>
+          {{ form.province }}
+          {% if form.province.errors %}
+            <div class="error-message">{{ form.province.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="form-col">
+        <div class="form-group">
+          <label for="{{ form.county.id_for_label }}" class="required">شهرستان</label>
+          {{ form.county }}
+          {% if form.county.errors %}
+            <div class="error-message">{{ form.county.errors.0 }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
     <div class="single-field">
       <div class="form-group">
         <label for="{{ form.address.id_for_label }}" class="required">آدرس</label>
@@ -252,4 +272,43 @@
     <button type="submit" class="submit-btn">ثبت مشتری</button>
   </form>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const provinceSelect = document.getElementById('province-select');
+    const countySelect = document.getElementById('county-select');
+    
+    // Store all counties for filtering
+    let allCounties = [];
+    
+    // Fetch counties data when page loads
+    fetch('/api/counties/')
+        .then(response => response.json())
+        .then(data => {
+            allCounties = data;
+        })
+        .catch(error => console.error('Error loading counties:', error));
+    
+    // Update county options when province changes
+    provinceSelect.addEventListener('change', function() {
+        const selectedProvinceId = this.value;
+        
+        // Clear current county options
+        countySelect.innerHTML = '<option value="">انتخاب شهرستان</option>';
+        
+        if (selectedProvinceId) {
+            // Filter counties by selected province
+            const filteredCounties = allCounties.filter(county => county.province_id == selectedProvinceId);
+            
+            // Add filtered counties to county dropdown
+            filteredCounties.forEach(county => {
+                const option = document.createElement('option');
+                option.value = county.id;
+                option.textContent = county.name;
+                countySelect.appendChild(option);
+            });
+        }
+    });
+});
+</script>
 {% endblock %}

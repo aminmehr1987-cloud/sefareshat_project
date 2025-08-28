@@ -18,7 +18,31 @@ from decimal import Decimal
 from django.core.validators import MinValueValidator
 
 
+class Province(models.Model):
+    """مدل استان"""
+    name = models.CharField(max_length=100, verbose_name="نام استان")
+    
+    class Meta:
+        verbose_name = "استان"
+        verbose_name_plural = "استان‌ها"
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
 
+
+class County(models.Model):
+    """مدل شهرستان"""
+    name = models.CharField(max_length=100, verbose_name="نام شهرستان")
+    province = models.ForeignKey(Province, on_delete=models.CASCADE, related_name='counties', verbose_name="استان")
+    
+    class Meta:
+        verbose_name = "شهرستان"
+        verbose_name_plural = "شهرستان‌ها"
+        ordering = ['name']
+    
+    def __str__(self):
+        return f"{self.name} - {self.province.name}"
 
 
 class Customer(models.Model):
@@ -34,6 +58,8 @@ class Customer(models.Model):
             'unique': 'مشتری دیگری با این شماره همراه قبلاً ثبت شده است.'
         }
     )
+    province = models.ForeignKey(Province, on_delete=models.CASCADE, verbose_name="استان")
+    county = models.ForeignKey(County, on_delete=models.CASCADE, verbose_name="شهرستان")
     address = models.TextField(blank=True, null=True, verbose_name="آدرس")
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name='created_customers', verbose_name="ایجاد شده توسط"
