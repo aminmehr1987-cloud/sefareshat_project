@@ -428,7 +428,8 @@ class OrderItemAdmin(admin.ModelAdmin):
     list_display = [
         'id',
         'order',
-        'product',
+        'get_product_code',
+        'get_product_name',
         'requested_quantity',
         'allocated_quantity',
         'get_backorder_quantity',
@@ -458,6 +459,16 @@ class OrderItemAdmin(admin.ModelAdmin):
     autocomplete_fields = ['product', 'warehouse']
     ordering = ('-order__created_at',)
     actions = [export_model_to_excel]
+
+    def get_product_name(self, obj):
+        return obj.product.name
+    get_product_name.short_description = "نام محصول"
+    get_product_name.admin_order_field = 'product__name'
+    
+    def get_product_code(self, obj):
+        return obj.product.code
+    get_product_code.short_description = "کد محصول"
+    get_product_code.admin_order_field = 'product__code'
 
     def total_price_display(self, obj):
         return f"{obj.total_price:,.0f} ریال"

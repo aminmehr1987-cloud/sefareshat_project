@@ -6,6 +6,26 @@
 {% load custom_filters %}
 {% load humanize %} {# Assuming you need humanize filter for intcomma #}
 
+{% if user_is_visitor %}
+<div class="customer-actions" style="margin-bottom: 1rem; text-align: right;">
+    <div class="customer-input-group">
+        <input type="text" id="selected-customer-display" placeholder="مشتری را انتخاب کنید" readonly onclick="openCustomerModal()" value="{% if selected_customer %}{{ selected_customer.get_full_name }}{% endif %}" style="width: 250px; text-align: right;">
+        <input type="hidden" id="selected-customer-id" value="{{ selected_customer.id|default:'' }}">
+        <a href="{% url 'products:create_customer' %}" class="add-customer-btn">افزودن مشتری</a>
+    </div>
+</div>
+{% endif %}
+
+{% if user_is_visitor %}
+<div class="customer-actions" style="margin-bottom: 1rem; text-align: right;">
+    <div class="customer-input-group">
+        <input type="text" id="selected-customer-display" placeholder="مشتری را انتخاب کنید" readonly onclick="openCustomerModal()" value="{% if selected_customer %}{{ selected_customer.get_full_name }}{% endif %}" style="width: 250px; text-align: right;">
+        <input type="hidden" id="selected-customer-id" value="{{ selected_customer.id|default:'' }}">
+        <a href="{% url 'products:create_customer' %}" class="add-customer-btn">افزودن مشتری</a>
+    </div>
+</div>
+{% endif %}
+
 
 <div class="user-dashboard">
 
@@ -44,6 +64,7 @@
     
     <form method="get" style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
         <input type="hidden" name="tab" value="all">
+        <input type="hidden" name="customer_id" id="form-all-customer-id" value="{{ selected_customer.id|default:'' }}">
         <input type="text" name="q" value="{{ q_all|default_if_none:'' }}" placeholder="جستجوی کد یا نام کالا"
             style="padding: 0.4rem 1rem; border-radius: 8px; width: 220px; border: 1.2px solid #bbb;">
         <select name="brand" style="padding: 0.4rem 1rem; border-radius: 8px;">
@@ -147,6 +168,7 @@
     <h3>  </h3>
     <form method="get" style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
         <input type="hidden" name="tab" value="price">
+        <input type="hidden" name="customer_id" id="form-price-customer-id" value="{{ selected_customer.id|default:'' }}">
         
         <input type="text" name="q_price" value="{{ q_price|default_if_none:'' }}" placeholder="جستجوی کد یا نام کالا"
             style="padding: 0.4rem 1rem; border-radius: 8px; width: 220px; border: 1.2px solid #bbb;">
@@ -265,6 +287,7 @@
     <form method="get" style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
         
         <input type="hidden" name="tab" value="new">
+        <input type="hidden" name="customer_id" id="form-new-customer-id" value="{{ selected_customer.id|default:'' }}">
         <input type="text" name="q_new" value="{{ q_new|default_if_none:'' }}" placeholder="جستجوی کد یا نام کالا"
             style="padding: 0.4rem 1rem; border-radius: 8px; width: 220px; border: 1.2px solid #bbb;">
         <select name="brand_new" style="padding: 0.4rem 1rem; border-radius: 8px;">
@@ -1653,9 +1676,18 @@ window.closeCustomerModal = function () {
 window.selectCustomer = function (customerId, customerName) {
     const idInput = document.getElementById('selected-customer-id');
     const displayInput = document.getElementById('selected-customer-display');
+    const formAllCustomerId = document.getElementById('form-all-customer-id');
+    const formPriceCustomerId = document.getElementById('form-price-customer-id');
+    const formNewCustomerId = document.getElementById('form-new-customer-id');
+
     if (idInput && displayInput) {
         idInput.value = customerId;
         displayInput.value = customerName;
+
+        if (formAllCustomerId) formAllCustomerId.value = customerId;
+        if (formPriceCustomerId) formPriceCustomerId.value = customerId;
+        if (formNewCustomerId) formNewCustomerId.value = customerId;
+
         closeCustomerModal();
         if (typeof renderCartPopup === "function") renderCartPopup();
     }
