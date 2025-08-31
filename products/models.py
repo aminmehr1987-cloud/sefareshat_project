@@ -345,11 +345,27 @@ class Order(models.Model):
                         self.order_number = f"SUB-{self.parent_order.order_number}"
             else:
                 # سفارش اصلی
-                count_today = Order.objects.filter(
-                    order_number__startswith=today_jalali,
-                    parent_order__isnull=True
-                ).count() + 1
-                self.order_number = f"{today_jalali}{count_today:03d}"
+                with transaction.atomic():
+                    # Lock the table to prevent race conditions
+                    last_order = Order.objects.select_for_update().filter(
+                        order_number__startswith=today_jalali,
+                        parent_order__isnull=True
+                    ).order_by('order_number').last()
+
+                    if last_order and last_order.order_number:
+                        # Extract the counter part of the order number
+                        last_counter_str = last_order.order_number[len(today_jalali):]
+                        try:
+                            last_counter = int(last_counter_str)
+                            new_counter = last_counter + 1
+                        except (ValueError, TypeError):
+                            # Fallback if the counter part is not a valid number
+                            new_counter = 1
+                    else:
+                        # This is the first order of the day
+                        new_counter = 1
+                    
+                    self.order_number = f"{today_jalali}{new_counter:03d}"
 
         super().save(*args, **kwargs)
 
