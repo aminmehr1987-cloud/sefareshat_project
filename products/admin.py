@@ -422,6 +422,95 @@ class BackorderFilter(admin.SimpleListFilter):
             return queryset.filter(Q(requested_quantity=F('allocated_quantity')) | Q(requested_quantity__isnull=True)) # تغییر برای شامل شدن آیتم‌های بدون درخواست اولیه
         return queryset
 
+
+def export_order_items_to_excel(modeladmin, request, queryset):
+    output = BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Order Items')
+    worksheet.right_to_left()
+
+    header_style = workbook.add_format({
+        'bold': True,
+        'align': 'center',
+        'valign': 'vcenter',
+        'text_wrap': True,
+        'border': 1,
+        'bg_color': '#4e9af1',
+        'font_color': 'white',
+        'font_size': 12
+    })
+
+    cell_style = workbook.add_format({
+        'align': 'center',
+        'valign': 'vcenter',
+        'text_wrap': True,
+        'border': 1,
+        'font_size': 11
+    })
+
+    list_display = modeladmin.list_display
+    headers = []
+    for field_name in list_display:
+        try:
+            attr = getattr(modeladmin, field_name)
+            if hasattr(attr, 'short_description'):
+                headers.append(attr.short_description)
+                continue
+        except AttributeError:
+            pass
+        
+        try:
+            field = modeladmin.model._meta.get_field(field_name)
+            headers.append(field.verbose_name)
+            continue
+        except Exception:
+            pass
+            
+        headers.append(field_name.replace('_', ' ').title())
+
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header, header_style)
+
+    for row, obj in enumerate(queryset, start=1):
+        for col, field_name in enumerate(list_display):
+            value = ""
+            try:
+                if hasattr(modeladmin, field_name) and callable(getattr(modeladmin, field_name)):
+                    value = getattr(modeladmin, field_name)(obj)
+                else:
+                    attr = getattr(obj, field_name)
+                    if callable(attr):
+                        value = attr()
+                    else:
+                        value = attr
+            except AttributeError:
+                value = ""
+
+            if isinstance(value, (datetime, jdatetime.datetime)):
+                try:
+                    value = jdatetime.datetime.fromgregorian(datetime=value).strftime('%Y/%m/%d %H:%M')
+                except:
+                    pass # Keep original if conversion fails
+
+            if value is True:
+                value = 'بله'
+            elif value is False:
+                value = 'خیر'
+            
+            worksheet.write(row, col, str(value), cell_style)
+
+    workbook.close()
+    output.seek(0)
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = 'attachment; filename=order_items.xlsx'
+    return response
+
+export_order_items_to_excel.short_description = "دریافت خروجی اکسل از آیتم‌های انتخاب شده"
+
+
 @admin.register(OrderItem)
 class OrderItemAdmin(admin.ModelAdmin):
     form = OrderItemForm
@@ -458,7 +547,7 @@ class OrderItemAdmin(admin.ModelAdmin):
     raw_id_fields = ['order', 'product']
     autocomplete_fields = ['product', 'warehouse']
     ordering = ('-order__created_at',)
-    actions = [export_model_to_excel]
+    actions = [export_order_items_to_excel]
 
     def get_product_name(self, obj):
         return obj.product.name
