@@ -552,6 +552,7 @@
       <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
       <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
       <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+      <th>نام ویزیتور</th>
       <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
       <th>عملیات</th>
     </tr>
@@ -563,6 +564,7 @@
       <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
       <td>{{ order.order_number }}</td>
       <td>{{ order.customer_name }}</td>
+      <td>{{ order.visitor_name|get_user_full_name }}</td>
       <td>
         <span class="order-status status-{{ order.status }}">
           {% if order.status == "pending" %}در انتظار تأیید
@@ -732,6 +734,7 @@
         <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
         <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
         <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+      <th>نام ویزیتور</th>
         <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
         <th>عملیات</th>
       </tr>
@@ -742,6 +745,7 @@
         <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
+        <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-pending">در انتظار تأیید</span></td>
         <td>
           <button class="action-button details-button" onclick="toggleDetails('details-row-pending-{{ order.id }}')">جزئیات</button>
@@ -804,6 +808,7 @@
         <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
         <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
         <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+      <th>نام ویزیتور</th>
         <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
         <th>عملیات</th>
       </tr>
@@ -814,6 +819,7 @@
         <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
+        <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-parent">تفکیک شده به انبارها</span></td>
         <td>
           <button class="action-button details-button" onclick="toggleDetails('details-row-warehouse-{{ order.id }}')">جزئیات</button>
@@ -919,6 +925,7 @@
         <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
         <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
         <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+      <th>نام ویزیتور</th>
         <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
         <th>عملیات</th>
       </tr>
@@ -929,6 +936,7 @@
         <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
+        <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-waiting_for_customer_shipment">در انتظار ارسال به مشتری</span></td>
         <td>
           <button class="action-button details-button" onclick="toggleDetails('details-row-ready-{{ order.id }}')">جزئیات</button>
@@ -1098,6 +1106,7 @@
         <th>تاریخ</th>
         <th>شماره سفارش</th>
         <th>نام مشتری</th>
+        <th>نام ویزیتور</th>
         <th>وضعیت</th>
         <th>عملیات</th>
       </tr>
@@ -1108,6 +1117,7 @@
         <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
+        <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-supplied">ارسال شده به انبار</span></td>
         <td>
           <button class="action-button details-button" onclick="toggleDetails('details-row-supplied-{{ order.id }}')">جزئیات</button>
@@ -1168,6 +1178,7 @@
         <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
         <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
         <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+      <th>نام ویزیتور</th>
         <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
         <th>عملیات</th>
       </tr>
@@ -1178,6 +1189,7 @@
         <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
+        <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-backorder">در انتظار موجودی</span></td>
         <td>
           <button class="action-button details-button" onclick="toggleDetails('details-row-backordered-{{ order.id }}')">جزئیات</button>
@@ -1316,6 +1328,7 @@
         <th>تاریخ</th>
         <th>شماره سفارش</th>
         <th>نام مشتری</th>
+        <th>نام ویزیتور</th>
         <th>شماره سند</th>
         <th>تعداد بسته</th>
         <th>وضعیت</th>
@@ -1328,6 +1341,7 @@
         <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
+        <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td>{{ order.document_number|default:"-" }}</td>
         <td>{{ order.package_count|default:"-" }}</td>
         <td><span class="order-status status-backorder-ready">آماده ارسال</span></td>
@@ -1391,6 +1405,7 @@
               <th>تاریخ ارسال</th>
               <th>شماره ارسال</th>
               <th>نام مشتری</th>
+              <th>نام ویزیتور</th>
               <th>نام پیک</th>
               <th>عملیات</th>
           </tr>
@@ -1410,6 +1425,7 @@
                     -
                 {% endif %}
               </td>
+              <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
               <td>{{ shipment.courier_name|default:'-' }}</td>
               <td>
                   <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')">جزئیات ارسال</button>

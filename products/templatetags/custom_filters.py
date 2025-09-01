@@ -3,8 +3,18 @@ from datetime import datetime, timezone
 import jdatetime
 from datetime import date
 from django.contrib.humanize.templatetags.humanize import intcomma as humanize_intcomma
+from django.contrib.auth.models import User
 
 register = template.Library()
+
+@register.filter
+def get_user_full_name(username):
+    try:
+        user = User.objects.get(username=username)
+        full_name = user.get_full_name()
+        return full_name if full_name else username
+    except User.DoesNotExist:
+        return username
 
 @register.filter
 def timesince_in_days(value):
