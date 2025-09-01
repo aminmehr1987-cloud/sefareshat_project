@@ -1569,7 +1569,7 @@ function addToCart(product_id) {
         var customerInput = document.getElementById('selected-customer-id');
         customer_id = customerInput ? customerInput.value : null;
         if (!customer_id || customer_id === '') {
-            alert('لطفاً ابتدا مشتری را انتخاب کنید.');
+            showMessage('لطفاً ابتدا مشتری را انتخاب کنید.', 'error');
             return;
         }
     }
@@ -1592,13 +1592,13 @@ function addToCart(product_id) {
     .then(data => {
         if(data.success) {
             renderCartPopup();
-            alert('کالا به سبد خرید اضافه شد!');
+            showMessage('کالا با موفقیت به سبد خرید اضافه شد!', 'success');
         } else {
-            alert(data.message || 'خطا در افزودن به سبد خرید');
+            showMessage(data.message || 'خطا در افزودن به سبد خرید', 'error');
         }
     })
     .catch(() => {
-        alert('خطا در ارتباط با سرور');
+        showMessage('خطا در ارتباط با سرور', 'error');
     });
 }
 
