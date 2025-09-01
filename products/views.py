@@ -1673,6 +1673,14 @@ def product_list(request):
     brands = Product.objects.values_list('brand', flat=True).distinct()
     car_groups = Product.objects.values_list('car_group', flat=True).distinct()
     active_tab = request.GET.get('tab', 'all')
+
+    customer_id = request.GET.get('customer_id')
+    selected_customer = None
+    if customer_id:
+        try:
+            selected_customer = Customer.objects.get(id=customer_id)
+        except Customer.DoesNotExist:
+            pass
     
     # --- تعریف متغیر one_week_ago در اینجا ---
     one_week_ago = timezone.now() - timedelta(days=7)
@@ -1729,6 +1737,8 @@ def product_list(request):
     page_new_number = request.GET.get('page_new')
     new_products_page_obj = paginator_new.get_page(page_new_number)
 
+    user_is_visitor = request.user.groups.filter(name='ویزیتور').exists()
+
     context = {
         'page_obj': page_obj,
         'price_changes_page_obj': price_changes_page_obj,
@@ -1745,6 +1755,8 @@ def product_list(request):
         'q_new': q_new,
         'selected_brand_new': brand_new,
         'selected_car_group_new': car_group_new,
+        'selected_customer': selected_customer,
+        'user_is_visitor': user_is_visitor,
     }
     return render(request, 'products/product_list.html', context)
 

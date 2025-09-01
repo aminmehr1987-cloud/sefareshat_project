@@ -6,25 +6,6 @@
 {% load custom_filters %}
 {% load humanize %} {# Assuming you need humanize filter for intcomma #}
 
-{% if user_is_visitor %}
-<div class="customer-actions" style="margin-bottom: 1rem; text-align: right;">
-    <div class="customer-input-group">
-        <input type="text" id="selected-customer-display" placeholder="مشتری را انتخاب کنید" readonly onclick="openCustomerModal()" value="{% if selected_customer %}{{ selected_customer.get_full_name }}{% endif %}" style="width: 250px; text-align: right;">
-        <input type="hidden" id="selected-customer-id" value="{{ selected_customer.id|default:'' }}">
-        <a href="{% url 'products:create_customer' %}" class="add-customer-btn">افزودن مشتری</a>
-    </div>
-</div>
-{% endif %}
-
-{% if user_is_visitor %}
-<div class="customer-actions" style="margin-bottom: 1rem; text-align: right;">
-    <div class="customer-input-group">
-        <input type="text" id="selected-customer-display" placeholder="مشتری را انتخاب کنید" readonly onclick="openCustomerModal()" value="{% if selected_customer %}{{ selected_customer.get_full_name }}{% endif %}" style="width: 250px; text-align: right;">
-        <input type="hidden" id="selected-customer-id" value="{{ selected_customer.id|default:'' }}">
-        <a href="{% url 'products:create_customer' %}" class="add-customer-btn">افزودن مشتری</a>
-    </div>
-</div>
-{% endif %}
 
 
 <div class="user-dashboard">

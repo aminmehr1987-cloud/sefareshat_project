@@ -1074,14 +1074,13 @@
 
             </div>
 
-            <input type="hidden" id="selected-customer-id" name="customer_id" value="">
-
             {% block customer_elements %}
                 {% if user.is_authenticated and user.groups.all.0.name == 'ویزیتور' %}
                     <div class="customer-input-group" style="margin-left:30px;">
                         <input type="text" id="selected-customer-display" readonly placeholder="انتخاب مشتری."
-                            onclick="openCustomerModal()" class="form-control" style="width: 160px; font-size: 12px; height:32px;">
-                        <input type="hidden" id="selected-customer-id" name="customer_id">
+                            onclick="openCustomerModal()" class="form-control" style="width: 160px; font-size: 12px; height:32px;"
+                            value="{% if selected_customer %}{{ selected_customer.get_full_name }}{% endif %}">
+                        <input type="hidden" id="selected-customer-id" name="customer_id" value="{{ selected_customer.id|default:'' }}">
                         <a href="{% url 'products:create_customer' %}" class="add-customer-btn" style="padding:8px 10px;font-size:12px;">+ افزودن مشتری</a>
                     </div>
                     <div id="customerModal" class="customer-modal">
