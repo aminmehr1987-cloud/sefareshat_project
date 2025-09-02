@@ -480,6 +480,12 @@ def order_detail_view(request, order_id):
         back_text = "بازگشت به لیست سفارشات"
     # ------------------------
 
+    # Check if a final sales invoice exists for this order
+    has_final_invoice = FinancialOperation.objects.filter(
+        operation_type='SALES_INVOICE',
+        description__icontains=f"سفارش شماره {order.order_number}"
+    ).exists()
+
     context = {
         'order': order,
         'order_items': order.items.all(),
@@ -487,6 +493,7 @@ def order_detail_view(request, order_id):
         'stage_total': stage_total,
         'back_url': back_url,
         'back_text': back_text,
+        'has_final_invoice': has_final_invoice,
     }
     return render(request, 'products/order_detail.html', context)
 
@@ -3105,6 +3112,179 @@ def get_product(request):
         except Product.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'کالا یافت نشد'}, status=404)
     return JsonResponse({'success': False, 'message': 'درخواست نامعتبر'}, status=400)
+
+
+@login_required
+def sales_invoice_pdf(request, order_id):
+    logger.info(f"Request received for sales invoice PDF of order {order_id}")
+    try:
+        order = get_object_or_404(Order, id=order_id)
+
+        # Find the corresponding financial operation
+        financial_operation = FinancialOperation.objects.filter(
+            operation_type='SALES_INVOICE',
+            description__icontains=f"سفارش شماره {order.order_number}"
+        ).first()
+
+        if not financial_operation:
+            return HttpResponse('فاکتور فروش قطعی برای این سفارش هنوز صادر نشده است.', status=404)
+
+        items = order.items.all()
+        logger.info(f"Order {order_id} found with {items.count()} items for final invoice.")
+
+        # Fields from the financial operation and order
+        customer_name = order.customer.get_full_name() if order.customer else "-"
+        invoice_number = financial_operation.operation_number
+        invoice_date = jdatetime.datetime.fromgregorian(datetime=financial_operation.date).strftime('%Y/%m/%d')
+        
+        visitor_user = User.objects.filter(username=order.visitor_name).first()
+        visitor_name = f"{visitor_user.first_name} {visitor_user.last_name}".strip() if visitor_user else order.visitor_name
+
+        customer_address = order.customer.address or "-"
+        customer_mobile = order.customer.mobile or "-"
+
+        # Calculate total based on allocated quantity
+        total = sum(item.price * (item.allocated_quantity or 0) for item in items)
+
+        latex_content = f"""
+\\documentclass[a4paper,12pt]{{article}}
+\\usepackage{{geometry}}
+\\geometry{{a4paper, margin=1in}}
+\\usepackage{{longtable}}
+\\usepackage{{colortbl}}
+\\usepackage{{xcolor}}
+\\usepackage{{setspace}}
+\\usepackage{{graphicx}}
+\\usepackage{{amssymb}}
+\\setstretch{{1.2}}
+\\usepackage{{xepersian}}
+\\settextfont{{Vazirmatn}}
+\\definecolor{{headerblue}}{{RGB}}{{44, 62, 80}}
+
+\\begin{{document}}
+
+% Header and Logo
+\\begin{{center}}
+    {{\\Huge \\textbf{{فاکتور فروش قطعی}}}} \\\\
+    {{\\large فروشگاه اکبرزاده}}
+\\end{{center}}
+
+\\vspace{{0.5cm}}
+
+% Customer and Invoice Information
+\\noindent
+\\begin{{tabular}}{{|p{{7cm}}|p{{7cm}}|}}
+\\hline
+\\textbf{{مشتری:}} {customer_name} & \\textbf{{تاریخ فاکتور:}} {invoice_date} \\\\
+\\hline
+\\textbf{{موبایل:}} {customer_mobile} & \\textbf{{شماره فاکتور:}} {invoice_number} \\\\
+\\hline
+\\multicolumn{{2}}{{|p{{14cm}}|}}{{\\textbf{{آدرس:}} {customer_address}}} \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{0.5cm}}
+
+% Items Table
+\\begin{{longtable}}{{|c|c|p{{4cm}}|c|c|c|c|}}
+\\hline
+\\rowcolor{{headerblue}} \\color{{white}}
+\\textbf{{ردیف}} &  \\textbf{{کد کالا}} & \\textbf{{شرح}} & \\textbf{{تعداد}} & \\textbf{{واحد}} & \\textbf{{فی}} & \\textbf{{قیمت کل}} \\\\
+\\hline
+\\endhead
+"""
+        for idx, item in enumerate(items, 1):
+            if item.allocated_quantity and item.allocated_quantity > 0:
+                product_code = item.product.code
+                product_name = item.product.name
+                quantity = item.allocated_quantity
+                price = item.price
+                item_total = price * quantity
+                latex_content += f"{idx} & {product_code} & {product_name} & {quantity} & عدد & {price:,.0f} & {item_total:,.0f} \\\\\n\\hline\n"
+
+        latex_content += f"""\\end{{longtable}}
+
+% Totals and Payment Section
+\\vspace{{0.3cm}}
+\\noindent
+\\begin{{tabular}}{{|p{{7cm}}|p{{7cm}}|}}
+\\hline
+\\textbf{{جمع کل کالاها و خدمات:}} & {total:,.0f} ریال \\\\
+\\hline
+\\textbf{{تخفیف:}} & 0 ریال \\\\
+\\hline
+\\textbf{{مبلغ قابل پرداخت:}} & {total:,.0f} ریال \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{1.5cm}}
+
+% Signatures
+\\noindent
+مهر و امضا خریدار \\hspace{{8cm}} مهر و امضا فروشنده
+
+\\vfill
+
+% Footer
+\\noindent
+\\begin{{center}}
+    این فاکتور یک سند رسمی است.
+\\end{{center}}
+
+\\end{{document}}
+"""
+        logger.info(f"LaTeX content generated for sales invoice {invoice_number}")
+
+        temp_dir = os.path.join(settings.BASE_DIR, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        tex_file_path = os.path.join(temp_dir, f'sales_invoice_{invoice_number}.tex')
+        
+        with open(tex_file_path, 'w', encoding='utf-8') as f:
+            f.write(latex_content)
+        logger.info(f"TeX file written to {tex_file_path}")
+
+        # Run XeLaTeX to generate PDF
+        try:
+            subprocess.run(
+                ['xelatex', '-output-directory', temp_dir, tex_file_path],
+                check=True, capture_output=True, text=True, timeout=180
+            )
+            logger.info(f"xelatex compilation successful for {invoice_number}")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"xelatex failed for {invoice_number}: {e.stderr}")
+            # Try to read the log file for more details
+            log_file_path = tex_file_path.replace('.tex', '.log')
+            log_content = "Log file not found."
+            if os.path.exists(log_file_path):
+                with open(log_file_path, 'r', encoding='utf-8') as log_file:
+                    log_content = log_file.read()
+            return HttpResponse(f'خطا در کامپایل LaTeX: <pre>{e.stderr}</pre><br>Log:<pre>{log_content}</pre>', status=500)
+        
+        pdf_file_path = os.path.join(temp_dir, f'sales_invoice_{invoice_number}.pdf')
+        if not os.path.exists(pdf_file_path):
+            logger.error(f"PDF not found at {pdf_file_path}")
+            return HttpResponse('فایل PDF تولید نشد.', status=500)
+        
+        with open(pdf_file_path, 'rb') as f:
+            pdf_content = f.read()
+
+        # Clean up temporary files
+        for ext in ['.tex', '.pdf', '.log', '.aux']:
+            try:
+                os.remove(os.path.join(temp_dir, f'sales_invoice_{invoice_number}{ext}'))
+            except OSError:
+                pass
+
+        logger.info(f"PDF generated successfully for sales invoice {invoice_number}")
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="sales_invoice_{invoice_number}.pdf"'
+        return response
+
+    except Exception as e:
+        logger.error(f"Sales invoice PDF generation failed for order {order_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return HttpResponse(f'خطا در ایجاد PDF فاکتور فروش: {str(e)}', status=500)
 @csrf_exempt
 @login_required
 @group_required('حسابداری')
