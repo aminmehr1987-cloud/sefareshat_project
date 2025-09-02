@@ -441,15 +441,16 @@ def order_detail_view(request, order_id):
     فقط کاربر ایجاد کننده سفارش و مدیران سیستم می‌توانند به این صفحه دسترسی داشته باشند.
     """
     order = get_object_or_404(Order, id=order_id)
-    
+
     # بررسی دسترسی کاربر
     is_manager = request.user.groups.filter(name='مدیر').exists()
+    is_accounting = request.user.groups.filter(name='حسابداری').exists()
     is_order_creator = (order.visitor_name == request.user.username)
-    
-    if not (is_manager or is_order_creator):
+
+    if not (is_manager or is_order_creator or is_accounting):
         messages.error(request, 'شما اجازه دسترسی به این سفارش را ندارید.')
         return redirect('products:product_list')
-    
+
     # دریافت ارسال‌ها همراه با اقلام ارسالی
     shipments = order.shipments.all().prefetch_related(
         'items',  # برای ShipmentItem ها
@@ -457,18 +458,35 @@ def order_detail_view(request, order_id):
         'items__order_item__product'  # برای دسترسی به محصولات
     )
 
-    # --- این بخش جدید است ---
+    # --- محاسبه مبلغ کل مرحله ---
     if order.status in ['pending', 'warehouse', 'parent']:
         stage_total = sum(item.price * (item.requested_quantity or 0) for item in order.items.all())
     else:
         stage_total = sum(item.price * (item.allocated_quantity or 0) for item in order.items.all())
+
+    # --- منطق دکمه بازگشت ---
+    referer = request.META.get('HTTP_REFERER')
+    # اگر کاربر از پنل حسابداری آمده، به همان صفحه بازگردد
+    if referer and '/accounting/' in referer:
+        back_url = referer
+        back_text = "بازگشت به صورتحساب"
+    # اگر کاربر مدیر است، به لیست سفارشات مدیر بازگردد
+    elif is_manager:
+        back_url = reverse('products:manager_order_list')
+        back_text = "بازگشت به لیست سفارشات مدیر"
+    # در غیر این صورت (ویزیتور)، به لیست سفارشات خودش بازگردد
+    else:
+        back_url = reverse('products:order')
+        back_text = "بازگشت به لیست سفارشات"
     # ------------------------
 
     context = {
         'order': order,
         'order_items': order.items.all(),
         'shipments': shipments,
-        'stage_total': stage_total,  # این خط را اضافه کن!
+        'stage_total': stage_total,
+        'back_url': back_url,
+        'back_text': back_text,
     }
     return render(request, 'products/order_detail.html', context)
 
@@ -4228,9 +4246,19 @@ def financial_operation_detail_view(request, operation_id):
     """
     operation = get_object_or_404(FinancialOperation, id=operation_id)
     
+    # New logic to find the related order for sales invoices
+    related_order = None
+    if operation.operation_type == 'SALES_INVOICE' and operation.description:
+        import re
+        match = re.search(r'سفارش شماره (.*?)$', operation.description)
+        if match:
+            order_number = match.group(1)
+            related_order = Order.objects.filter(order_number=order_number).first()
+
     context = {
         'operation': operation,
         'transactions': operation.transactions.all(),
+        'related_order': related_order, # Add to context
     }
     
     return render(request, 'products/financial_operation_detail.html', context)

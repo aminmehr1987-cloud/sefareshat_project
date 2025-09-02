@@ -215,8 +215,8 @@ body, html, input, button, select, textarea {
     </div>
     {% endif %}
     <div style="text-align:center; margin-top:2rem;">
-        <a href="{% url 'products:order' %}" class="order-detail-btn">
-            بازگشت به لیست سفارشات
+        <a href="{{ back_url }}" class="order-detail-btn">
+            {{ back_text }}
         </a>
     </div>
 </div>
