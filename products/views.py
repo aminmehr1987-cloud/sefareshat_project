@@ -1581,6 +1581,7 @@ def update_order_status(request):
             order.save()
             print(f"Order {order_id} status updated to {next_status}")
 
+
             # فقط در صورتی که زیرسفارش است، شماره سند دارد و قبلاً Shipment نداشته، یک شیء Shipment بساز
             if (
                 order.status == 'delivered'
@@ -5017,13 +5018,13 @@ def customer_balance_list_view(request):
     )
     
     # عملیات‌هایی که مشتری بدهکار می‌شود (ما به آنها پرداخت کردیم)
-    debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE']
+    debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE', 'SALES_INVOICE']
     total_paid = all_operations.filter(
         operation_type__in=debit_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
     # عملیات‌هایی که مشتری بستانکار می‌شود (آنها به ما پرداخت کردند یا چک ما برگشت خورد)
-    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
+    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE', 'PURCHASE_INVOICE']
     total_received = all_operations.filter(
         operation_type__in=credit_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0

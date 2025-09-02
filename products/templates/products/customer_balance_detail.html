@@ -87,7 +87,7 @@
                     </td>
                     <!-- ستون بدهکار -->
                     <td class="debit-column">
-                        {% if operation.operation_type == 'PAY_TO_CUSTOMER' or operation.operation_type == 'CHECK_BOUNCE' or operation.operation_type == 'BANK_TRANSFER' %}
+                        {% if operation.operation_type == 'PAY_TO_CUSTOMER' or operation.operation_type == 'CHECK_BOUNCE' or operation.operation_type == 'BANK_TRANSFER' or operation.operation_type == 'SALES_INVOICE' %}
                             <span class="debit-amount">{{ operation.amount|persian_number_format }} ریال</span>
                         {% else %}
                             -
@@ -95,7 +95,7 @@
                     </td>
                     <!-- ستون بستانکار -->
                     <td class="credit-column">
-                        {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' or operation.operation_type == 'SPENT_CHEQUE_RETURN' or operation.operation_type == 'ISSUED_CHECK_BOUNCE' %}
+                        {% if operation.operation_type == 'RECEIVE_FROM_CUSTOMER' or operation.operation_type == 'SPENT_CHEQUE_RETURN' or operation.operation_type == 'ISSUED_CHECK_BOUNCE' or operation.operation_type == 'PURCHASE_INVOICE' %}
                             <span class="credit-amount">{{ operation.amount|persian_number_format }} ریال</span>
                         {% else %}
                             -

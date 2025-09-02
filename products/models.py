@@ -2461,6 +2461,7 @@ class FinancialOperation(models.Model):
         ('cheque_return', 'چک برگشتی'),
         ('bounced_cheque_return', 'برگشت چک برگشتی'),
         ('cheque_bounce', 'برگشت چک دریافتی'),
+        ('credit_sale', 'فروش اعتباری'),
     ], verbose_name="روش پرداخت")
     card_reader_device = models.ForeignKey('CardReaderDevice', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="دستگاه کارت‌خوان")
     spent_cheques = models.ManyToManyField(
@@ -3088,9 +3089,9 @@ class CustomerBalance(models.Model):
         )
 
         # عملیات‌هایی که بدهی مشتری را افزایش می‌دهند (مشتری بدهکار می‌شود)
-        debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE']
+        debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE', 'SALES_INVOICE']
         # عملیات‌هایی که بدهی مشتری را کاهش می‌دهند (مشتری بستانکار می‌شود)
-        credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
+        credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE', 'PURCHASE_INVOICE']
 
         total_debit = operations.filter(operation_type__in=debit_ops).aggregate(total=models.Sum('amount'))['total'] or 0
         total_credit = operations.filter(operation_type__in=credit_ops).aggregate(total=models.Sum('amount'))['total'] or 0
@@ -3272,15 +3273,6 @@ def update_balances_on_operation_save(sender, instance, created, **kwargs):
         customer_balance.update_balance()
 
     # The fund balance is already handled by other signals, so we don't need to add duplicate logic here.
-    
-    # Voucher creation should only happen when a new operation is first confirmed.
-    # Re-running it on every save could create duplicate vouchers.
-    if created and instance.status == 'CONFIRMED':
-        try:
-            from .accounting_utils import create_voucher_for_financial_operation
-            create_voucher_for_financial_operation(instance)
-        except Exception as e:
-            print(f"خطا در ایجاد سند حسابداری برای عملیات {instance.id}: {e}")
 
 
 @receiver(post_save, sender=PettyCashOperation)
@@ -4099,6 +4091,9 @@ def create_delete_audit_record(sender, instance, **kwargs):
         print(f"Error creating delete audit record: {e}")
 
 
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
 # Utility Functions for Document Numbering
 def assign_document_number(obj, document_type, user, description=None):
     """
@@ -4172,6 +4167,42 @@ def get_document_number_display(obj):
     if doc_number:
         return str(doc_number.document_number)
     return "-"
+
+
+@receiver(post_save, sender=Order)
+def create_financial_operation_on_delivery(sender, instance, created, **kwargs):
+    # Check if the order was just updated (not created) and the status is 'delivered'
+    if not created and instance.status == 'delivered' and instance.parent_order is not None:
+        # Check if an invoice for this sub-order already exists to prevent duplicates
+        if not FinancialOperation.objects.filter(operation_type='SALES_INVOICE', customer=instance.customer, description__icontains=f"سفارش شماره {instance.order_number}").exists():
+            # Calculate the total price from the allocated items
+            total_price = sum(item.price * (item.allocated_quantity or 0) for item in instance.items.all())
+            
+            # The amount should not be zero. If it is, something is wrong with the allocated items.
+            if total_price > 0:
+                # In a signal, we don't have access to the request.user.
+                # We will try to get the user from the order, or fall back to a system user.
+                user = None
+                if instance.visitor_name:
+                    user = User.objects.filter(username=instance.visitor_name).first()
+                
+                if not user:
+                    # Fallback to the first superuser if no other user is found
+                    user = User.objects.filter(is_superuser=True).order_by('pk').first()
+
+                # Create the financial operation (sales invoice)
+                FinancialOperation.objects.create(
+                    operation_type='SALES_INVOICE',
+                    customer=instance.customer,
+                    amount=total_price,
+                    payment_method='credit_sale',
+                    date=timezone.now().date(),
+                    description=f"فاکتور فروش بابت سفارش شماره {instance.order_number}",
+                    created_by=user,
+                    status='CONFIRMED',
+                    confirmed_by=user,
+                    confirmed_at=timezone.now()
+                )
 
 
 

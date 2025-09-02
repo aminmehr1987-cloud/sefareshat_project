@@ -188,7 +188,36 @@ class AccountingVoucherManager:
             self._create_payment_from_cash_items(operation, voucher)
         elif operation.operation_type == 'CAPITAL_INVESTMENT':
             self._create_capital_investment_items(operation, voucher)
+        elif operation.operation_type == 'SALES_INVOICE':
+            self._create_sales_invoice_items(operation, voucher)
         
+    def _create_sales_invoice_items(self, operation, voucher):
+        """Create voucher items for a sales invoice."""
+        debit_account = self._get_or_create_customer_account(operation.customer)
+        credit_account = self._get_or_create_sales_account()
+
+        # Debit the customer's account
+        VoucherItem.objects.create(
+            voucher=voucher,
+            account=debit_account,
+            description=f"بدهی بابت فاکتور فروش شماره {operation.operation_number}",
+            debit=operation.amount,
+            credit=0,
+            reference_id=str(operation.id),
+            reference_type='FinancialOperation'
+        )
+        
+        # Credit the sales account
+        VoucherItem.objects.create(
+            voucher=voucher,
+            account=credit_account,
+            description=f"درآمد حاصل از فروش - فاکتور شماره {operation.operation_number}",
+            debit=0,
+            credit=operation.amount,
+            reference_id=str(operation.id),
+            reference_type='FinancialOperation'
+        )
+
     def create_voucher_from_petty_cash_operation(self, operation):
         """
         Create voucher from petty cash operation.
