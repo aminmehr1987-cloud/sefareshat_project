@@ -92,7 +92,16 @@
             </div>
         {% endif %}
 
-        {% if customer and order %}
+        {% if success %}
+            <div class="confirmation-header">
+                <h2>سفارش شما با موفقیت ثبت شد</h2>
+                <p class="confirmation-subtitle">از خرید شما متشکریم. می‌توانید جزئیات سفارش را در پنل کاربری خود مشاهده کنید.</p>
+            </div>
+            <div class="action-buttons">
+                <a href="{% url 'products:order_detail_view' order_id=order_id %}" class="btn-confirm">مشاهده جزئیات سفارش</a>
+                <a href="{% url 'products:product_list' %}" class="btn-cancel">بازگشت به لیست محصولات</a>
+            </div>
+        {% elif customer and order %}
             <div class="order-details-grid">
                 <div class="detail-card customer-info">
                     <h3>اطلاعات مشتری</h3>
@@ -1721,3 +1730,18 @@ function getCookie(name) {
 }
 </script>
 {% endblock content %}
+
+<script>
+{% if success %}
+document.addEventListener('DOMContentLoaded', function() {
+    {% for message in messages %}
+        if (typeof showMessage === 'function') {
+            showMessage('{{ message }}', '{{ message.tags }}');
+        } else {
+            // Fallback for when showMessage is not available
+            alert('{{ message }}');
+        }
+    {% endfor %}
+});
+{% endif %}
+</script>

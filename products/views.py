@@ -138,7 +138,13 @@ def confirm_order(request):
         order.save()
 
         messages.success(request, 'سفارش شما با موفقیت ثبت شد')
-        return redirect('products:order_detail_view', order_id=order.id)
+        # Instead of redirecting, we will render the same page with a success flag
+        # The template will handle showing the notification and hiding the form.
+        context = {
+            'success': True,
+            'order_id': order.id
+        }
+        return render(request, 'products/order_confirmation.html', context)
 
     except Exception as e:
         messages.error(request, f'خطا در تایید سفارش: {str(e)}')
@@ -526,7 +532,8 @@ def create_customer(request):
                 customer.created_by = request.user
                 customer.save()
                 messages.success(request, 'مشتری جدید با موفقیت ایجاد شد.')
-                return redirect('products:product_list')
+                form = CustomerForm()  # Reset form on success
+                return render(request, 'products/create_customer.html', {'form': form, 'success': True})
             except Exception as e:
                 messages.error(request, f'خطا در ثبت مشتری: {str(e)}')
                 print(f"Error saving customer: {str(e)}")  # For debugging
@@ -1213,29 +1220,6 @@ def create_order(request):
                 'message': f'خطا در ثبت سفارش: {str(e)}'
             }, status=500)
 
-@login_required
-def create_customer(request):
-    if not request.user.groups.filter(name='ویزیتور').exists():
-        return render(request, 'error.html', {'message': 'دسترسی غیرمجاز'})
-
-    if request.method == 'POST':
-        form = CustomerForm(request.POST)
-        if form.is_valid():
-            try:
-                customer = form.save(commit=False)
-                customer.created_by = request.user
-                customer.save()
-                messages.success(request, 'مشتری جدید با موفقیت ایجاد شد.')
-                return redirect('products:product_list')
-            except Exception as e:
-                messages.error(request, f'خطا در ثبت مشتری: {str(e)}')
-                print(f"Error saving customer: {str(e)}")  # For debugging
-        else:
-            print(f"Form errors: {form.errors}")  # For debugging
-    else:
-        form = CustomerForm()
-
-    return render(request, 'products/create_customer.html', {'form': form})
 
 @login_required
 def order_history(request):

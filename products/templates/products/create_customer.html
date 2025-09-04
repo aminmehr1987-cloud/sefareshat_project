@@ -262,13 +262,6 @@
         {% endif %}
       </div>
     </div>
-    {% if messages %}
-      {% for message in messages %}
-        <div class="{% if message.tags %}{{ message.tags }}-message{% endif %}">
-          {{ message }}
-        </div>
-      {% endfor %}
-    {% endif %}
     <button type="submit" class="submit-btn">ثبت مشتری</button>
   </form>
 </div>
@@ -309,6 +302,20 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // Display messages as notifications
+    {% if messages %}
+        {% for message in messages %}
+            // Ensure showMessage function exists
+            if (typeof showMessage === 'function') {
+                showMessage('{{ message }}', '{{ message.tags }}');
+            } else {
+                console.error('showMessage function is not defined. Make sure notifications.js is loaded.');
+                // Fallback to a simple alert
+                alert('{{ message }}');
+            }
+        {% endfor %}
+    {% endif %}
 });
 </script>
 {% endblock %}
