@@ -782,6 +782,7 @@
         <th>شماره سفارش</th>
         <th>نام مشتری</th>
         <th>شماره سند</th>
+        <th>تعداد بسته</th>
         <th>جزئیات</th>
       </tr>
     </thead>
@@ -792,6 +793,8 @@
         <td>{{ order.order_number }}</td>
         <td>{{ order.customer_name }}</td>
         <td>{{ order.document_number|default:"بدون شماره سند" }}</td>
+        <td>{{ order.package_count }}</td>
+        
         <td>
           <button class="action-button details-button" onclick="toggleDetails('ready-details-{{ order.id }}')">جزئیات</button>
         </td>

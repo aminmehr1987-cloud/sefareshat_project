@@ -1920,96 +1920,100 @@ def manager_dashboard(request):
 @user_passes_test(is_manager)
 @never_cache
 def manager_order_list(request):
-    one_week_ago = timezone.now() - timezone.timedelta(days=7)
+    # Get filter parameters
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    order_number = request.GET.get('order_number')
+    customer_name = request.GET.get('customer_name')
+    visitor_name = request.GET.get('visitor_name')
+    status = request.GET.get('status')
 
-    all_requests = Order.objects.filter(
-        parent_order__isnull=True,
-        created_at__gte=one_week_ago
-    ).order_by('-created_at')
+    # Create a base queryset for all orders that can be filtered
+    base_query = Order.objects.select_related('customer').all().order_by('-created_at')
 
+    # Apply common filters
+    # Default date filter: last 30 days if no date is specified
+    if not date_from and not date_to:
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        base_query = base_query.filter(created_at__gte=thirty_days_ago)
+    else:
+        if date_from:
+            base_query = base_query.filter(created_at__date__gte=convert_shamsi_to_gregorian(date_from))
+        if date_to:
+            base_query = base_query.filter(created_at__date__lte=convert_shamsi_to_gregorian(date_to))
+
+    if order_number:
+        base_query = base_query.filter(order_number__icontains=order_number)
+    if customer_name:
+        base_query = base_query.filter(
+            Q(customer__first_name__icontains=customer_name) | 
+            Q(customer__last_name__icontains=customer_name) |
+            Q(customer__store_name__icontains=customer_name)
+        )
+    if visitor_name:
+        base_query = base_query.filter(visitor_name__icontains=visitor_name)
+    if status:
+        base_query = base_query.filter(status=status)
+
+    # --- Main Order Tabs ---
+    all_requests = base_query.filter(parent_order__isnull=True)
     pending_requests = all_requests.filter(status='pending')
-    parent_requests = all_requests.filter(status='parent')
-    warehouse_requests = parent_requests
-    
-    # اصلاح query برای نمایش سفارش‌های اصلی و بک‌اوردرهای آماده ارسال به مشتری
-    ready_requests = Order.objects.filter(
-        Q(status='waiting_for_customer_shipment', parent_order__isnull=True) |  # سفارش‌های اصلی
-        Q(status='waiting_for_customer_shipment', parent_order__status='delivered')  # بک‌اوردرهای آماده
-    ).select_related(
-        'parent_order'
-    ).prefetch_related(
-        'items',
-        'items__product',
-        'items__warehouse',
-        'sub_orders',
-        'sub_orders__items',
-        'sub_orders__items__product',
-        'sub_orders__items__warehouse'
-    ).distinct().order_by('-created_at')
-
-    # سفارش‌های تحویل داده شده
+    warehouse_requests = all_requests.filter(status='parent') # Corrected from parent_requests
+    ready_requests = all_requests.filter(status='waiting_for_customer_shipment')
     delivered_requests = all_requests.filter(status='delivered')
-    
-    backordered_requests = Order.objects.filter(
+    parent_requests = all_requests.filter(status='parent') # Kept for backward compatibility if template uses it
+
+    # --- Backorder & Supply Tabs (more complex logic on the filtered base) ---
+    # These can include main orders and sub-orders, so we filter from the base_query directly
+    backordered_requests = base_query.filter(
         Q(status='backorder') | Q(items__warehouse_status='backorder')
-    ).select_related(
-        'parent_order'
-    ).prefetch_related(
-        'items',
-        'items__product',
-        'items__warehouse'
-    ).distinct().order_by('-created_at')
+    ).distinct()
+    
+    supplied_requests = base_query.filter(
+        Q(items__warehouse_status='waiting_for_warehouse_confirmation') | Q(status='sent_to_warehouse')
+    ).distinct()
 
-    supplied_requests = Order.objects.filter(
-        Q(items__warehouse_status='waiting_for_warehouse_confirmation') |
-        Q(status='sent_to_warehouse')
-    ).select_related(
-        'parent_order'
-    ).prefetch_related(
-        'items',
-        'items__product',
-        'items__warehouse'
-    ).distinct().order_by('-created_at')
+    backorder_ready_requests = base_query.filter(
+        Q(order_number__startswith='BO-') & Q(order_number__endswith='-RE'),
+        parent_order__isnull=False,
+        status='ready'
+    ).exclude(status='delivered').distinct()
 
-    backorder_ready_requests = Order.objects.filter(
-        Q(order_number__startswith='BO-SHOP') | Q(order_number__startswith='BO-PAKHSH'),
-        Q(parent_order__isnull=False),     # فقط زیرسفارش
-        Q(status='ready'),
-        Q(order_number__contains='RE'),
-    ).exclude(
+
+    # --- Shipped Shipments Tab (separate model, but we can apply some filters) ---
+    shipped_shipments_query = Shipment.objects.filter(
         status='delivered'
-    ).select_related(
-        'parent_order'
-    ).prefetch_related(
-        'items', 'items__product', 'items__warehouse'
-    ).distinct().order_by('-created_at')
-
-    # سفارش‌های ارسال شده (برای شمارنده "ارسال شده ها")
-    shipped_requests = Order.objects.filter(status='delivered')
-
-    shipped_shipments = Shipment.objects.filter(
-        Q(order__parent_order__isnull=True) | Q(order__parent_order__isnull=False),  # هم سفارش اصلی و هم زیرسفارش 
-        status='delivered',  # فقط ارسال‌های تحویل شده
-        courier_name__isnull=False  # نام پیک داشته باشد
-    ).exclude(courier_name='').order_by('-shipment_date')
-
-    for sh in shipped_shipments:
-        print('shipment:', sh.id, sh.order_id, sh.order.document_number, sh.order.parent_order_id)
-    for o in Order.objects.all():
-        print('order:', o.id, o.document_number, o.parent_order_id, o.status) 
+    ).exclude(courier_name__isnull=True).exclude(courier_name='').select_related('order__customer').order_by('-shipment_date')
+    
+    if date_from:
+        shipped_shipments_query = shipped_shipments_query.filter(shipment_date__date__gte=convert_shamsi_to_gregorian(date_from))
+    if date_to:
+        shipped_shipments_query = shipped_shipments_query.filter(shipment_date__date__lte=convert_shamsi_to_gregorian(date_to))
+    if order_number:
+         shipped_shipments_query = shipped_shipments_query.filter(
+             Q(order__order_number__icontains=order_number) |
+             Q(shipment_number__icontains=order_number)
+         )
+    if customer_name:
+        shipped_shipments_query = shipped_shipments_query.filter(
+            Q(order__customer__first_name__icontains=customer_name) |
+            Q(order__customer__last_name__icontains=customer_name) |
+            Q(order__customer__store_name__icontains=customer_name)
+        )
 
     context = {
         'all_requests': all_requests,
         'pending_requests': pending_requests,
-        'warehouse_requests': parent_requests,
+        'warehouse_requests': warehouse_requests,
         'ready_requests': ready_requests,
         'delivered_requests': delivered_requests,
-        'shipped_requests': shipped_requests,  # اگر استفاده می‌کنی
-        'shipped_shipments': shipped_shipments,
+        'shipped_shipments': shipped_shipments_query,
         'backordered_requests': backordered_requests,
         'supplied_requests': supplied_requests,
         'backorder_ready_requests': backorder_ready_requests,
         'parent_requests': parent_requests,
+        'status_choices': [choice for choice in Order.STATUS_CHOICES if choice[0] != 'cart'],
+        'request': request, # Pass the whole request object for easy access to GET params in template
     }
     return render(request, 'products/manager_order_list.html', context)
 

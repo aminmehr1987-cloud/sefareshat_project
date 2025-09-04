@@ -6,6 +6,8 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<!-- Persian Datepicker -->
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
 <style>
 
   body {
@@ -14,8 +16,110 @@
     direction: rtl;
     margin: 0;
 }
-  
 
+  /* Advanced Search Styles */
+  .advanced-search {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .search-toggle {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .search-toggle:hover {
+    background: #0056b3;
+  }
+
+  .search-fields {
+    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.05);
+  }
+
+  .search-fields.show {
+    display: grid;
+  }
+
+  .search-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .search-field label {
+    font-size: 12px;
+    font-weight: bold;
+    color: #333;
+  }
+
+  .search-field input,
+  .search-field select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+  }
+
+  .search-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    justify-content: center;
+  }
+
+  .search-btn,
+  .clear-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .search-btn {
+    background: #28a745;
+    color: white;
+  }
+
+  .search-btn:hover {
+    background: #218838;
+  }
+
+  .clear-btn {
+    background: #dc3545;
+    color: white;
+    text-decoration: none;
+  }
+
+  .clear-btn:hover {
+    background: #c82333;
+  }
 
 
   /* Tiles Container Styles */
@@ -351,53 +455,6 @@
     }
   }
 
-  .search-box {
-    width: 100%;
-    max-width: 300px;
-    padding: 8px 12px;
-    margin: 10px 0;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-family: inherit;
-  }
-
-  .filter-icon {
-    cursor: pointer;
-    margin-right: 5px;
-    color: #666;
-    transition: color 0.2s;
-  }
-
-  .filter-icon:hover {
-    color: #4e9af1;
-  }
-
-  .filter-dropdown {
-    position: absolute;
-    background: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    padding: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    z-index: 1000;
-    min-width: 150px;
-  }
-
-  .filter-option {
-    padding: 4px 8px;
-    cursor: pointer;
-    border-radius: 2px;
-  }
-
-  .filter-option:hover {
-    background-color: #f0f0f0;
-  }
-
-  .filter-active {
-    color: #4e9af1;
-    font-weight: bold;
-  }
-
   .status-history {
     margin: 10px 0;
     padding: 10px;
@@ -542,24 +599,74 @@
   </div>
 </div>
 
-<input type="text" class="search-box" placeholder="جستجو بر اساس نام مشتری..." onkeyup="searchOrders(this.value)">
+<!-- Advanced Search Section -->
+<div class="advanced-search">
+  <button type="button" class="search-toggle" onclick="toggleAdvancedSearch()">
+    <i class="bi bi-search"></i>
+    جستجوی پیشرفته
+  </button>
+  
+  <form method="get" action="{% url 'products:manager_order_list' %}" id="search-form">
+    <div id="search-fields" class="search-fields">
+      <div class="search-field">
+        <label for="date_from">تاریخ از:</label>
+        <input type="text" name="date_from" id="date_from" class="persian-datepicker" placeholder="تاریخ شروع" value="{{ request.GET.date_from }}">
+      </div>
+      <div class="search-field">
+        <label for="date_to">تاریخ تا:</label>
+        <input type="text" name="date_to" id="date_to" class="persian-datepicker" placeholder="تاریخ پایان" value="{{ request.GET.date_to }}">
+      </div>
+      <div class="search-field">
+        <label for="order_number">شماره سفارش:</label>
+        <input type="text" name="order_number" id="order_number" placeholder="شماره سفارش" value="{{ request.GET.order_number }}">
+      </div>
+      <div class="search-field">
+        <label for="customer_name">نام مشتری:</label>
+        <input type="text" name="customer_name" id="customer_name" placeholder="نام مشتری" value="{{ request.GET.customer_name }}">
+      </div>
+      <div class="search-field">
+        <label for="visitor_name">نام ویزیتور:</label>
+        <input type="text" name="visitor_name" id="visitor_name" placeholder="نام ویزیتور" value="{{ request.GET.visitor_name }}">
+      </div>
+      <div class="search-field">
+        <label for="status">وضعیت:</label>
+        <select name="status" id="status">
+          <option value="" {% if not request.GET.status %}selected{% endif %}>همه</option>
+          {% for value, display in status_choices %}
+            <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ display }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    
+    <div id="search-actions" class="search-actions" style="display: none;">
+      <button type="submit" class="search-btn">
+        <i class="bi bi-search"></i>
+        اعمال فیلتر
+      </button>
+      <a href="{% url 'products:manager_order_list' %}" class="clear-btn">
+        <i class="bi bi-x-circle"></i>
+        پاک کردن
+      </a>
+    </div>
+  </form>
+</div>
 
 <div id="All" class="tabcontent">
 <h2>خلاصه کلی سفارشات</h2>
 <table class="orders-table" id="all-orders">
   <thead>
     <tr>
-      <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
-      <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
-      <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+      <th>تاریخ</th>
+      <th>شماره سفارش</th>
+      <th>نام مشتری</th>
       <th>نام ویزیتور</th>
-      <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
+      <th>وضعیت</th>
       <th>عملیات</th>
     </tr>
   </thead>
   <tbody>
     {% for order in all_requests %}
-    {% if order.created_at|timesince_in_days <= 7 %}
     <tr>
       <td>{{ order.created_at|jformat:"%Y/%m/%d" }}</td>
       <td>{{ order.order_number }}</td>
@@ -585,7 +692,7 @@
       </td>
     </tr>
     <tr id="details-row-all-{{ order.id }}" class="details-content-row">
-      <td colspan="5">
+      <td colspan="6">
         {% if order.get_sub_orders.exists %}
         <h4>زیرسفارش‌ها:</h4>
         <div class="table-wrapper">
@@ -716,10 +823,9 @@
         {% endif %}
       </td>
     </tr>
-    {% endif %}
     {% empty %}
     <tr>
-      <td colspan="5">هیچ سفارشی یافت نشد.</td>
+      <td colspan="6">هیچ سفارشی یافت نشد.</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -731,11 +837,11 @@
   <table class="orders-table" id="pending-orders">
     <thead>
       <tr>
-        <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
-        <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
-        <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+        <th>تاریخ</th>
+        <th>شماره سفارش</th>
+        <th>نام مشتری</th>
       <th>نام ویزیتور</th>
-        <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
+        <th>وضعیت</th>
         <th>عملیات</th>
       </tr>
     </thead>
@@ -754,7 +860,7 @@
         </td>
       </tr>
       <tr id="details-row-pending-{{ order.id }}" class="details-content-row">
-        <td colspan="5">
+        <td colspan="6">
           {% if order.items.all %}
           <div class="table-wrapper">
             <table class="items-table">
@@ -793,7 +899,7 @@
       </tr>
       {% empty %}
       <tr>
-        <td colspan="5">هیچ سفارشی یافت نشد.</td>
+        <td colspan="6">هیچ سفارشی یافت نشد.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -805,11 +911,11 @@
   <table class="orders-table" id="warehouse-orders">
     <thead>
       <tr>
-        <th>تاریخ <i class="bi bi-funnel filter-icon" onclick="toggleFilter('date', event)"></i></th>
-        <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('order-number', event)"></i></th>
-        <th>نام مشتری <i class="bi bi-funnel filter-icon" onclick="toggleFilter('customer-name', event)"></i></th>
+        <th>تاریخ</th>
+        <th>شماره سفارش</th>
+        <th>نام مشتری</th>
       <th>نام ویزیتور</th>
-        <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('status', event)"></i></th>
+        <th>وضعیت</th>
         <th>عملیات</th>
       </tr>
     </thead>
@@ -1589,6 +1695,10 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Persian Datepicker -->
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+
 <script>
   function openTabByName(tabName, clickedElement) {
     console.log('Opening tab:', tabName);
@@ -1699,161 +1809,49 @@
     window.location.href = "{% url 'products:manager_dashboard' %}";
   }
 
-  function searchOrders(query, tableId) {
-    query = query.toLowerCase();
-    const table = document.getElementById(tableId);
-    const rows = table.getElementsByTagName('tr');
-
-    for (let i = 1; i < rows.length; i++) {
-      const customerNameCell = rows[i].getElementsByTagName('td')[2];
-      if (customerNameCell) {
-        const customerName = customerNameCell.textContent || customerNameCell.innerText;
-        if (customerName.toLowerCase().indexOf(query) > -1) {
-          rows[i].style.display = '';
-          if (rows[i].nextElementSibling && rows[i].nextElementSibling.classList.contains('details-content-row')) {
-            rows[i].nextElementSibling.style.display = 'none';
-          }
-        } else {
-          rows[i].style.display = 'none';
-          if (rows[i].nextElementSibling && rows[i].nextElementSibling.classList.contains('details-content-row')) {
-            rows[i].nextElementSibling.style.display = 'none';
-          }
-        }
-      }
-    }
-  }
-
-  function toggleFilter(column, event) {
-    const filterValues = {
-      'date': ['امروز', 'دیروز', '3 روز اخیر', 'هفته جاری'],
-      'order-number': [],  // Will be populated dynamically
-      'customer-name': [], // Will be populated dynamically
-      'status': [
-        'در انتظار تأیید',
-        'ارسال شده به انبار',
-        'آماده تحویل',
-        'تحویل داده شده',
-        'تفکیک شده به انبارها',
-        'نهایی شده',
-        'در انتظار موجودی'
-      ]
-    };
-
-    // Remove any existing dropdowns
-    const existingDropdown = document.querySelector('.filter-dropdown');
-    if (existingDropdown) {
-      existingDropdown.remove();
-    }
-
-    // Create filter dropdown
-    const filterDropdown = document.createElement('div');
-    filterDropdown.className = 'filter-dropdown';
-
-    // Add filter options
-    filterValues[column].forEach(value => {
-      const option = document.createElement('div');
-      option.className = 'filter-option';
-      option.textContent = value;
-      option.onclick = () => {
-        applyFilter(column, value);
-        filterDropdown.remove();
-      };
-      filterDropdown.appendChild(option);
-    });
-
-    // Position the dropdown
-    const rect = event.target.getBoundingClientRect();
-    filterDropdown.style.top = `${rect.bottom + window.scrollY}px`;
-    filterDropdown.style.left = `${rect.left + window.scrollX}px`;
-
-    // Add to document
-    document.body.appendChild(filterDropdown);
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function closeDropdown(e) {
-      if (!filterDropdown.contains(e.target) && e.target !== event.target) {
-        filterDropdown.remove();
-        document.removeEventListener('click', closeDropdown);
-      }
-    });
-  }
-
-  function applyFilter(column, value) {
-    const tables = document.querySelectorAll('.orders-table');
-    tables.forEach(table => {
-      const rows = table.getElementsByTagName('tr');
-      const columnIndex = {
-        'date': 0,
-        'order-number': 1,
-        'customer-name': 2,
-        'status': 3
-      }[column];
-
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (row.classList.contains('details-content-row')) continue;
-
-        const cell = row.getElementsByTagName('td')[columnIndex];
-        if (!cell) continue;
-
-        const cellText = cell.textContent.trim();
-        let show = true;
-
-        if (column === 'date') {
-          const date = new Date(cellText.split('/').reverse().join('-'));
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          switch (value) {
-            case 'امروز':
-              show = date >= today;
-              break;
-            case 'دیروز':
-              const yesterday = new Date(today);
-              yesterday.setDate(yesterday.getDate() - 1);
-              show = date >= yesterday && date < today;
-              break;
-            case '3 روز اخیر':
-              const threeDaysAgo = new Date(today);
-              threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-              show = date >= threeDaysAgo;
-              break;
-            case 'هفته جاری':
-              const weekAgo = new Date(today);
-              weekAgo.setDate(weekAgo.getDate() - 7);
-              show = date >= weekAgo;
-              break;
-          }
-        } else {
-          show = cellText.includes(value);
-        }
-
-        row.style.display = show ? '' : 'none';
-        
-        // Hide details row if parent is hidden
-        const detailsRow = row.nextElementSibling;
-        if (detailsRow && detailsRow.classList.contains('details-content-row')) {
-          detailsRow.style.display = 'none';
-        }
-      }
-    });
-  }
-
-  function checkCourierInputs(orderId) {
-    const detailsRow = document.getElementById(`details-row-ready-${orderId}`);
-    const courierInputs = detailsRow.getElementsByClassName('courier-input');
-    const sendButton = document.getElementById(`send-button-${orderId}`);
+  function toggleAdvancedSearch() {
+    const searchFields = document.getElementById('search-fields');
+    const searchActions = document.getElementById('search-actions');
+    const isVisible = searchFields.classList.contains('show');
     
-    let allFilled = true;
-    for (let input of courierInputs) {
-      if (!input.value.trim()) {
-        allFilled = false;
-        break;
-      }
+    if (isVisible) {
+        searchFields.classList.remove('show');
+        searchActions.style.display = 'none';
+    } else {
+        searchFields.classList.add('show');
+        searchActions.style.display = 'flex';
     }
-    
-    sendButton.disabled = !allFilled;
   }
+
+  document.addEventListener('DOMContentLoaded', function() {
+      // Initialize Persian Datepickers
+      $(".persian-datepicker").persianDatepicker({
+          format: 'YYYY/MM/DD',
+          initialValue: false,
+          autoClose: true,
+          persianDigit: true,
+          observer: true,
+          calendar: {
+              persian: {
+                  locale: 'fa'
+              }
+          }
+      });
+
+      // Show search fields if there are any active filters
+      const urlParams = new URLSearchParams(window.location.search);
+      let hasFilter = false;
+      for (const [key, value] of urlParams.entries()) {
+        if (value) {
+          hasFilter = true;
+          break;
+        }
+      }
+      if (hasFilter) {
+        toggleAdvancedSearch();
+      }
+  });
+
 
   window.onload = function () {
     console.log('Page loaded, selecting first tab');
