@@ -1000,13 +1000,13 @@ def edit_order(request, order_id):
 
             existing = order.items.filter(product=product).first()
             if existing:
-                existing.quantity += quantity
+                existing.requested_quantity += quantity
                 existing.save()
             else:
                 OrderItem.objects.create(
                     order=order,
                     product=product,
-                    requested_quantity=item['quantity'],
+                    requested_quantity=quantity,
                     price=price,
                     payment_term=payment_term
                 )
