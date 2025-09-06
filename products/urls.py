@@ -40,6 +40,7 @@ urlpatterns = [
 
     # گزارش‌ها و PDF
     path('api/order_pdf/<int:order_id>/', views.order_pdf, name='order_pdf'),
+    path('api/backorder_pdf/<int:order_id>/', views.backorder_pdf, name='backorder_pdf'),
     path('sales_invoice_pdf/<int:order_id>/', views.sales_invoice_pdf, name='sales_invoice_pdf'),
 
     # مدیریت و پنل‌ها

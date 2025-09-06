@@ -31,7 +31,7 @@
                 <i class="bi bi-wallet"></i>
             </div>
             <div class="card-content">
-                <h3>کل موجودی مشتریان</h3>
+                <h3>خالص بدهکاری و بستانکاری  </h3>
                 <p class="{% if total_balance >= 0 %}positive{% else %}negative{% endif %}">
                     {{ total_balance|persian_number_format }} ریال
                 </p>
@@ -42,7 +42,7 @@
                 <i class="bi bi-arrow-down-circle"></i>
             </div>
             <div class="card-content">
-                <h3>مجموع بستانکاری</h3>
+                <h3>مجموع بستانکاران</h3>
                 <p class="received">{{ total_received|persian_number_format }} ریال</p>
                 <small class="text-muted">مشتریان به ما پرداخت کرده‌اند</small>
             </div>
@@ -52,7 +52,7 @@
                 <i class="bi bi-arrow-up-circle"></i>
             </div>
             <div class="card-content">
-                <h3>مجموع بدهکاری</h3>
+                <h3>مجموع بدهکاران</h3>
                 <p class="paid">{{ total_paid|persian_number_format }} ریال</p>
                 <small class="text-muted">ما به مشتریان پرداخت کرده‌ایم</small>
             </div>
@@ -97,7 +97,7 @@
                     <tr>
                         <th>نام مشتری</th>
                         <th>نام فروشگاه</th>
-                        <th>موجودی فعلی</th>
+                        <th>مانده حساب </th>
                         <th>وضعیت</th>
                         <th>مجموع بستانکاری</th>
                         <th>مجموع بدهکاری</th>
@@ -446,11 +446,11 @@
 }
 
 .balance-amount.positive {
-    color: #059669;
+    color: #bd1f1f;
 }
 
 .balance-amount.negative {
-    color: #dc2626;
+    color: #1da31d;
 }
 
 .status-badge {

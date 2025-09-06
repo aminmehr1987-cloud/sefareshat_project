@@ -571,6 +571,14 @@ def send_order_to_warehouse(request, order_id):
                 'message': 'فقط سفارشات در انتظار تایید قابل ارسال به انبار هستند.'
             }, status=400)
 
+        # اعتبارسنجی: بررسی وجود انبار برای همه آیتم‌ها
+        for item in original_order.items.all():
+            if not item.warehouse:
+                return JsonResponse({
+                    'success': False,
+                    'message': f"کالای '{item.product.name}' انبار مشخصی ندارد. لطفاً ابتدا انبار کالا را در بخش محصولات مشخص کنید."
+                }, status=400)
+
         # گروه‌بندی آیتم‌ها بر اساس انبار
         items_by_warehouse = {}
         for item in original_order.items.all():
@@ -1008,7 +1016,8 @@ def edit_order(request, order_id):
                     product=product,
                     requested_quantity=quantity,
                     price=price,
-                    payment_term=payment_term
+                    payment_term=payment_term,
+                    warehouse=product.warehouse
                 )
 
         messages.success(request, "تغییرات سفارش با موفقیت ذخیره شد.")
@@ -8151,3 +8160,123 @@ def fund_transactions_view(request, fund_id):
     except Exception as e:
         messages.error(request, f'خطا در بارگذاری گردش صندوق: {str(e)}')
         return redirect('products:fund_list')
+
+@login_required
+def backorder_pdf(request, order_id):
+    logger.info(f"Request received for PDF of backorder {order_id}")
+    try:
+        order = get_object_or_404(Order, id=order_id)
+        # Filter for backordered items
+        items = order.items.filter(warehouse_status='backorder')
+        
+        if not items.exists():
+            return HttpResponse('هیچ کالای بک‌اوردر برای این سفارش یافت نشد.', status=404)
+
+        logger.info(f"Backorder {order.order_number} found with {items.count()} backordered items")
+
+        customer = order.customer.get_full_name() if order.customer else "-"
+        order_number = order.order_number or "-"
+        order_date = jdatetime.datetime.fromgregorian(datetime=order.created_at.replace(tzinfo=None)).strftime('%Y/%m/%d') if order.created_at else "-"
+        visitor_name = order.visitor_name or "-"
+        
+        try:
+            user = User.objects.get(username=order.visitor_name)
+            visitor_name = f"{user.first_name} {user.last_name}".strip() or user.username
+        except User.DoesNotExist:
+            pass
+
+        latex_content = f"""
+\\documentclass[a4paper,12pt]{{article}}
+\\usepackage{{geometry}}
+\\geometry{{a4paper, margin=1in}}
+\\usepackage{{longtable}}
+\\usepackage{{colortbl}}
+\\usepackage{{xcolor}}
+\\usepackage{{setspace}}
+\\usepackage{{graphicx}}
+\\usepackage{{amssymb}}
+\\setstretch{{1.2}}
+\\usepackage{{xepersian}}
+\\settextfont{{Vazirmatn}}
+\\definecolor{{headerblue}}{{RGB}}{{217, 83, 79}}
+
+\\begin{{document}}
+
+\\begin{{center}}
+    {{\\Huge \\textbf{{   لیست کسری سفارش   }}}} \\\\
+\\end{{center}}
+
+\\vspace{{0.5cm}}
+
+\\noindent
+\\begin{{tabular}}{{|p{{7cm}}|p{{7cm}}|}}
+\\hline
+\\textbf{{مشتری:}} {customer} & \\textbf{{تاریخ سفارش:}} {order_date} \\\\
+\\hline
+\\textbf{{ویزیتور:}} {visitor_name} & \\textbf{{شماره سفارش:}} {order_number} \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{0.5cm}}
+
+\\begin{{longtable}}{{|c|c|p{{6cm}}|c|c|}}
+\\hline
+\\rowcolor{{headerblue}} \\color{{white}}
+\\textbf{{ردیف}} &  \\textbf{{کد کالا}} & \\textbf{{شرح کالا}} & \\textbf{{تعداد کسری}} & \\textbf{{انبار}} \\\\
+\\hline
+\\endhead
+"""
+        total_qty = 0
+        for idx, item in enumerate(items, 1):
+            product_code = item.product.code
+            product_name = item.product.name
+            quantity = item.requested_quantity - item.allocated_quantity
+            total_qty += quantity
+            warehouse = item.warehouse.name if item.warehouse else "نامشخص"
+            latex_content += f"{idx} & {product_code} & {product_name} & {quantity} & {warehouse} \\\\\n\\hline\n"
+
+        latex_content += f"""
+\\end{{longtable}}
+
+\\vspace{{0.3cm}}
+\\noindent
+\\begin{{tabular}}{{|p{{7cm}}|p{{7cm}}|}}
+\\hline
+\\textbf{{جمع کل تعداد کسری:}} & {total_qty} عدد \\\\
+\\hline
+\\end{{tabular}}
+
+\\vspace{{1.5cm}}
+
+\\noindent
+مهر و امضا انباردار \\hspace{{8cm}} مهر و امضا مدیر فروش
+
+\\end{{document}}
+"""
+        logger.info(f"LaTeX content generated for backorder {order_number}")
+
+        temp_dir = os.path.join(settings.BASE_DIR, 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        tex_file = os.path.join(temp_dir, f'backorder_{order_number}.tex')
+        with open(tex_file, 'w', encoding='utf-8') as f:
+            f.write(latex_content)
+
+        try:
+            subprocess.run(['xelatex', '-output-directory', temp_dir, tex_file], check=True, capture_output=True, text=True, timeout=180)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"xelatex failed for backorder {order_number}: {e.stderr}")
+            return HttpResponse(f'خطا در کامپایل LaTeX: {e.stderr}', status=500)
+
+        pdf_file = os.path.join(temp_dir, f'backorder_{order_number}.pdf')
+        if not os.path.exists(pdf_file):
+            return HttpResponse('فایل PDF تولید نشد.', status=500)
+        with open(pdf_file, 'rb') as f:
+            pdf_content = f.read()
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="backorder_{order_number}.pdf"'
+        response.write(pdf_content)
+        return response
+    except Exception as e:
+        logger.error(f"Backorder PDF generation failed: {str(e)}")
+        return HttpResponse(f'خطا در ایجاد PDF کسری: {str(e)}', status=500)
