@@ -813,6 +813,23 @@ $(document).ready(function() {
 
     // Check customer selection on page load to enable/disable submit button
     checkCustomerSelection();
+
+    // --- Amount Field Formatting ---
+    const amountInput = $('#id_amount');
+    
+    // Change input type to text to allow for formatting and set inputmode
+    amountInput.attr('type', 'text');
+    amountInput.attr('inputmode', 'numeric');
+
+    // Format the initial value on page load, if any
+    if (amountInput.val()) {
+        formatAmountInput(amountInput.get(0));
+    }
+
+    // Add listener for live formatting on input
+    amountInput.on('input', function() {
+        formatAmountInput(this);
+    });
 });
 
 function checkCustomerSelection() {
@@ -954,6 +971,12 @@ function closeCustomerModal() {
 
 // Handle form submission
 window.handleFormSubmit = function(event) {
+    // Un-format the amount field before submitting
+    const amountInput = document.getElementById('id_amount');
+    if (amountInput) {
+        amountInput.value = parseAmountFromFormattedString(amountInput.value);
+    }
+    
     // Disable the button to prevent double submission
     document.getElementById('submit-operation-btn').disabled = true;
 
@@ -1166,7 +1189,10 @@ function saveAllCheques() {
     // Update the main form's amount field with the total
     const totalAmountBox = document.getElementById('totalChequeAmountBox');
     const rawTotal = totalAmountBox.dataset.rawAmount || '0';
-    document.getElementById('id_amount').value = rawTotal;
+    const amountInput = document.getElementById('id_amount');
+    amountInput.value = rawTotal;
+    // Format the amount field for display
+    formatAmountInput(amountInput);
     
     // Update the "Introduce Cheque" button to show the count
     const introduceBtn = document.getElementById('introduceChequeBtn');

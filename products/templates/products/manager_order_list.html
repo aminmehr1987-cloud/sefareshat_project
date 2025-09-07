@@ -259,36 +259,107 @@
   }
   .action-button {
     padding: 8px 12px;
-    border: none;
-    border-radius: 5px;
+    border: 2px solid;
+    border-radius: 50%;
     cursor: pointer;
     font-size: 14px;
     margin: 0 5px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    background-color: white;
+    color: #333;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
+  
+  .action-button i {
+    font-size: 16px;
+  }
+  
   .details-button {
+    border-color: #4e9af1;
+    color: #4e9af1;
+  }
+  
+  .details-button:hover {
     background-color: #4e9af1;
     color: white;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(78, 154, 241, 0.3);
   }
-  .details-button:hover {
-    background-color: #3a82d4;
-  }
-  .next-stage-button {
-    background-color: #66bb6a;
-    color: white;
-  }
-  .next-stage-button:hover {
-    background-color: #57a05b;
-  }
-  .next-stage-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-  }
+  
   .edit-button {
+    border-color: #ff9800;
+    color: #ff9800;
+  }
+  
+  .edit-button:hover {
     background-color: #ff9800;
     color: white;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
   }
-  .edit-button:hover {
-    background-color: #fb8c00;
+  
+  .next-stage-button {
+    border-color: #66bb6a;
+    color: #66bb6a;
+  }
+  
+  .next-stage-button:hover {
+    background-color: #66bb6a;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(102, 187, 106, 0.3);
+  }
+  
+  .print-button {
+    padding: 0;
+    border: 2px solid #4CAF50;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    margin: 0 5px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    background-color: white;
+    color: #4CAF50;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    text-decoration: none;
+  }
+  
+  .print-button i {
+    font-size: 14px;
+  }
+  
+  .print-button:hover {
+    background-color: #4CAF50;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+    text-decoration: none;
+  }
+  
+  .action-button:disabled {
+    background-color: #e9ecef;
+    color: #6c757d;
+    border-color: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  .action-button:disabled:hover {
+    background-color: #e9ecef;
+    color: #6c757d;
+    border-color: #6c757d;
+    transform: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
   .order-status {
     padding: 5px 10px;
@@ -371,9 +442,47 @@
       white-space: nowrap;
     }
     .action-button {
-      padding: 5px 8px;
+      padding: 4px 6px;
       font-size: 12px;
       margin: 0 2px;
+      width: 28px;
+      height: 28px;
+      background-color: white;
+      border: 2px solid;
+    }
+    
+    .action-button i {
+      font-size: 12px;
+    }
+    
+    .details-button {
+      border-color: #4e9af1;
+      color: #4e9af1;
+    }
+    
+    .edit-button {
+      border-color: #ff9800;
+      color: #ff9800;
+    }
+    
+    .next-stage-button {
+      border-color: #66bb6a;
+      color: #66bb6a;
+    }
+    
+    .print-button {
+      padding: 0;
+      font-size: 12px;
+      margin: 0 2px;
+      width: 26px;
+      height: 26px;
+      border: 2px solid #4CAF50;
+      background-color: white;
+      color: #4CAF50;
+    }
+    
+    .print-button i {
+      font-size: 11px;
     }
     .items-table {
       font-size: 11px;
@@ -449,9 +558,47 @@
       white-space: nowrap;
     }
     .action-button {
-      padding: 3px 6px;
+      padding: 2px 4px;
       font-size: 10px;
       margin: 0 1px;
+      width: 24px;
+      height: 24px;
+      background-color: white;
+      border: 2px solid;
+    }
+    
+    .action-button i {
+      font-size: 10px;
+    }
+    
+    .details-button {
+      border-color: #4e9af1;
+      color: #4e9af1;
+    }
+    
+    .edit-button {
+      border-color: #ff9800;
+      color: #ff9800;
+    }
+    
+    .next-stage-button {
+      border-color: #66bb6a;
+      color: #66bb6a;
+    }
+    
+    .print-button {
+      padding: 0;
+      font-size: 10px;
+      margin: 0 1px;
+      width: 22px;
+      height: 22px;
+      border: 2px solid #4CAF50;
+      background-color: white;
+      color: #4CAF50;
+    }
+    
+    .print-button i {
+      font-size: 9px;
     }
   }
 
@@ -688,7 +835,9 @@
         </span>
       </td>
       <td>
-        <button class="action-button details-button" onclick="toggleDetails('details-row-all-{{ order.id }}')">جزئیات</button>
+        <button class="action-button details-button" onclick="toggleDetails('details-row-all-{{ order.id }}')" title="جزئیات">
+          <i class="bi bi-eye-fill"></i>
+        </button>
       </td>
     </tr>
     <tr id="details-row-all-{{ order.id }}" class="details-content-row">
@@ -732,7 +881,9 @@
                 <td>{{ sub_order.document_number|default:"-" }}</td>
                 <td>{{ sub_order.package_count|default:"-" }}</td>
                 <td>
-                  <button class="action-button details-button" onclick="toggleDetails('sub-details-{{ sub_order.id }}')">جزئیات</button>
+                  <button class="action-button details-button" onclick="toggleDetails('sub-details-{{ sub_order.id }}')" title="جزئیات">
+                    <i class="bi bi-eye-fill"></i>
+                  </button>
                 </td>
               </tr>
               <tr id="sub-details-{{ sub_order.id }}" class="details-content-row">
@@ -854,9 +1005,15 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-pending">در انتظار تأیید</span></td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('details-row-pending-{{ order.id }}')">جزئیات</button>
-          <button class="action-button edit-button" onclick="editOrder('{{ order.id }}')">ویرایش</button>
-          <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'pending')">ارسال به انبار</button>
+          <button class="action-button details-button" onclick="toggleDetails('details-row-pending-{{ order.id }}')" title="جزئیات">
+            <i class="bi bi-eye-fill"></i>
+          </button>
+          <button class="action-button edit-button" onclick="editOrder('{{ order.id }}')" title="ویرایش">
+            <i class="bi bi-pencil-square"></i>
+          </button>
+          <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'pending')" title="ارسال به انبار">
+            <i class="bi bi-arrow-right-circle"></i>
+          </button>
         </td>
       </tr>
       <tr id="details-row-pending-{{ order.id }}" class="details-content-row">
@@ -928,7 +1085,9 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-parent">تفکیک شده به انبارها</span></td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('details-row-warehouse-{{ order.id }}')">جزئیات</button>
+          <button class="action-button details-button" onclick="toggleDetails('details-row-warehouse-{{ order.id }}')" title="جزئیات">
+            <i class="bi bi-eye-fill"></i>
+          </button>
         </td>
       </tr>
       <tr id="details-row-warehouse-{{ order.id }}" class="details-content-row">
@@ -955,7 +1114,9 @@
                   <td>{{ sub_order.document_number|default:"-" }}</td>
                   <td>{{ sub_order.package_count }}</td>
                   <td>
-                    <button class="action-button details-button" onclick="toggleDetails('sub-details-warehouse-{{ sub_order.id }}')">جزئیات</button>
+                    <button class="action-button details-button" onclick="toggleDetails('sub-details-warehouse-{{ sub_order.id }}')" title="جزئیات">
+                      <i class="bi bi-eye-fill"></i>
+                    </button>
                   </td>
                 </tr>
                 <tr id="sub-details-warehouse-{{ sub_order.id }}" class="details-content-row">
@@ -1045,9 +1206,13 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-waiting_for_customer_shipment">در انتظار ارسال به مشتری</span></td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('details-row-ready-{{ order.id }}')">جزئیات</button>
+          <button class="action-button details-button" onclick="toggleDetails('details-row-ready-{{ order.id }}')" title="جزئیات">
+            <i class="bi bi-eye-fill"></i>
+          </button>
           {% if not order.get_sub_orders.exists %}
-          <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" disabled>ارسال شد</button>
+          <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" disabled title="ارسال شد">
+            <i class="bi bi-send"></i>
+          </button>
           {% endif %}
         </td>
       </tr>
@@ -1067,7 +1232,9 @@
             <button class="action-button next-stage-button"
                     onclick="sendAllSubOrders('{{ order.id }}')"
                     id="send-all-button-{{ order.id }}"
-                    disabled>ارسال همه زیرسفارش‌ها</button>
+                    disabled title="ارسال همه زیرسفارش‌ها">
+              <i class="bi bi-send"></i>
+            </button>
           </div>
           <div class="table-wrapper">
             <table class="items-table" id="sub-orders-{{ order.id }}">
@@ -1091,7 +1258,9 @@
                   <td>{{ sub_order.document_number|default:"-" }}</td>
                   <td>{{ sub_order.package_count|default:"0" }}</td>
                   <td>
-                    <button class="action-button details-button" onclick="toggleDetails('sub-details-ready-{{ sub_order.id }}')">جزئیات</button>
+                    <button class="action-button details-button" onclick="toggleDetails('sub-details-ready-{{ sub_order.id }}')" title="جزئیات">
+                      <i class="bi bi-eye-fill"></i>
+                    </button>
                   </td>
                 </tr>
                 <tr id="sub-details-ready-{{ sub_order.id }}" class="details-content-row">
@@ -1226,7 +1395,9 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-supplied">ارسال شده به انبار</span></td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('details-row-supplied-{{ order.id }}')">جزئیات</button>
+          <button class="action-button details-button" onclick="toggleDetails('details-row-supplied-{{ order.id }}')" title="جزئیات">
+            <i class="bi bi-eye-fill"></i>
+          </button>
         </td>
       </tr>
       <tr id="details-row-supplied-{{ order.id }}" class="details-content-row">
@@ -1298,8 +1469,10 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-backorder">در انتظار موجودی</span></td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('details-row-backordered-{{ order.id }}')">جزئیات</button>
-          <a href="{% url 'products:backorder_pdf' order.id %}" target="_blank" class="action-button" style="background-color: #4CAF50; color: white; border-radius: 50%; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0;">
+          <button class="action-button details-button" onclick="toggleDetails('details-row-backordered-{{ order.id }}')" title="جزئیات">
+            <i class="bi bi-eye-fill"></i>
+          </button>
+          <a href="{% url 'products:backorder_pdf' order.id %}" target="_blank" class="print-button" title="چاپ">
             <i class="bi bi-printer"></i>
           </a>
           
@@ -1455,8 +1628,12 @@
         <td>{{ order.package_count|default:"-" }}</td>
         <td><span class="order-status status-backorder-ready">آماده ارسال</span></td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('details-row-backorder-ready-{{ order.id }}')">جزئیات</button>
-          <button class="action-button next-stage-button" id="send-btn-{{ order.id }}" onclick="sendBackorderToCustomer('{{ order.id }}')">مرحله بعدی</button>
+          <button class="action-button details-button" onclick="toggleDetails('details-row-backorder-ready-{{ order.id }}')" title="جزئیات">
+            <i class="bi bi-eye-fill"></i>
+          </button>
+          <button class="action-button next-stage-button" id="send-btn-{{ order.id }}" onclick="sendBackorderToCustomer('{{ order.id }}')" title="مرحله بعدی">
+            <i class="bi bi-arrow-right-circle"></i>
+          </button>
         </td>
       </tr>
       <tr id="details-row-backorder-ready-{{ order.id }}" class="details-content-row">
@@ -1537,7 +1714,9 @@
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
               <td>{{ shipment.courier_name|default:'-' }}</td>
               <td>
-                  <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')">جزئیات ارسال</button>
+                  <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="جزئیات ارسال">
+                    <i class="bi bi-eye-fill"></i>
+                  </button>
               </td>
           </tr>
           <tr id="details-row-shipped-{{ shipment.id }}" class="details-content-row">
@@ -1573,7 +1752,9 @@
                                 {% if sub_order.order_number|slice:":2" == "BO" %}بک‌اوردر{% else %}عادی{% endif %}
                               </td>
                               <td>
-                                  <button class="action-button details-button" onclick="toggleDetails('details-row-order-{{ sub_order.id }}')">جزئیات</button>
+                                  <button class="action-button details-button" onclick="toggleDetails('details-row-order-{{ sub_order.id }}')" title="جزئیات">
+                                    <i class="bi bi-eye-fill"></i>
+                                  </button>
                               </td>
                           </tr>
                           <tr id="details-row-order-{{ sub_order.id }}" class="details-content-row">
@@ -1646,7 +1827,9 @@
                                 {% if shipment.order.order_number|slice:":2" == "BO" %}بک‌اوردر{% else %}عادی{% endif %}
                               </td>
                               <td>
-                                  <button class="action-button details-button" onclick="toggleDetails('details-row-order-{{ shipment.order.id }}')">جزئیات</button>
+                                  <button class="action-button details-button" onclick="toggleDetails('details-row-order-{{ shipment.order.id }}')" title="جزئیات">
+                                    <i class="bi bi-eye-fill"></i>
+                                  </button>
                               </td>
                           </tr>
                           <tr id="details-row-order-{{ shipment.order.id }}" class="details-content-row">
