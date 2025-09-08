@@ -5,11 +5,11 @@
 <style>
   .visitor-container {
     max-width: 1300px;
-    margin: 30px auto;
+    margin: 20px auto;
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
     border-radius: 16px;
-    padding: 24px;
+    padding: 16px;
     box-shadow: 0 0 15px rgba(0,0,0,0.1);
     font-family: 'Vazir', sans-serif;
   }
@@ -18,111 +18,154 @@
     color: #333;
     text-align: center;
     margin-bottom: 20px;
+    font-size: clamp(18px, 4vw, 24px);
   }
 
   .filter-section {
     display: flex;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 10px;
     margin-bottom: 20px;
     padding: 15px;
     background: rgba(255,255,255,0.1);
     border-radius: 12px;
   }
 
-  .filter-section select, .filter-section input {
-    padding: 6px 10px;
+  .filter-section select, 
+  .filter-section input {
+    padding: 8px 10px;
     border-radius: 10px;
     border: 1px solid #ccc;
     font-size: 14px;
-    width: 180px;
+    flex: 1;
+    min-width: 150px;
   }
 
   .product-select-container {
     margin: 15px 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
   }
 
-  .product-select-container select,
-  .product-select-container input {
-    padding: 6px;
+  .product-form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    align-items: end;
+    justify-items: center;
+    margin-bottom: 15px;
+  }
+
+  .form-field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  .form-field label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .form-field select,
+  .form-field input {
+    width: 100%;
+    max-width: 180px;
+    padding: 8px;
     font-size: 14px;
     border-radius: 8px;
     border: 1px solid #000000;
+    text-align: center;
   }
 
   #addProductBtn {
-    padding: 7px 14px;
+    width: 100%;
+    max-width: 180px;
+    padding: 10px 14px;
     background-color: #2d89ef;
     color: white;
     border: 1px solid #000000;
     border-radius: 8px;
     cursor: pointer;
     transition: background 0.2s;
+    font-size: 14px;
+    margin-top: 8px;
   }
 
   #addProductBtn:hover {
     background-color: #1b5dbf;
   }
 
+  /* Responsive Table Container */
+  .table-container {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
   .order-table {
-  width: 100%;
-  border-collapse: separate;     /* تغییر کلیدی برای فعال‌سازی گردی گوشه‌ها */
-  border-spacing: 0;             /* حذف فاصله بین سلول‌ها */
-  margin-top: 20px;
-  font-size: 14px;
-  border-radius: 12px;           /* گوشه‌ها گرد */
-  overflow: hidden;              /* جلوگیری از نمایش گوشه‌های بیرون‌زده */
-}
+    width: 100%;
+    min-width: 700px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
 
-/* گرد کردن گوشه‌های بالا */
-.order-table thead th:first-child {
-  border-top-right-radius: 12px;
-}
-.order-table thead th:last-child {
-  border-top-left-radius: 12px;
-}
+  .order-table thead th:first-child {
+    border-top-right-radius: 12px;
+  }
+  .order-table thead th:last-child {
+    border-top-left-radius: 12px;
+  }
 
-/* گرد کردن گوشه‌های پایین */
-.order-table tbody tr:last-child td:first-child {
-  border-bottom-right-radius: 12px;
-}
-.order-table tbody tr:last-child td:last-child {
-  border-bottom-left-radius: 12px;
-}
+  .order-table tbody tr:last-child td:first-child {
+    border-bottom-right-radius: 12px;
+  }
+  .order-table tbody tr:last-child td:last-child {
+    border-bottom-left-radius: 12px;
+  }
 
-
-
-  .order-table th, .order-table td {
+  .order-table th, 
+  .order-table td {
     border: 1px solid #000000;
-    padding: 10px 8px;
+    padding: 8px 6px;
     text-align: center;
+    white-space: nowrap;
   }
 
   .order-table th {
     background-color: #d3d3d3;
+    font-size: 12px;
+    font-weight: bold;
   }
 
   .order-table input[type="number"],
   .order-table select {
-    width: 70%;
+    width: 100%;
+    min-width: 80px;
     padding: 4px;
     border: 1px solid #ccc;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .order-table button {
     background-color: #dc3545;
     color: white;
-    padding: 4px 20px;
+    padding: 6px 12px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .order-table button:hover {
@@ -135,12 +178,14 @@
   }
 
   .form-actions button[type="submit"] {
-    padding: 10px 25px;
+    width: 100%;
+    max-width: 300px;
+    padding: 12px 25px;
     background-color: #10b981;
     border: 1px solid #000000;
     border-radius: 8px;
     color: white;
-    font-size: 15px;
+    font-size: 16px;
     cursor: pointer;
     transition: background 0.3s ease;
   }
@@ -156,9 +201,192 @@
 
   #grandTotal {
     margin-top: 15px;
-    text-align: left;
+    text-align: center;
     font-weight: bold;
-    font-size: 16px;
+    font-size: clamp(16px, 4vw, 20px);
+    background: rgba(16, 185, 129, 0.1);
+    padding: 10px;
+    border-radius: 8px;
+  }
+
+  /* Mobile-first responsive breakpoints */
+  @media (max-width: 768px) {
+    .visitor-container {
+      margin: 10px;
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .filter-section {
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .filter-section select,
+    .filter-section input {
+      min-width: unset;
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    .product-form-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .form-field select,
+    .form-field input {
+      max-width: 100%;
+      font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    #addProductBtn {
+      max-width: 100%;
+      padding: 12px;
+      font-size: 16px;
+    }
+
+    .order-table {
+      min-width: 600px;
+      font-size: 11px;
+    }
+
+    .order-table th,
+    .order-table td {
+      padding: 6px 4px;
+    }
+
+    .order-table input[type="number"],
+    .order-table select {
+      font-size: 14px;
+      padding: 6px 4px;
+    }
+
+    .order-table button {
+      padding: 4px 8px;
+      font-size: 10px;
+    }
+
+    .table-container {
+      margin: 15px -12px;
+      border-radius: 0;
+    }
+
+    .order-table {
+      border-radius: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .visitor-container {
+      margin: 5px;
+      padding: 8px;
+    }
+
+    h3, h4 {
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+
+    .filter-section {
+      padding: 8px;
+    }
+
+    .product-select-container {
+      padding: 10px;
+    }
+
+    .order-table {
+      min-width: 500px;
+      font-size: 10px;
+    }
+
+    .order-table th {
+      font-size: 9px;
+    }
+
+    .order-table th,
+    .order-table td {
+      padding: 4px 2px;
+    }
+
+    .order-table input[type="number"],
+    .order-table select {
+      font-size: 12px;
+      padding: 4px 2px;
+      min-width: 60px;
+    }
+
+    .order-table button {
+      padding: 3px 6px;
+      font-size: 9px;
+    }
+
+    #grandTotal {
+      font-size: 14px;
+      padding: 8px;
+    }
+
+    .form-actions button[type="submit"] {
+      font-size: 14px;
+      padding: 10px 20px;
+    }
+  }
+
+  /* Large screens */
+  @media (min-width: 1200px) {
+    .visitor-container {
+      padding: 32px;
+    }
+
+    .product-form-grid {
+      grid-template-columns: repeat(5, 1fr);
+      max-width: 1000px;
+      margin: 0 auto 15px;
+    }
+
+    .order-table {
+      font-size: 14px;
+    }
+
+    .order-table th,
+    .order-table td {
+      padding: 8px 4px;
+    }
+
+    .order-table input[type="number"],
+    .order-table select {
+      padding: 4px 2px;
+      font-size: 12px;
+      width: 80%;
+    }
+
+    .order-table button {
+      padding: 4px 6px;
+      font-size: 10px;
+      width: 100%;
+    }
+  }
+
+  /* Landscape mobile orientation */
+  @media (max-width: 768px) and (orientation: landscape) {
+    .visitor-container {
+      margin: 5px;
+    }
+
+    h3, h4 {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .filter-section,
+    .product-select-container {
+      padding: 8px;
+    }
+
+    .product-form-grid {
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    }
   }
 </style>
 
@@ -184,78 +412,80 @@
       <input type="text" id="searchInput" placeholder="جستجو بر اساس نام یا کد کالا">
     </div>
 
-    <!-- انتخاب کالا (وسط‌چین با عنوان‌ها) -->
-<div class="product-select-container" style="justify-content: right;">
-  <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; align-items: end; text-align: center;">
-    <div style="display: flex; flex-direction: column; align-items: center;">
-      <label for="productSelect">کالا</label>
-      <select id="productSelect">
-        <option value="">یک کالا انتخاب کنید</option>
-      </select>
-    </div>
+    <!-- انتخاب کالا -->
+    <div class="product-select-container">
+      <div class="product-form-grid">
+        <div class="form-field">
+          <label for="productSelect">کالا</label>
+          <select id="productSelect">
+            <option value="">یک کالا انتخاب کنید</option>
+          </select>
+        </div>
 
-    <div style="display: flex; flex-direction: column; align-items: center;">
-      <label for="new_quantity">تعداد</label>
-      <input type="number" id="new_quantity" name="new_quantity" value="1" min="1" placeholder="تعداد">
-    </div>
+        <div class="form-field">
+          <label for="new_quantity">تعداد</label>
+          <input type="number" id="new_quantity" name="new_quantity" value="1" min="1" placeholder="تعداد">
+        </div>
 
-    <div style="display: flex; flex-direction: column; align-items: center;">
-      <label for="new_price">قیمت</label>
-      <input type="number" id="new_price" name="new_price" value="0" min="0" placeholder="قیمت">
-    </div>
+        <div class="form-field">
+          <label for="new_price">قیمت</label>
+          <input type="number" id="new_price" name="new_price" value="0" min="0" placeholder="قیمت">
+        </div>
 
-    <div style="display: flex; flex-direction: column; align-items: center;">
-      <label for="payment-term-select">شرایط تسویه</label>
-      <select name="new_payment_term" id="payment-term-select">
-        <option value="">-- شرایط تسویه --</option>
-      </select>
-    </div>
+        <div class="form-field">
+          <label for="payment-term-select">شرایط تسویه</label>
+          <select name="new_payment_term" id="payment-term-select">
+            <option value="">-- شرایط تسویه --</option>
+          </select>
+        </div>
 
-    <div>
-      <button type="button" id="addProductBtn" style="margin-top: 22px;">افزودن کالا</button>
+        <div class="form-field">
+          <button type="button" id="addProductBtn">افزودن کالا</button>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
     <!-- جدول کالاهای سفارش -->
     <h4>کالاهای سفارش</h4>
-    <table class="order-table">
-      <thead>
-        <tr>
-          <th>کد کالا</th>
-          <th>نام کالا</th>
-          <th>تعداد</th>
-          <th>شرایط تسویه</th>
-          <th>قیمت</th>
-          <th>جمع</th>
-          <th>حذف</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for item in order.items.all %}
-        <tr>
-          <td>{{ item.product.code }}</td>
-          <td>{{ item.product.name }}</td>
-          <td><input type="number" name="quantity_{{ item.id }}" value="{{ item.requested_quantity }}" min="1" class="quantity-input"></td>
-          <td>
-            <select name="payment_term_{{ item.id }}">
-              {% for code in item.product.get_available_payment_terms %}
-                <option value="{{ code }}" {% if item.payment_term == code %}selected{% endif %}>
-                  {% if code == 'cash' %}نقدی{% elif code == '1m' %}1 ماهه{% elif code == '2m' %}2 ماهه{% elif code == '3m' %}3 ماهه{% elif code == '4m' %}4 ماهه{% endif %}
-                </option>
-              {% endfor %}
-            </select>
-          </td>
-          <td><input type="number" name="price_{{ item.id }}" value="{{ item.price }}" min="0" class="price-input"></td>
-          <td class="total-cell">{{ item.requested_quantity|add:item.price|floatformat:0 }}</td>
-          <td>
-            <button type="button" onclick="markForDelete(this, '{{ item.id }}')">حذف</button>
-            <input type="hidden" name="delete_{{ item.id }}" value="false" class="delete-input">
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="table-container">
+      <table class="order-table">
+        <thead>
+          <tr>
+            <th>کد کالا</th>
+            <th>نام کالا</th>
+            <th>تعداد</th>
+            <th>شرایط تسویه</th>
+            <th>قیمت</th>
+            <th>جمع</th>
+            <th>حذف</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in order.items.all %}
+          <tr>
+            <td>{{ item.product.code }}</td>
+            <td>{{ item.product.name }}</td>
+            <td><input type="number" name="quantity_{{ item.id }}" value="{{ item.requested_quantity }}" min="1" class="quantity-input"></td>
+            <td>
+              <select name="payment_term_{{ item.id }}">
+                {% for code in item.product.get_available_payment_terms %}
+                  <option value="{{ code }}" {% if item.payment_term == code %}selected{% endif %}>
+                    {% if code == 'cash' %}نقدی{% elif code == '1m' %}1 ماهه{% elif code == '2m' %}2 ماهه{% elif code == '3m' %}3 ماهه{% elif code == '4m' %}4 ماهه{% endif %}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="number" name="price_{{ item.id }}" value="{{ item.price }}" min="0" class="price-input"></td>
+            <td class="total-cell">{{ item.requested_quantity|add:item.price|floatformat:0 }}</td>
+            <td>
+              <button type="button" onclick="markForDelete(this, '{{ item.id }}')">حذف</button>
+              <input type="hidden" name="delete_{{ item.id }}" value="false" class="delete-input">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
     <div id="grandTotal">مجموع کل: 0</div>
 

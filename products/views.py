@@ -1350,7 +1350,7 @@ def order_pdf(request, order_id):
 \\begin{{center}}
     % اگر لوگو دارید، مسیر فایل را جایگزین کنید
     % \\includegraphics[width=3cm]{{logo.png}} \\\\
-    {{\\Huge \\textbf{{   پش فاکتور فروشگاه اکبرزاده }}}} \\\\
+    {{\\Huge \\textbf{{   پیش فاکتور فروشگاه اکبرزاده }}}} \\\\
 \\end{{center}}
 
 \\vspace{{0.5cm}}

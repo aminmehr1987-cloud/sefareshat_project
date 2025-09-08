@@ -1204,6 +1204,37 @@
 <script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
 
 <script>
+// Helper function to convert Persian/Arabic digits to English digits
+function toEnglishDigits(str) {
+    if (!str) return '';
+    return str.toString().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+}
+
+// Helper function to format amount input with thousand separators
+function formatAmountInput(input) {
+    // First, convert any existing Persian digits to English to parse correctly, then remove non-numeric characters.
+    let value = toEnglishDigits(input.value).replace(/[^0-9]/g, '');
+    if (value) {
+        // Use BigInt to handle large numbers safely
+        try {
+            const numericValue = BigInt(value);
+            input.value = numericValue.toLocaleString('fa-IR');
+        } catch (e) {
+            // Handle cases where the number might be invalid during typing
+            input.value = value;
+        }
+    } else {
+        input.value = '';
+    }
+}
+
+// Helper function to parse amount from formatted string
+function parseAmountFromFormattedString(formattedValue) {
+    if (!formattedValue) return '';
+    // Convert to English digits and remove anything that's not a number
+    return toEnglishDigits(formattedValue).replace(/[^0-9]/g, '');
+}
+
 $(document).ready(function() {
     // Persian Datepicker initialization
     $("#id_date_shamsi").pDatepicker({
@@ -1243,22 +1274,22 @@ $(document).ready(function() {
     // Initialize customer modal functionality
     initializeCustomerModal();
     
-    // تست وجود فیلد مبلغ
-    const amountField = document.getElementById('id_amount');
-    if (amountField) {
-        console.log('Debug - Amount field found:', amountField);
-        console.log('Debug - Amount field value:', amountField.value);
-    } else {
-        console.error('Debug - Amount field not found!');
-        // بررسی همه فیلدهای input
-        const allInputs = document.querySelectorAll('input');
-        console.log('Debug - All inputs:', allInputs);
-        allInputs.forEach(input => {
-            if (input.name === 'amount' || input.id.includes('amount')) {
-                console.log('Debug - Found amount-related field:', input);
-            }
-        });
+    // --- Amount Field Formatting ---
+    const amountInput = $('#id_amount');
+    
+    // Change input type to text to allow for formatting and set inputmode
+    amountInput.attr('type', 'text');
+    amountInput.attr('inputmode', 'numeric');
+
+    // Format the initial value on page load, if any
+    if (amountInput.val()) {
+        formatAmountInput(amountInput.get(0));
     }
+
+    // Add listener for live formatting on input
+    amountInput.on('input', function() {
+        formatAmountInput(this);
+    });
 });
 
 // Customer Modal Functions
@@ -2121,7 +2152,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // پاک کردن جداکننده‌ها از مبلغ قبل از ارسال
         const amountField = document.querySelector('input[name="amount"]');
         if (amountField && amountField.value) {
-            amountField.value = amountField.value.replace(/,/g, '');
+            amountField.value = parseAmountFromFormattedString(amountField.value);
         }
         
         // بررسی اینکه آیا چک‌هایی انتخاب شده‌اند
