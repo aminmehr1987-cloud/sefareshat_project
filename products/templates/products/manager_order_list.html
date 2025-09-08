@@ -233,11 +233,11 @@
   }
   .details-content-row td {
     padding: 10px;
-    overflow-x: auto;
+    
   }
   .details-content-row td > * {
     max-width: 100%;
-    overflow-x: auto;
+    
   }
   .items-table {
     width: 100%;
@@ -344,6 +344,18 @@
     transform: scale(1.1);
     box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
     text-decoration: none;
+  }
+
+  .print-order-button {
+    border-color: #7e57c2;
+    color: #7e57c2;
+  }
+  
+  .print-order-button:hover {
+    background-color: #7e57c2;
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(126, 87, 194, 0.3);
   }
   
   .action-button:disabled {
@@ -881,6 +893,9 @@
                 <td>{{ sub_order.document_number|default:"-" }}</td>
                 <td>{{ sub_order.package_count|default:"-" }}</td>
                 <td>
+                  <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                      <i class="bi bi-printer-fill"></i>
+                  </button>
                   <button class="action-button details-button" onclick="toggleDetails('sub-details-{{ sub_order.id }}')" title="جزئیات">
                     <i class="bi bi-eye-fill"></i>
                   </button>
@@ -1005,6 +1020,9 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-pending">در انتظار تأیید</span></td>
         <td>
+          <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ order.id }}';" class="action-button print-order-button" title="چاپ">
+              <i class="bi bi-printer-fill"></i>
+          </button>
           <button class="action-button details-button" onclick="toggleDetails('details-row-pending-{{ order.id }}')" title="جزئیات">
             <i class="bi bi-eye-fill"></i>
           </button>
@@ -1114,6 +1132,9 @@
                   <td>{{ sub_order.document_number|default:"-" }}</td>
                   <td>{{ sub_order.package_count }}</td>
                   <td>
+                    <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                        <i class="bi bi-printer-fill"></i>
+                    </button>
                     <button class="action-button details-button" onclick="toggleDetails('sub-details-warehouse-{{ sub_order.id }}')" title="جزئیات">
                       <i class="bi bi-eye-fill"></i>
                     </button>
@@ -1233,7 +1254,7 @@
                     onclick="sendAllSubOrders('{{ order.id }}')"
                     id="send-all-button-{{ order.id }}"
                     disabled title="ارسال همه زیرسفارش‌ها">
-              <i class="bi bi-send"></i>
+              <i class="bi bi-truck"></i>
             </button>
           </div>
           <div class="table-wrapper">
@@ -1258,6 +1279,9 @@
                   <td>{{ sub_order.document_number|default:"-" }}</td>
                   <td>{{ sub_order.package_count|default:"0" }}</td>
                   <td>
+                    <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                        <i class="bi bi-printer-fill"></i>
+                    </button>
                     <button class="action-button details-button" onclick="toggleDetails('sub-details-ready-{{ sub_order.id }}')" title="جزئیات">
                       <i class="bi bi-eye-fill"></i>
                     </button>

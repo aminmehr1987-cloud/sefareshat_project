@@ -48,49 +48,63 @@ logger = logging.getLogger(__name__)
 @login_required
 def order_confirmation(request):
     """
-    نمایش صفحه تایید نهایی سفارش
+    نمایش صفحه تایید نهایی سفارش یا نمایش سفارش برای چاپ
     """
     try:
-        # دریافت سفارش با وضعیت cart برای کاربر جاری
-        customer = None
-        if hasattr(request.user, 'customer_profile'):
-            customer = request.user.customer_profile
-        elif request.user.groups.filter(name='ویزیتور').exists():
-            # دریافت customer_id از hidden input در صفحه
-            customer_id = request.GET.get('customer_id')
-            if not customer_id:
-                # اگر در GET نبود، از session چک کنیم
-                customer_id = request.session.get('selected_customer_id')
-            
-            if customer_id:
-                try:
-                    customer = Customer.objects.get(id=customer_id)
-                except Customer.DoesNotExist:
-                    messages.error(request, 'مشتری مورد نظر یافت نشد')
-                    return redirect('products:product_list')
+        order_id = request.GET.get('order_id')
+        is_print_view = bool(order_id)
         
-        if not customer:
-            messages.error(request, 'مشتری یافت نشد')
-            return redirect('products:product_list')
+        if is_print_view:
+            # Logic for printing an existing order for managers
+            # Only managers should be able to access this view by order_id
+            if not request.user.groups.filter(name='مدیر').exists():
+                messages.error(request, 'شما اجازه دسترسی به این صفحه را ندارید.')
+                return redirect('products:login')
+            
+            order = get_object_or_404(Order.objects.prefetch_related('items__product'), id=order_id)
+            customer = order.customer
 
-        cart_order = Order.objects.filter(
-            customer=customer,
-            status='cart'
-        ).prefetch_related('items__product').first()
+        else:
+            # Existing logic for visitors/customers confirming their cart
+            customer = None
+            if hasattr(request.user, 'customer_profile'):
+                customer = request.user.customer_profile
+            elif request.user.groups.filter(name='ویزیتور').exists():
+                customer_id = request.GET.get('customer_id') or request.session.get('selected_customer_id')
+                if customer_id:
+                    try:
+                        customer = Customer.objects.get(id=customer_id)
+                    except Customer.DoesNotExist:
+                        messages.error(request, 'مشتری مورد نظر یافت نشد')
+                        return redirect('products:product_list')
+            
+            if not customer:
+                messages.error(request, 'مشتری یافت نشد')
+                return redirect('products:product_list')
 
-        if not cart_order or not cart_order.items.exists():
-            messages.error(request, 'سبد خرید خالی است')
+            order = Order.objects.filter(
+                customer=customer,
+                status='cart'
+            ).prefetch_related('items__product').first()
+
+        if not order or not order.items.exists():
+            message = 'سفارش یافت نشد.' if is_print_view else 'سبد خرید شما خالی است.'
+            messages.error(request, message)
+            if request.user.groups.filter(name='مدیر').exists():
+                return redirect('products:manager_order_list')
             return redirect('products:product_list')
 
         # محاسبه مجموع قیمت برای هر آیتم و کل سفارش
         order_items = []
         total_amount = 0
-        for item in cart_order.items.all():
-            item_total = item.price * item.requested_quantity
+        for item in order.items.all():
+            # For confirmed orders, use allocated_quantity, otherwise requested_quantity
+            quantity = item.allocated_quantity if order.status not in ['cart', 'pending'] and item.allocated_quantity is not None else item.requested_quantity
+            item_total = item.price * quantity
             total_amount += item_total
             order_items.append({
                 'product': item.product,
-                'quantity': item.requested_quantity,
+                'quantity': quantity,
                 'price': item.price,
                 'total': item_total,
                 'order_item_id': item.id,
@@ -99,15 +113,20 @@ def order_confirmation(request):
 
         context = {
             'customer': customer,
-            'order': cart_order,
+            'order': order,
             'order_items': order_items,
-            'total_amount': total_amount
+            'total_amount': total_amount,
+            'is_print_view': is_print_view,
         }
         
         return render(request, 'products/order_confirmation.html', context)
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         messages.error(request, f'خطا در نمایش صفحه تایید سفارش: {str(e)}')
+        if request.user.groups.filter(name='مدیر').exists():
+            return redirect('products:manager_order_list')
         return redirect('products:product_list')
 
 

@@ -168,6 +168,9 @@
                                     <td>{{ item.product.brand }}</td>
                                     <td>{{ item.price|floatformat:0|intcomma }}</td>
                                     <td>
+                                        {% if is_print_view %}
+                                            {{ item.quantity }}
+                                        {% else %}
                                         <input type="number" 
                                                name="quantity_{{ item.order_item_id }}" 
                                                value="{{ item.quantity }}" 
@@ -175,8 +178,18 @@
                                                class="quantity-input"
                                                onchange="updateItemTotal(this, '{{ item.price }}', '{{ item.order_item_id }}')"
                                                style="width: 60px; text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 4px; -webkit-appearance: none; -moz-appearance: textfield; touch-action: manipulation;">
+                                        {% endif %}
                                     </td>
                                     <td>
+                                        {% if is_print_view %}
+                                            {% if item.payment_term == 'cash' %}نقدی
+                                            {% elif item.payment_term == '1m' %}1 ماهه
+                                            {% elif item.payment_term == '2m' %}2 ماهه
+                                            {% elif item.payment_term == '3m' %}3 ماهه
+                                            {% elif item.payment_term == '4m' %}4 ماهه
+                                            {% else %}{{ item.payment_term }}
+                                            {% endif %}
+                                        {% else %}
                                         <select name="payment_term_{{ item.order_item_id }}" 
                                                 class="payment-term-select"
                                                 onchange="updatePaymentTerm(this, '{{ item.order_item_id }}')">
@@ -192,12 +205,15 @@
                                                 </option>
                                             {% endfor %}
                                         </select>
+                                        {% endif %}
                                     </td>
                                     <td>{{ item.total|floatformat:0|intcomma }}</td>
                                     <td>
+                                        {% if not is_print_view %}
                                         <button type="button" class="btn-delete-item" onclick="deleteOrderItem('{{ item.order_item_id }}')" title="حذف آیتم">
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
+                                        {% endif %}
                                     </td>
                                 </tr>
                             {% empty %}
@@ -220,14 +236,20 @@
             </div>
 
             <div class="action-buttons">
+                {% if not is_print_view %}
                 <button type="button" class="btn-save-changes" id="save-changes-btn">ذخیره تغییرات</button>
+                {% endif %}
                 <button type="button" class="btn-print" onclick="printOrder()">چاپ سفارش</button>
+                {% if not is_print_view %}
                 <form method="post" action="{% url 'products:confirm_order' %}" class="confirm-form">
                     {% csrf_token %}
                     <input type="hidden" name="order_id" value="{{ order.id }}">
                     <button type="submit" class="btn-confirm">تایید نهایی سفارش</button>
                 </form>
                 <a href="{% url 'products:product_list' %}" class="btn-cancel">بازگشت به لیست محصولات</a>
+                {% else %}
+                <a href="{% url 'products:manager_order_list' %}" class="btn-cancel">بازگشت به لیست سفارشات مدیر</a>
+                {% endif %}
             </div>
         {% else %}
             <div class="error-message">
