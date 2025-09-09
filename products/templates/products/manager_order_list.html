@@ -132,9 +132,9 @@
     flex-wrap: wrap; /* Allow tiles to wrap to the next line */
   }
   .tile-card {
-    flex: 1 1 22%; /* 4 tile per row, 2 rows for 8 tabs */
-    min-width: 180px;
-    max-width: 24%;
+    flex: 1 1 18%; /* 5 tiles per row */
+    min-width: 150px; /* Adjusted min-width */
+    max-width: 19%;
     box-sizing: border-box;
     background: linear-gradient(135deg, #4e9af1, #71b7ff);
     color: white;
@@ -187,7 +187,8 @@
   .tile-backordered { background: linear-gradient(135deg, #ef5350, #ef9a9a); }
   .tile-supplied { background: linear-gradient(135deg, #00b894, #55efc4); }
   .tile-backorder-ready { background: linear-gradient(135deg, #fdcb6e, #e17055); }
-  .tile-shipped { background: linear-gradient(135deg, #28a745, #4cae4c); }
+  .tile-shipped { background: linear-gradient(135deg, #48a6d1, #3c3fd4); }
+  .tile-finalized { background: linear-gradient(135deg, #44ad63, #40922b); } /* Grey color */
 
   /* Tab Content and Table Styles (unchanged from previous version, but included for completeness) */
   .tabcontent {
@@ -754,7 +755,11 @@
     <svg class="tile-icon" fill="white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.16 8.6l-1.43-4.29A2 2 0 0 0 16.83 3H7.17a2 2 0 0 0-1.9 1.31L3.84 8.6A2 2 0 0 0 3 10.13V19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-1h6v1a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-8.87a2 2 0 0 0-.84-1.53zM7.17 5h9.66l1.25 3.75H5.92zM19 19a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-2H8v2a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8.87a1 1 0 0 1 .42-.8l.1-.07h13l.1.07a1 1 0 0 1 .42.8z"/></svg>
     <span class="tile-title">ارسال شده ها</span>
     <span class="tile-count">{{ shipped_shipments.count }}</span>
-
+  </div>
+  <div class="tile-card tile-finalized" onclick="openTabByName('Shipped', this)">
+    <svg class="tile-icon" fill="white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+    <span class="tile-title">نهایی شده</span>
+    <span class="tile-count">{{ shipped_shipments.count }}</span>
   </div>
 </div>
 

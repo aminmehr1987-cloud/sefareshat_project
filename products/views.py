@@ -1963,7 +1963,15 @@ def manager_order_list(request):
             Q(customer__store_name__icontains=customer_name)
         )
     if visitor_name:
-        base_query = base_query.filter(visitor_name__icontains=visitor_name)
+        # First, find users who match the visitor_name in username, first_name, or last_name
+        matching_users = User.objects.filter(
+            Q(username__icontains=visitor_name) |
+            Q(first_name__icontains=visitor_name) |
+            Q(last_name__icontains=visitor_name)
+        ).values_list('username', flat=True)
+        
+        # Then, filter the orders where visitor_name is in the list of matching usernames
+        base_query = base_query.filter(visitor_name__in=list(matching_users))
     if status:
         base_query = base_query.filter(status=status)
 
