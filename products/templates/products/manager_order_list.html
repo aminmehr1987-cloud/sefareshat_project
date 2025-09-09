@@ -133,19 +133,19 @@
   }
   .tile-card {
     flex: 1 1 18%; /* 5 tiles per row */
-    min-width: 150px; /* Adjusted min-width */
+    min-width: 160px;
     max-width: 19%;
     box-sizing: border-box;
     background: linear-gradient(135deg, #4e9af1, #71b7ff);
     color: white;
-    padding: 20px;
+    padding: 15px;
     border-radius: 12px;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(30, 136, 229, 0.4);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 10px; /* Reduced gap slightly to save space */
+    gap: 8px;
   }
   .tile-card:hover {
     transform: translateY(-5px);
@@ -183,12 +183,11 @@
   .tile-pending { background: linear-gradient(135deg, #f4b400, #f7c242); }
   .tile-warehouse { background: linear-gradient(135deg, #00bfa5, #26c6da); }
   .tile-ready { background: linear-gradient(135deg, #ab47bc, #ce93d8); }
-  .tile-delivered { background: linear-gradient(135deg, #66bb6a, #a5d6a7); }
+  .tile-finalized { background: linear-gradient(135deg, #66bb6a, #a5d6a7); }
   .tile-backordered { background: linear-gradient(135deg, #ef5350, #ef9a9a); }
   .tile-supplied { background: linear-gradient(135deg, #00b894, #55efc4); }
   .tile-backorder-ready { background: linear-gradient(135deg, #fdcb6e, #e17055); }
-  .tile-shipped { background: linear-gradient(135deg, #48a6d1, #3c3fd4); }
-  .tile-finalized { background: linear-gradient(135deg, #44ad63, #40922b); } /* Grey color */
+  .tile-shipped { background: linear-gradient(135deg, #28a745, #4cae4c); }
 
   /* Tab Content and Table Styles (unchanged from previous version, but included for completeness) */
   .tabcontent {
@@ -756,10 +755,10 @@
     <span class="tile-title">ارسال شده ها</span>
     <span class="tile-count">{{ shipped_shipments.count }}</span>
   </div>
-  <div class="tile-card tile-finalized" onclick="openTabByName('Shipped', this)">
-    <svg class="tile-icon" fill="white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+  <div class="tile-card tile-finalized" onclick="openTabByName('Delivered', this)">
+    <svg class="tile-icon" fill="white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm-2 15l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
     <span class="tile-title">نهایی شده</span>
-    <span class="tile-count">{{ shipped_shipments.count }}</span>
+    <span class="tile-count">{{ delivered_shipments.count }}</span>
   </div>
 </div>
 
@@ -1743,165 +1742,63 @@
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
               <td>{{ shipment.courier_name|default:'-' }}</td>
               <td>
-                  <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="جزئیات ارسال">
-                    <i class="bi bi-eye-fill"></i>
+                  <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="جزئیات و نهایی‌سازی">
+                    <i class="bi bi-pencil-square"></i>
                   </button>
               </td>
           </tr>
           <tr id="details-row-shipped-{{ shipment.id }}" class="details-content-row">
-              <td colspan="5">
-                  {# اگر شاپمنت زیرسفارش دارد، لیست زیرسفارش‌ها را نمایش بده، اگر نه فقط خود سفارش #}
-                  {% if shipment.sub_orders.exists %}
-                  <div class="table-wrapper">
-                  <table class="items-table">
-                      <thead>
-                          <tr>
-                              <th>تاریخ</th>
-                              <th>شماره سفارش</th>
-                              <th>نام مشتری</th>
-                              <th>شماره سند</th>
-                              <th>تعداد بسته</th>
-                              <th>وضعیت</th>
-                              <th>نوع سفارش</th>
-                              <th>عملیات</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          {% for sub_order in shipment.sub_orders.all %}
-                          <tr>
-                              <td>{{ sub_order.created_at|jformat:"%Y/%m/%d" }}</td>
-                              <td>{{ sub_order.order_number }}</td>
-                              <td>{{ sub_order.customer_name }}</td>
-                              <td>{{ sub_order.document_number|default:"-" }}</td>
-                              <td>{{ sub_order.package_count|default:"-" }}</td>
-                              <td><span class="order-status status-{{ sub_order.status }}">
-                                {{ sub_order.get_status_display }}
-                              </span></td>
-                              <td>
-                                {% if sub_order.order_number|slice:":2" == "BO" %}بک‌اوردر{% else %}عادی{% endif %}
-                              </td>
-                              <td>
-                                  <button class="action-button details-button" onclick="toggleDetails('details-row-order-{{ sub_order.id }}')" title="جزئیات">
-                                    <i class="bi bi-eye-fill"></i>
-                                  </button>
-                              </td>
-                          </tr>
-                          <tr id="details-row-order-{{ sub_order.id }}" class="details-content-row">
-                              <td colspan="8">
-                                  <div class="table-wrapper">
-                                  <table class="items-table">
-                                      <thead>
-                                          <tr>
-                                              <th>کد کالا</th>
-                                              <th>نام محصول</th>
-                                              <th>تعداد تخصیص یافته</th>
-                                              <th>قیمت واحد</th>
-                                              <th>جمع کل</th>
-                                          </tr>
-                                      </thead>
-                                      <tbody>
-                                          {% for item in sub_order.items.all %}
-                                          <tr>
-                                              <td>{{ item.product.code }}</td>
-                                              <td>{{ item.product.name }}</td>
-                                              <td>{{ item.allocated_quantity }}</td>
-                                              <td>{{ item.price|floatformat:0 }} ریال</td>
-                                              <td>{{ item.price|multiply:item.allocated_quantity|floatformat:0 }} ریال</td>
-                                          </tr>
-                                          {% empty %}
-                                          <tr>
-                                              <td colspan="5">هیچ کالایی ثبت نشده.</td>
-                                          </tr>
-                                          {% endfor %}
-                                      </tbody>
-                                  </table>
-                                  </div>
-                              </td>
-                          </tr>
-                          {% empty %}
-                          <tr>
-                              <td colspan="8">هیچ سفارشی ثبت نشده.</td>
-                          </tr>
-                          {% endfor %}
-                      </tbody>
-                  </table>
-                  </div>
-                  {% else %}
-                  {# اگر شاپمنت زیرسفارش ندارد، اطلاعات خود سفارش (ممکن است بک‌اوردر باشد) #}
-                  <div class="table-wrapper">
-                  <table class="items-table">
-                      <thead>
-                          <tr>
-                              <th>تاریخ</th>
-                              <th>شماره سفارش</th>
-                              <th>نام مشتری</th>
-                              <th>شماره سند</th>
-                              <th>تعداد بسته</th>
-                              <th>وضعیت</th>
-                              <th>نوع سفارش</th>
-                              <th>عملیات</th>
-                          </tr>
-                      </thead>
-                      <tbody>
-                          <tr>
-                              <td>{{ shipment.order.created_at|jformat:"%Y/%m/%d" }}</td>
-                              <td>{{ shipment.order.order_number }}</td>
-                              <td>{{ shipment.order.customer_name }}</td>
-                              <td>{{ shipment.order.document_number|default:"-" }}</td>
-                              <td>{{ shipment.order.package_count|default:"-" }}</td>
-                              <td><span class="order-status status-{{ shipment.order.status }}">
-                                {{ shipment.order.get_status_display }}
-                              </span></td>
-                              <td>
-                                {% if shipment.order.order_number|slice:":2" == "BO" %}بک‌اوردر{% else %}عادی{% endif %}
-                              </td>
-                              <td>
-                                  <button class="action-button details-button" onclick="toggleDetails('details-row-order-{{ shipment.order.id }}')" title="جزئیات">
-                                    <i class="bi bi-eye-fill"></i>
-                                  </button>
-                              </td>
-                          </tr>
-                          <tr id="details-row-order-{{ shipment.order.id }}" class="details-content-row">
-                              <td colspan="8">
-                                  <div class="table-wrapper">
-                                  <table class="items-table">
-                                      <thead>
-                                          <tr>
-                                              <th>کد کالا</th>
-                                              <th>نام محصول</th>
-                                              <th>تعداد تخصیص یافته</th>
-                                              <th>قیمت واحد</th>
-                                              <th>جمع کل</th>
-                                          </tr>
-                                      </thead>
-                                      <tbody>
-                                          {% for item in shipment.order.items.all %}
-                                          <tr>
-                                              <td>{{ item.product.code }}</td>
-                                              <td>{{ item.product.name }}</td>
-                                              <td>{{ item.allocated_quantity }}</td>
-                                              <td>{{ item.price|floatformat:0 }} ریال</td>
-                                              <td>{{ item.price|multiply:item.allocated_quantity|floatformat:0 }} ریال</td>
-                                          </tr>
-                                          {% empty %}
-                                          <tr>
-                                              <td colspan="5">هیچ کالایی ثبت نشده.</td>
-                                          </tr>
-                                          {% endfor %}
-                                      </tbody>
-                                  </table>
-                                  </div>
-                              </td>
-                          </tr>
-                      </tbody>
-                  </table>
-                  </div>
-                  {% endif %}
+            <td colspan="6">
+              {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=True shipment_id=shipment.id %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+              <td colspan="6">هیچ ارسال ثبت نشده است.</td>
+          </tr>
+          {% endfor %}
+      </tbody>
+  </table>
+</div>
+
+<div id="Delivered" class="tabcontent">
+  <h2>سفارشات نهایی شده</h2>
+  <table class="orders-table" id="delivered-orders">
+      <thead>
+          <tr>
+              <th>تاریخ نهایی‌سازی</th>
+              <th>شماره ارسال</th>
+              <th>نام مشتری</th>
+              <th>نام ویزیتور</th>
+              <th>نام پیک</th>
+              <th>عملیات</th>
+          </tr>
+      </thead>
+      <tbody>
+          {% for shipment in delivered_shipments %}
+          <tr>
+              <td>{{ shipment.delivery_date|jformat:'%Y/%m/%d %H:%M' }}</td>
+              <td>{{ shipment.shipment_number|default:'-' }}</td>
+              <td>{{ shipment.order.customer_name }}</td>
+              <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
+              <td>{{ shipment.courier_name|default:'-' }}</td>
+              <td>
+                <a href="{% url 'products:sales_invoice_pdf' shipment.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
+                    <i class="bi bi-receipt"></i>
+                </a>
+                <button class="action-button details-button" onclick="toggleDetails('details-row-delivered-{{ shipment.id }}')" title="جزئیات">
+                    <i class="bi bi-eye-fill"></i>
+                </button>
+              </td>
+          </tr>
+          <tr id="details-row-delivered-{{ shipment.id }}" class="details-content-row">
+              <td colspan="6">
+                {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=False %}
               </td>
           </tr>
           {% empty %}
           <tr>
-              <td colspan="5">هیچ ارسال ثبت نشده است.</td>
+              <td colspan="6">هیچ سفارش نهایی شده‌ای یافت نشد.</td>
           </tr>
           {% endfor %}
       </tbody>
@@ -1971,20 +1868,42 @@
 
     // اگر وضعیت در انتظار ارسال به مشتری است، نام پیک را هم ارسال می‌کنیم
     if (currentStatus === 'waiting_for_customer_shipment') {
-      const detailsRow = document.getElementById(`details-row-ready-${orderId}`);
-      const courierInputs = detailsRow.getElementsByClassName('courier-input');
-      let allCourierNames = [];
-      
-      for (let input of courierInputs) {
-        if (!input.value.trim()) {
-          alert('لطفاً نام پیک را برای همه زیرسفارش‌ها وارد کنید');
-          return;
+        const courierInput = document.getElementById(`courier-${orderId}`);
+        if (!courierInput || !courierInput.value.trim()) {
+            // This case handles parent orders where the input is in the details row
+            const parentCourierInput = document.getElementById(`courier-${orderId}`);
+            if (parentCourierInput && parentCourierInput.value.trim()){
+                requestData.courier_name = parentCourierInput.value.trim();
+            } else {
+                alert('لطفاً نام پیک را وارد کنید.');
+                return;
+            }
+        } else {
+            requestData.courier_name = courierInput.value.trim();
         }
-        allCourierNames.push(input.value.trim());
-      }
-      
-      requestData.courier_name = allCourierNames.join(' - ');
+    } else if (currentStatus === 'shipped') {
+        // This is the finalization step. We gather the delivered quantities.
+        const items = [];
+        const itemRows = document.querySelectorAll(`#details-row-shipped-${orderId} [data-item-id]`);
+        let allQuantitiesValid = true;
+
+        itemRows.forEach(row => {
+            const itemId = row.dataset.itemId;
+            const deliveredQtyInput = document.getElementById(`delivered-qty-${itemId}`);
+            const allocatedQty = parseInt(row.dataset.allocated, 10);
+            const deliveredQty = parseInt(deliveredQtyInput.value, 10);
+
+            if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > allocatedQty) {
+                alert(`مقدار تحویلی برای کالای ${row.cells[1].innerText} نامعتبر است. باید بین 0 و ${allocatedQty} باشد.`);
+                allQuantitiesValid = false;
+            }
+            items.push({ id: itemId, delivered_quantity: deliveredQty });
+        });
+
+        if (!allQuantitiesValid) return;
+        requestData.items = items;
     }
+
 
     fetch('/api/update-order-status/', {
       method: 'POST',
@@ -2014,6 +1933,65 @@
       console.error('Error:', error);
       alert('خطا: ' + error.message);
     });
+  }
+
+  function finalizeShippedOrder(shipmentId) {
+      if (!confirm('آیا از نهایی کردن این ارسال اطمینان دارید؟ مقادیر کالا و انبار به‌روزرسانی خواهند شد.')) {
+          return;
+      }
+
+      const itemsData = [];
+      const detailsContainer = document.getElementById(`details-row-shipped-${shipmentId}`);
+      const itemInputs = detailsContainer.querySelectorAll('input[name="delivered_quantity"]');
+      let isValid = true;
+
+      itemInputs.forEach(input => {
+          const itemId = input.dataset.itemId;
+          const allocatedQty = parseInt(input.max, 10);
+          const deliveredQty = parseInt(input.value, 10);
+
+          if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > allocatedQty) {
+              alert(`مقدار وارد شده برای یکی از کالاها نامعتبر است. لطفاً عددی بین 0 و ${allocatedQty} وارد کنید.`);
+              input.style.border = '2px solid red';
+              isValid = false;
+          } else {
+              input.style.border = '';
+              itemsData.push({
+                  item_id: itemId,
+                  delivered_quantity: deliveredQty
+              });
+          }
+      });
+
+      if (!isValid) {
+          return;
+      }
+
+      fetch('/api/update-order-status/', {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': getCookie('csrftoken')
+          },
+          body: JSON.stringify({
+              shipment_id: shipmentId,
+              current_status: 'shipped', // Action is 'finalize'
+              items: itemsData
+          })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if (data.success) {
+              alert('ارسال با موفقیت نهایی شد.');
+              location.reload();
+          } else {
+              alert('خطا در نهایی‌سازی: ' + (data.message || 'خطای نامشخص'));
+          }
+      })
+      .catch(error => {
+          console.error('Error:', error);
+          alert('خطای ارتباط با سرور.');
+      });
   }
 
   function editOrder(orderId) {

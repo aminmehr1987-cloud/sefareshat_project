@@ -1,0 +1,155 @@
+{#
+This partial template renders the details of a single order.
+It expects an `order` object, and optionally `is_finalizing` (boolean) and `shipment_id`.
+It handles both simple orders and parent orders (with sub-orders).
+If `is_finalizing` is true, it shows inputs for delivered quantities.
+Otherwise, it displays the delivered quantities as read-only.
+#}
+{% load custom_filters %}
+
+{% if order.get_sub_orders.exists %}
+  {# Parent order with sub-orders #}
+  <h4>زیرسفارش‌ها:</h4>
+  <div class="table-wrapper">
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>شماره زیرسفارش</th>
+          <th>انبار</th>
+          <th>وضعیت</th>
+          <th>عملیات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sub_order in order.get_sub_orders %}
+        <tr>
+          <td>{{ sub_order.order_number }}</td>
+          <td>{{ sub_order.items.first.warehouse.name|default:'-' }}</td>
+          <td><span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span></td>
+          <td>
+            <button class="action-button details-button" onclick="toggleDetails('sub-details-{{ sub_order.id }}')" title="جزئیات آیتم‌ها">
+              <i class="bi bi-list-check"></i>
+            </button>
+          </td>
+        </tr>
+        <tr id="sub-details-{{ sub_order.id }}" class="details-content-row">
+          <td colspan="4">
+            <div class="table-wrapper">
+              <table class="items-table">
+                <thead>
+                  <tr>
+                    <th>کد کالا</th>
+                    <th>نام محصول</th>
+                    <th>تخصیص یافته</th>
+                    {% if is_finalizing %}
+                      <th>تعداد تحویل شده</th>
+                    {% else %}
+                      <th>تحویل شده</th>
+                      <th>مرجوعی</th>
+                    {% endif %}
+                    <th>قیمت واحد</th>
+                    <th>جمع کل (بر اساس تحویل)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in sub_order.items.all %}
+                  <tr>
+                    <td>{{ item.product.code }}</td>
+                    <td>{{ item.product.name }}</td>
+                    <td>{{ item.allocated_quantity }}</td>
+                    <td>
+                      {% if is_finalizing %}
+                        <input type="number" name="delivered_quantity" value="{{ item.allocated_quantity }}"
+                               min="0" max="{{ item.allocated_quantity }}"
+                               data-item-id="{{ item.id }}"
+                               class="allocated-qty-input" style="width: 70px;">
+                      {% else %}
+                        {{ item.delivered_quantity|default:"-" }}
+                      {% endif %}
+                    </td>
+                    {% if not is_finalizing %}
+                      <td>{{ item.returned_quantity }}</td>
+                    {% endif %}
+                    <td>{{ item.price|floatformat:0 }} ریال</td>
+                    <td>
+                        {% if is_finalizing %}
+                            <span class="price-display-{{ item.id }}">{{ item.price|multiply:item.allocated_quantity|floatformat:0 }}</span> ریال
+                        {% else %}
+                            {{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال
+                        {% endif %}
+                    </td>
+                  </tr>
+                  {% empty %}
+                  <tr><td colspan="7">هیچ کالایی ثبت نشده.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  {# Simple order with items #}
+  <div class="table-wrapper">
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>کد کالا</th>
+          <th>نام محصول</th>
+          <th>تخصیص یافته</th>
+          {% if is_finalizing %}
+            <th>تعداد تحویل شده</th>
+          {% else %}
+            <th>تحویل شده</th>
+            <th>مرجوعی</th>
+          {% endif %}
+          <th>قیمت واحد</th>
+          <th>جمع کل (بر اساس تحویل)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in order.items.all %}
+        <tr>
+          <td>{{ item.product.code }}</td>
+          <td>{{ item.product.name }}</td>
+          <td>{{ item.allocated_quantity }}</td>
+          <td>
+            {% if is_finalizing %}
+              <input type="number" name="delivered_quantity" value="{{ item.allocated_quantity }}"
+                     min="0" max="{{ item.allocated_quantity }}"
+                     data-item-id="{{ item.id }}"
+                     class="allocated-qty-input" style="width: 70px;">
+            {% else %}
+              {{ item.delivered_quantity|default:"-" }}
+            {% endif %}
+          </td>
+          {% if not is_finalizing %}
+            <td>{{ item.returned_quantity }}</td>
+          {% endif %}
+          <td>{{ item.price|floatformat:0 }} ریال</td>
+          <td>
+            {% if is_finalizing %}
+                <span class="price-display-{{ item.id }}">{{ item.price|multiply:item.allocated_quantity|floatformat:0 }}</span> ریال
+            {% else %}
+                {{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7">هیچ کالایی ثبت نشده.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+{% if is_finalizing %}
+<div style="text-align: center; margin-top: 20px;">
+    <button class="btn btn-success" style="padding: 10px 25px; font-size: 16px;" onclick="finalizeShippedOrder('{{ shipment_id }}')">
+        <i class="bi bi-check-circle-fill"></i> نهایی کردن ارسال
+    </button>
+</div>
+{% endif %}

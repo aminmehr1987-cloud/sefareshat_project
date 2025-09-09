@@ -680,6 +680,7 @@ class OrderItem(models.Model):
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="انبار")
     warehouse_status = models.CharField(max_length=100, choices=WAREHOUSE_STATUS_CHOICES, default='pending', verbose_name="وضعیت انبار")
     warehouse_note = models.TextField(blank=True, null=True, verbose_name="یادداشت انبار")
+    delivered_quantity = models.PositiveIntegerField(null=True, blank=True, verbose_name='تعداد تحویل شده')
 
     class Meta:
         verbose_name = "آیتم سفارش"
@@ -4169,40 +4170,43 @@ def get_document_number_display(obj):
     return "-"
 
 
-@receiver(post_save, sender=Order)
+@receiver(post_save, sender=Shipment)
 def create_financial_operation_on_delivery(sender, instance, created, **kwargs):
-    # Check if the order was just updated (not created) and the status is 'delivered'
-    if not created and instance.status == 'delivered' and instance.parent_order is not None:
-        # Check if an invoice for this sub-order already exists to prevent duplicates
-        if not FinancialOperation.objects.filter(operation_type='SALES_INVOICE', customer=instance.customer, description__icontains=f"سفارش شماره {instance.order_number}").exists():
-            # Calculate the total price from the allocated items
-            total_price = sum(item.price * (item.allocated_quantity or 0) for item in instance.items.all())
+    """
+    Creates a final sales invoice when a shipment's status is changed to 'delivered'.
+    """
+    if not created and instance.status == 'delivered':
+        order = instance.order
+        
+        if not FinancialOperation.objects.filter(
+            operation_type='SALES_INVOICE', 
+            customer=order.customer, 
+            description__icontains=f"سفارش شماره {order.order_number}"
+        ).exists():
             
-            # The amount should not be zero. If it is, something is wrong with the allocated items.
+            total_price = sum(
+                shipment_item.order_item.price * (shipment_item.order_item.delivered_quantity or 0)
+                for shipment_item in instance.shipmentitem_set.all()
+                if shipment_item.order_item.delivered_quantity is not None
+            )
+            
             if total_price > 0:
-                # In a signal, we don't have access to the request.user.
-                # We will try to get the user from the order, or fall back to a system user.
-                user = None
-                if instance.visitor_name:
-                    user = User.objects.filter(username=instance.visitor_name).first()
-                
-                if not user:
-                    # Fallback to the first superuser if no other user is found
-                    user = User.objects.filter(is_superuser=True).order_by('pk').first()
+                # Use the user who created the customer, or the visitor, or fallback to a superuser.
+                user = order.customer.created_by or User.objects.filter(username=order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
 
-                # Create the financial operation (sales invoice)
-                FinancialOperation.objects.create(
-                    operation_type='SALES_INVOICE',
-                    customer=instance.customer,
-                    amount=total_price,
-                    payment_method='credit_sale',
-                    date=timezone.now().date(),
-                    description=f"فاکتور فروش بابت سفارش شماره {instance.order_number}",
-                    created_by=user,
-                    status='CONFIRMED',
-                    confirmed_by=user,
-                    confirmed_at=timezone.now()
-                )
+                if user:
+                    FinancialOperation.objects.create(
+                        operation_type='SALES_INVOICE',
+                        customer=order.customer,
+                        amount=total_price,
+                        payment_method='credit_sale',
+                        date=timezone.now().date(),
+                        description=f"فاکتور فروش بابت سفارش شماره {order.order_number}",
+                        created_by=user,
+                        status='CONFIRMED',
+                        confirmed_by=user,
+                        confirmed_at=timezone.now()
+                    )
 
 
 

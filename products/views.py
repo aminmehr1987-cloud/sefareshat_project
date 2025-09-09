@@ -1559,125 +1559,124 @@ def get_orders(request):
         return JsonResponse({'message': 'خطا در دریافت سفارش‌ها', 'error': str(e)}, status=500)
 @login_required
 @require_POST
+@transaction.atomic
 def update_order_status(request):
     try:
         data = json.loads(request.body)
         order_id = data.get('order_id')
+        shipment_id = data.get('shipment_id')
         current_status = data.get('current_status')
-        courier_name = data.get('courier_name')  # دریافت نام پیک
+        courier_name = data.get('courier_name')
 
-        if not order_id:
-            return JsonResponse({
-                'success': False,
-                'message': 'شناسه سفارش ارسال نشده'
-            }, status=400)
-
-        try:
-            order = Order.objects.get(id=order_id)
-        except Order.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'message': 'سفارش مورد نظر یافت نشد'
-            }, status=404)
-
-        # اگر وضعیت pending است و میخواهیم به warehouse تغییر دهیم
-        if current_status == 'pending':
+        # منطق جدید برای نهایی کردن ارسال
+        if current_status == 'shipped':
+            if not shipment_id:
+                return JsonResponse({'success': False, 'message': 'شناسه ارسال ارسال نشده'}, status=400)
+            
             try:
-                response = send_order_to_warehouse(request, order_id)
-                return response
-            except Exception as e:
-                print(f"Error in send_order_to_warehouse: {str(e)}")
-                return JsonResponse({
-                    'success': False,
-                    'message': f'خطا در ارسال به انبار: {str(e)}'
-                }, status=500)
+                shipment = Shipment.objects.get(id=shipment_id)
+                items_data = data.get('items', [])
 
-        # برای سایر تغییر وضعیت‌ها
+                for item_data in items_data:
+                    order_item = get_object_or_404(OrderItem, id=item_data['item_id'])
+                    delivered_qty = int(item_data['delivered_quantity'])
+                    
+                    if delivered_qty > order_item.allocated_quantity:
+                        return JsonResponse({'success': False, 'message': f'مقدار تحویلی برای کالای {order_item.product.name} بیش از مقدار تخصیص یافته است.'}, status=400)
+
+                    order_item.delivered_quantity = delivered_qty
+                    order_item.save()
+
+                    # اگر مقداری برگشت خورده باشد، به موجودی انبار اضافه شود
+                    returned_qty = order_item.allocated_quantity - delivered_qty
+                    if returned_qty > 0:
+                        product = order_item.product
+                        product.quantity += returned_qty
+                        product.save()
+
+                # تغییر وضعیت ارسال به 'delivered' (نهایی شده)
+                shipment.status = 'delivered'
+                shipment.save() # این سیگنال `create_financial_operation_on_delivery` را فراخوانی می‌کند
+
+                return JsonResponse({'success': True, 'message': 'ارسال با موفقیت نهایی شد و فاکتور فروش صادر گردید.'})
+
+            except Shipment.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'ارسال یافت نشد'}, status=404)
+            except Exception as e:
+                return JsonResponse({'success': False, 'message': f'خطا در نهایی کردن ارسال: {str(e)}'}, status=500)
+
+
+        # منطق قبلی برای سایر تغییر وضعیت‌ها
+        if not order_id:
+            return JsonResponse({'success': False, 'message': 'شناسه سفارش ارسال نشده'}, status=400)
+
+        order = get_object_or_404(Order, id=order_id)
+
+        if current_status == 'pending':
+            return send_order_to_warehouse(request, order_id)
+
+        # تغییر وضعیت از 'منتظر ارسال مشتری' به 'ارسال شده'
+        if current_status == 'waiting_for_customer_shipment':
+            if not courier_name:
+                return JsonResponse({'success': False, 'message': 'نام پیک وارد نشده است'}, status=400)
+            
+            # 1. تغییر وضعیت همه زیرسفارش‌های مرتبط به 'shipped'
+            sub_orders = order.get_sub_orders().filter(status='waiting_for_customer_shipment')
+            sub_orders.update(status='shipped', courier_name=courier_name)
+            
+            # 2. تغییر وضعیت سفارش مادر به 'shipped'
+            order.status = 'shipped'
+            order.courier_name = courier_name
+            order.save()
+
+            # 3. ایجاد یک Shipment واحد برای این ارسال
+            shipment = Shipment.objects.create(
+                order=order,
+                courier_name=courier_name,
+                status='shipped',
+                description=f"ارسال سفارش اصلی {order.order_number}"
+            )
+            # اضافه کردن تمام زیرسفارش‌ها به این ارسال
+            shipment.sub_orders.set(sub_orders)
+
+            # اضافه کردن تمام آیتم‌های زیرسفارش‌ها به ShipmentItem
+            for sub_order in sub_orders:
+                for item in sub_order.items.filter(allocated_quantity__gt=0):
+                    ShipmentItem.objects.create(
+                        shipment=shipment,
+                        order_item=item,
+                        quantity_shipped=item.allocated_quantity
+                    )
+
+
+            return JsonResponse({
+                'success': True,
+                'message': 'وضعیت سفارش با موفقیت به "ارسال شده" تغییر یافت.',
+                'next_status': 'shipped',
+                'next_status_display': 'ارسال شده'
+            })
+
+        # سایر تغییر وضعیت‌های ساده
         status_flow = {
             'warehouse': 'ready',
             'ready': 'waiting_for_customer_shipment',
-            'waiting_for_customer_shipment': 'delivered',
         }
-
         next_status = status_flow.get(current_status)
+
         if not next_status:
-            return JsonResponse({
-                'success': False,
-                'message': 'وضعیت بعدی تعریف نشده'
-            }, status=400)
+            return JsonResponse({'success': False, 'message': 'جریان وضعیت نامعتبر است'}, status=400)
 
-        try:
-            order.status = next_status
-            if current_status == 'waiting_for_customer_shipment' and next_status == 'delivered':
-                if not courier_name:
-                    return JsonResponse({
-                        'success': False,
-                        'message': 'نام پیک وارد نشده است'
-                    }, status=400)
-                order.courier_name = courier_name
-            order.save()
-            print(f"Order {order_id} status updated to {next_status}")
-
-
-            # فقط در صورتی که زیرسفارش است، شماره سند دارد و قبلاً Shipment نداشته، یک شیء Shipment بساز
-            if (
-                order.status == 'delivered'
-                and order.courier_name
-                and order.document_number
-                and order.parent_order is not None
-                and not Shipment.objects.filter(order=order).exists()
-            ):
-                Shipment.objects.create(
-                    order=order,
-                    courier_name=order.courier_name,
-                    status='delivered'
-                )
-
-            # اگر سفارش مادر به delivered می‌رود، فقط یک Shipment جمعی برای سفارش مادر و زیرسفارش‌های دارای شماره سند بساز
-            if next_status == 'delivered' and order.parent_order is None:
-                with transaction.atomic():
-                    sub_orders = [sub for sub in order.get_sub_orders() if sub.document_number]
-                    if sub_orders:
-                        shipment = Shipment.objects.create(
-                            order=order,
-                            courier_name=courier_name,
-                            status='delivered',
-                            description=f"ارسال سفارش {order.order_number}"
-                        )
-                        for sub in sub_orders:
-                            sub.status = 'delivered'
-                            sub.courier_name = courier_name
-                            sub.save()
-                            shipment.sub_orders.add(sub)
-                        order.status = 'delivered'
-                        order.courier_name = None
-                        order.save()
-                    else:
-                        print("No sub-orders with document number found")
-                        return JsonResponse({
-                            'success': False,
-                            'message': 'هیچ زیرسفارشی با شماره سند یافت نشد'
-                        }, status=400)
-
-            # اگر سفارش زیرسفارش باشد، وضعیت سفارش مادر را بررسی کنیم 
-            if order.parent_order:
-                parent = order.parent_order  
-                sub_orders = parent.get_sub_orders()
-                all_finalized = all(sub.status in ['ready', 'backorder'] for sub in sub_orders)
-                any_ready = any(sub.status == 'ready' for sub in sub_orders)
-                if all_finalized and any_ready:
-                    parent.status = 'waiting_for_customer_shipment'
-                    parent.save()
-                    print(f"Parent order {parent.id} status updated to 'waiting_for_customer_shipment'")
-                    sub_orders.filter(status='ready').update(status='waiting_for_customer_shipment')
-
-
-        except Exception as e:
-            print(f"Error updating order status: {str(e)}")
-            return JsonResponse({
-                'success': False,
-                'message': f'خطا در به‌روزرسانی وضعیت: {str(e)}'
-            }, status=500)
+        order.status = next_status
+        order.save()
+        
+        # اگر سفارش زیرسفارش باشد و به 'ready' تغییر کند، وضعیت مادر را چک کن
+        if order.parent_order and next_status == 'ready':
+            parent = order.parent_order
+            sub_orders = parent.get_sub_orders()
+            # اگر همه زیرسفارش‌ها یا آماده هستند یا بک‌اوردر، مادر را آماده ارسال کن
+            if all(sub.status in ['ready', 'backorder', 'closed_backordered'] for sub in sub_orders):
+                parent.status = 'waiting_for_customer_shipment'
+                parent.save()
 
         return JsonResponse({
             'success': True,
@@ -1963,15 +1962,7 @@ def manager_order_list(request):
             Q(customer__store_name__icontains=customer_name)
         )
     if visitor_name:
-        # First, find users who match the visitor_name in username, first_name, or last_name
-        matching_users = User.objects.filter(
-            Q(username__icontains=visitor_name) |
-            Q(first_name__icontains=visitor_name) |
-            Q(last_name__icontains=visitor_name)
-        ).values_list('username', flat=True)
-        
-        # Then, filter the orders where visitor_name is in the list of matching usernames
-        base_query = base_query.filter(visitor_name__in=list(matching_users))
+        base_query = base_query.filter(visitor_name__icontains=visitor_name)
     if status:
         base_query = base_query.filter(status=status)
 
