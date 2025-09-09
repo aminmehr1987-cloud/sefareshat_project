@@ -228,6 +228,7 @@ class Order(models.Model):
         ('waiting_for_customer_shipment', 'در انتظار ارسال به مشتری'),
         ('sent_to_warehouse', ' ارسال شده به انبار از بک اوردر'),
         ('waiting_for_warehouse_confirmation', 'در انتظار تایید انباردار'),
+        ('shipped', 'ارسال شده'),
         
     ]
 
@@ -4185,9 +4186,9 @@ def create_financial_operation_on_delivery(sender, instance, created, **kwargs):
         ).exists():
             
             total_price = sum(
-                shipment_item.order_item.price * (shipment_item.order_item.delivered_quantity or 0)
+                (shipment_item.order_item.price or 0) * (shipment_item.order_item.delivered_quantity or 0)
                 for shipment_item in instance.shipmentitem_set.all()
-                if shipment_item.order_item.delivered_quantity is not None
+                if shipment_item.order_item and shipment_item.order_item.delivered_quantity is not None
             )
             
             if total_price > 0:

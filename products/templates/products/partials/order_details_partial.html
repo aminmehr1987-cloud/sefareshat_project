@@ -1,10 +1,10 @@
-{#
+{% comment %}
 This partial template renders the details of a single order.
 It expects an `order` object, and optionally `is_finalizing` (boolean) and `shipment_id`.
 It handles both simple orders and parent orders (with sub-orders).
 If `is_finalizing` is true, it shows inputs for delivered quantities.
 Otherwise, it displays the delivered quantities as read-only.
-#}
+{% endcomment %}
 {% load custom_filters %}
 
 {% if order.get_sub_orders.exists %}
@@ -27,12 +27,12 @@ Otherwise, it displays the delivered quantities as read-only.
           <td>{{ sub_order.items.first.warehouse.name|default:'-' }}</td>
           <td><span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span></td>
           <td>
-            <button class="action-button details-button" onclick="toggleDetails('sub-details-{{ sub_order.id }}')" title="جزئیات آیتم‌ها">
+            <button class="action-button details-button" onclick="toggleDetails('{{ prefix }}-sub-details-{{ sub_order.id }}')" title="جزئیات آیتم‌ها">
               <i class="bi bi-list-check"></i>
             </button>
           </td>
         </tr>
-        <tr id="sub-details-{{ sub_order.id }}" class="details-content-row">
+        <tr id="{{ prefix }}-sub-details-{{ sub_order.id }}" class="details-content-row">
           <td colspan="4">
             <div class="table-wrapper">
               <table class="items-table">

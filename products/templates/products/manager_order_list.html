@@ -847,6 +847,7 @@
           {% elif order.status == "backorder" %}در انتظار موجودی
           {% elif order.status == "waiting_for_customer_shipment" %}در انتظار ارسال به مشتری
           {% elif order.status == "waiting_for_warehouse_confirmation"%} در انتظار تایید انبار دار
+          {% elif order.status == "shipped" %}ارسال شده
           {% else %}نامشخص{% endif %}
         </span>
       </td>
@@ -1749,7 +1750,9 @@
           </tr>
           <tr id="details-row-shipped-{{ shipment.id }}" class="details-content-row">
             <td colspan="6">
-              {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=True shipment_id=shipment.id %}
+              <div>
+                {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=True shipment_id=shipment.id prefix='shipped' %}
+              </div>
             </td>
           </tr>
           {% empty %}
@@ -1766,7 +1769,7 @@
   <table class="orders-table" id="delivered-orders">
       <thead>
           <tr>
-              <th>تاریخ نهایی‌سازی</th>
+              <th>تاریخ ارسال</th>
               <th>شماره ارسال</th>
               <th>نام مشتری</th>
               <th>نام ویزیتور</th>
@@ -1777,7 +1780,7 @@
       <tbody>
           {% for shipment in delivered_shipments %}
           <tr>
-              <td>{{ shipment.delivery_date|jformat:'%Y/%m/%d %H:%M' }}</td>
+              <td>{{ shipment.shipment_date|jformat:'%Y/%m/%d %H:%M' }}</td>
               <td>{{ shipment.shipment_number|default:'-' }}</td>
               <td>{{ shipment.order.customer_name }}</td>
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
@@ -1793,7 +1796,9 @@
           </tr>
           <tr id="details-row-delivered-{{ shipment.id }}" class="details-content-row">
               <td colspan="6">
-                {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=False %}
+                <div>
+                  {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=False prefix='delivered' %}
+                </div>
               </td>
           </tr>
           {% empty %}

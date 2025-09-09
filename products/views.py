@@ -1596,7 +1596,21 @@ def update_order_status(request):
 
                 # تغییر وضعیت ارسال به 'delivered' (نهایی شده)
                 shipment.status = 'delivered'
-                shipment.save() # این سیگنال `create_financial_operation_on_delivery` را فراخوانی می‌کند
+                shipment.save() # این سیGNAL `create_financial_operation_on_delivery` را فراخوانی می‌کند
+                shipment.refresh_from_db() # Ensure the object is up-to-date
+
+                # Update the status of the parent order and all sub-orders in the shipment
+                parent_order = shipment.order
+                if parent_order:
+                    parent_order.status = 'delivered'
+                    parent_order.save()
+
+                # Get all unique sub-order IDs from the shipment items
+                sub_order_ids = shipment.items.values_list('order_id', flat=True).distinct()
+                
+                # Update the status of all relevant sub-orders in a single query
+                if sub_order_ids:
+                    Order.objects.filter(id__in=sub_order_ids).update(status='delivered')
 
                 return JsonResponse({'success': True, 'message': 'ارسال با موفقیت نهایی شد و فاکتور فروش صادر گردید.'})
 
@@ -1621,7 +1635,7 @@ def update_order_status(request):
                 return JsonResponse({'success': False, 'message': 'نام پیک وارد نشده است'}, status=400)
             
             # 1. تغییر وضعیت همه زیرسفارش‌های مرتبط به 'shipped'
-            sub_orders = order.get_sub_orders().filter(status='waiting_for_customer_shipment')
+            sub_orders = order.get_sub_orders().filter(status='ready')
             sub_orders.update(status='shipped', courier_name=courier_name)
             
             # 2. تغییر وضعیت سفارش مادر به 'shipped'
@@ -1991,22 +2005,33 @@ def manager_order_list(request):
     ).exclude(status='delivered').distinct()
 
 
-    # --- Shipped Shipments Tab (separate model, but we can apply some filters) ---
-    shipped_shipments_query = Shipment.objects.filter(
-        status='delivered'
-    ).exclude(courier_name__isnull=True).exclude(courier_name='').select_related('order__customer').order_by('-shipment_date')
-    
+    # --- Shipped and Delivered Shipments Tabs ---
+    shipped_shipments_query = Shipment.objects.filter(status='shipped').select_related('order__customer').order_by('-shipment_date')
+    delivered_shipments_query = Shipment.objects.filter(status='delivered').select_related('order__customer').order_by('-shipment_date')
+
+    # Apply common filters to both shipment queries
     if date_from:
-        shipped_shipments_query = shipped_shipments_query.filter(shipment_date__date__gte=convert_shamsi_to_gregorian(date_from))
+        gregorian_date_from = convert_shamsi_to_gregorian(date_from)
+        shipped_shipments_query = shipped_shipments_query.filter(shipment_date__date__gte=gregorian_date_from)
+        delivered_shipments_query = delivered_shipments_query.filter(delivery_date__date__gte=gregorian_date_from)
     if date_to:
-        shipped_shipments_query = shipped_shipments_query.filter(shipment_date__date__lte=convert_shamsi_to_gregorian(date_to))
+        gregorian_date_to = convert_shamsi_to_gregorian(date_to)
+        shipped_shipments_query = shipped_shipments_query.filter(shipment_date__date__lte=gregorian_date_to)
+        delivered_shipments_query = delivered_shipments_query.filter(delivery_date__date__lte=gregorian_date_to)
     if order_number:
-         shipped_shipments_query = shipped_shipments_query.filter(
-             Q(order__order_number__icontains=order_number) |
-             Q(shipment_number__icontains=order_number)
-         )
+        shipped_shipments_query = shipped_shipments_query.filter(
+            Q(order__order_number__icontains=order_number) | Q(shipment_number__icontains=order_number)
+        )
+        delivered_shipments_query = delivered_shipments_query.filter(
+            Q(order__order_number__icontains=order_number) | Q(shipment_number__icontains=order_number)
+        )
     if customer_name:
         shipped_shipments_query = shipped_shipments_query.filter(
+            Q(order__customer__first_name__icontains=customer_name) |
+            Q(order__customer__last_name__icontains=customer_name) |
+            Q(order__customer__store_name__icontains=customer_name)
+        )
+        delivered_shipments_query = delivered_shipments_query.filter(
             Q(order__customer__first_name__icontains=customer_name) |
             Q(order__customer__last_name__icontains=customer_name) |
             Q(order__customer__store_name__icontains=customer_name)
@@ -2017,14 +2042,15 @@ def manager_order_list(request):
         'pending_requests': pending_requests,
         'warehouse_requests': warehouse_requests,
         'ready_requests': ready_requests,
-        'delivered_requests': delivered_requests,
+        'delivered_requests': delivered_requests, # This is for the tile count, will be replaced
         'shipped_shipments': shipped_shipments_query,
+        'delivered_shipments': delivered_shipments_query, # New context variable
         'backordered_requests': backordered_requests,
         'supplied_requests': supplied_requests,
         'backorder_ready_requests': backorder_ready_requests,
         'parent_requests': parent_requests,
         'status_choices': [choice for choice in Order.STATUS_CHOICES if choice[0] != 'cart'],
-        'request': request, # Pass the whole request object for easy access to GET params in template
+        'request': request,
     }
     return render(request, 'products/manager_order_list.html', context)
 
