@@ -1599,18 +1599,23 @@ def update_order_status(request):
                 shipment.save() # این سیGNAL `create_financial_operation_on_delivery` را فراخوانی می‌کند
                 shipment.refresh_from_db() # Ensure the object is up-to-date
 
-                # Update the status of the parent order and all sub-orders in the shipment
-                parent_order = shipment.order
-                if parent_order:
-                    parent_order.status = 'delivered'
-                    parent_order.save()
+                # Update the status of all sub-orders related to this shipment
+                # Priority: explicit sub_orders attached to the shipment. If none, fall back to all sub-orders of the parent order.
+                sub_orders_to_update = shipment.sub_orders.all()
+                if not sub_orders_to_update.exists() and shipment.order:
+                    # Fall back to all sub-orders under the parent order
+                    try:
+                        sub_orders_to_update = shipment.order.get_sub_orders()
+                    except Exception:
+                        sub_orders_to_update = shipment.order.order_set.all() if hasattr(shipment.order, 'order_set') else Order.objects.none()
 
-                # Get all unique sub-order IDs from the shipment items
-                sub_order_ids = shipment.items.values_list('order_id', flat=True).distinct()
-                
-                # Update the status of all relevant sub-orders in a single query
-                if sub_order_ids:
-                    Order.objects.filter(id__in=sub_order_ids).update(status='delivered')
+                if sub_orders_to_update.exists():
+                    sub_orders_to_update.update(status='delivered')
+
+                # Optionally update the parent order status if present
+                if shipment.order:
+                    shipment.order.status = 'delivered'
+                    shipment.order.save()
 
                 return JsonResponse({'success': True, 'message': 'ارسال با موفقیت نهایی شد و فاکتور فروش صادر گردید.'})
 
@@ -1640,7 +1645,6 @@ def update_order_status(request):
             
             # 2. تغییر وضعیت سفارش مادر به 'shipped'
             order.status = 'shipped'
-            order.courier_name = courier_name
             order.save()
 
             # 3. ایجاد یک Shipment واحد برای این ارسال
