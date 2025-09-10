@@ -484,10 +484,24 @@ def order_detail_view(request, order_id):
     )
 
     # --- محاسبه مبلغ کل مرحله ---
-    if order.status in ['pending', 'warehouse', 'parent']:
-        stage_total = sum(item.price * (item.requested_quantity or 0) for item in order.items.all())
-    else:
-        stage_total = sum(item.price * (item.allocated_quantity or 0) for item in order.items.all())
+    # The total is calculated based on the most relevant quantity field depending on the order's progress.
+    # 1. delivered_quantity: If available, it's the most accurate value for finalized orders.
+    # 2. requested_quantity: For early-stage orders (pending, warehouse, backorder, cart).
+    # 3. allocated_quantity: For orders processed by the warehouse but not yet delivered.
+    stage_total = 0
+    for item in order.items.all():
+        quantity = 0
+        # Priority 1: Use delivered quantity if available (most accurate for final totals)
+        if item.delivered_quantity is not None:
+            quantity = item.delivered_quantity
+        # Priority 2: Use requested quantity for orders not yet processed by warehouse
+        elif order.status in ['pending', 'warehouse', 'parent', 'backorder', 'cart']:
+            quantity = item.requested_quantity or 0
+        # Priority 3: Use allocated quantity for orders processed by warehouse but not yet delivered
+        else:
+            quantity = item.allocated_quantity or 0
+        
+        stage_total += (item.price or 0) * quantity
 
     # --- منطق دکمه بازگشت ---
     referer = request.META.get('HTTP_REFERER')
@@ -1596,14 +1610,47 @@ def update_order_status(request):
 
                 # تغییر وضعیت ارسال به 'delivered' (نهایی شده)
                 shipment.status = 'delivered'
-                shipment.save() # این سیGNAL `create_financial_operation_on_delivery` را فراخوانی می‌کند
-                shipment.refresh_from_db() # Ensure the object is up-to-date
+                shipment.save()
+                shipment.refresh_from_db()
+
+                # --- START: Create Financial Operation Directly ---
+                order = shipment.order
+                if not FinancialOperation.objects.filter(
+                    operation_type='SALES_INVOICE',
+                    customer=order.customer,
+                    description__icontains=f"سفارش شماره {order.order_number}"
+                ).exists():
+                    
+                    total_price = 0
+                    for item_data in items_data:
+                        try:
+                            order_item = OrderItem.objects.get(id=item_data['item_id'])
+                            delivered_qty = int(item_data['delivered_quantity'])
+                            total_price += (order_item.price or 0) * delivered_qty
+                        except (OrderItem.DoesNotExist, ValueError, TypeError):
+                            # Skip if item not found or data is invalid
+                            continue
+                    
+                    if total_price > 0:
+                        user = order.customer.created_by or User.objects.filter(username=order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
+                        if user:
+                            FinancialOperation.objects.create(
+                                operation_type='SALES_INVOICE',
+                                customer=order.customer,
+                                amount=total_price,
+                                payment_method='credit_sale',
+                                date=timezone.now().date(),
+                                description=f"فاکتور فروش بابت سفارش شماره {order.order_number}",
+                                created_by=user,
+                                status='CONFIRMED',
+                                confirmed_by=user,
+                                confirmed_at=timezone.now()
+                            )
+                # --- END: Create Financial Operation Directly ---
 
                 # Update the status of all sub-orders related to this shipment
-                # Priority: explicit sub_orders attached to the shipment. If none, fall back to all sub-orders of the parent order.
                 sub_orders_to_update = shipment.sub_orders.all()
                 if not sub_orders_to_update.exists() and shipment.order:
-                    # Fall back to all sub-orders under the parent order
                     try:
                         sub_orders_to_update = shipment.order.get_sub_orders()
                     except Exception:

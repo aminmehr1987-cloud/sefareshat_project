@@ -149,29 +149,33 @@ body, html, input, button, select, textarea {
                     <th>کد محصول</th>
                     <th>تعداد درخواستی</th>
                     <th>تعداد تخصیص یافته</th>
+                    <th>تعداد تحویل داده شده</th>
                     <th>قیمت واحد</th>
                     <th>جمع کل</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in order.items.all %}
+                {% for item in order_items %}
                 <tr>
                     <td>{{ item.product.name }}</td>
                     <td>{{ item.product.code }}</td>
-                    <td>{{ item.requested_quantity }}</td>
-                    <td>{{ item.allocated_quantity }}</td>
+                    <td>{{ item.requested_quantity|default_if_none:"-" }}</td>
+                    <td>{{ item.allocated_quantity|default_if_none:"-" }}</td>
+                    <td>{{ item.delivered_quantity|default_if_none:"-" }}</td>
                     <td>{{ item.price|intcomma }}</td>
                     <td>
-                        {% if order.status in 'pending,warehouse,parent' %}
-                            {% widthratio item.requested_quantity 1 item.price as item_total %}
+                        {% if item.delivered_quantity is not None %}
+                            {% widthratio item.delivered_quantity 1 item.price as item_total %}
+                        {% elif item.allocated_quantity is not None and item.allocated_quantity > 0 %}
+                            {% widthratio item.allocated_quantity 1 item.price as item_total %}
                         {% else %}
-                            {% widthratio item.allocated_quantity|default:"0" 1 item.price as item_total %}
+                            {% widthratio item.requested_quantity 1 item.price as item_total %}
                         {% endif %}
                         {{ item_total|intcomma }}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" style="text-align:center; color:#888;">هیچ آیتمی برای این سفارش ثبت نشده است.</td></tr>
+                <tr><td colspan="7" style="text-align:center; color:#888;">هیچ آیتمی برای این سفارش ثبت نشده است.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

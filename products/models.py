@@ -4171,43 +4171,6 @@ def get_document_number_display(obj):
     return "-"
 
 
-@receiver(post_save, sender=Shipment)
-def create_financial_operation_on_delivery(sender, instance, created, **kwargs):
-    """
-    Creates a final sales invoice when a shipment's status is changed to 'delivered'.
-    """
-    if not created and instance.status == 'delivered':
-        order = instance.order
-        
-        if not FinancialOperation.objects.filter(
-            operation_type='SALES_INVOICE', 
-            customer=order.customer, 
-            description__icontains=f"سفارش شماره {order.order_number}"
-        ).exists():
-            
-            total_price = sum(
-                (shipment_item.order_item.price or 0) * (shipment_item.order_item.delivered_quantity or 0)
-                for shipment_item in instance.shipmentitem_set.all()
-                if shipment_item.order_item and shipment_item.order_item.delivered_quantity is not None
-            )
-            
-            if total_price > 0:
-                # Use the user who created the customer, or the visitor, or fallback to a superuser.
-                user = order.customer.created_by or User.objects.filter(username=order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
-
-                if user:
-                    FinancialOperation.objects.create(
-                        operation_type='SALES_INVOICE',
-                        customer=order.customer,
-                        amount=total_price,
-                        payment_method='credit_sale',
-                        date=timezone.now().date(),
-                        description=f"فاکتور فروش بابت سفارش شماره {order.order_number}",
-                        created_by=user,
-                        status='CONFIRMED',
-                        confirmed_by=user,
-                        confirmed_at=timezone.now()
-                    )
 
 
 
