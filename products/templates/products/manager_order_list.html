@@ -916,6 +916,7 @@
                           <th>نام محصول</th>
                           <th>تعداد درخواستی</th>
                           <th>تعداد تخصیص یافته</th>
+                          <th>تعداد تحویلی</th>
                           <th>قیمت واحد</th>
                           <th>جمع کل</th>
                           <th>تسویه</th>
@@ -934,19 +935,20 @@
                               {{ item.allocated_quantity|default:"-" }}
                             {% endif %}
                           </td>    
+                          <td>{{ item.delivered_quantity|default:"-" }}</td>
                           <td>{{ item.price|floatformat:0 }} ریال</td>
                           <td>
                             {% if sub_order.status in 'pending,warehouse,parent' %}
                               <span style="color:#ec0c0c;">-</span>
                             {% else %}
-                              {{ item.price|multiply:item.allocated_quantity|floatformat:0 }} ریال
+                              {{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال
                             {% endif %}  
                           </td>
                           <td>{{ item.get_payment_term_display }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                          <td colspan="7">هیچ کالایی ثبت نشده.</td>
+                          <td colspan="8">هیچ کالایی ثبت نشده.</td>
                         </tr>
                         {% endfor %}
                       </tbody>
@@ -967,6 +969,7 @@
                 <th>نام محصول</th>
                 <th>تعداد درخواستی</th>
                 <th>تعداد تخصیص یافته</th>
+                <th>تعداد تحویلی</th>
                 <th>قیمت واحد</th>
                 <th>جمع کل</th>
                 <th>تسویه</th>
@@ -979,13 +982,14 @@
                 <td>{{ item.product.name|default:"-" }}</td>
                 <td>{{ item.requested_quantity }}</td>
                 <td>{{ item.allocated_quantity|default:"0" }}</td>
+                <td>{{ item.delivered_quantity|default:"-" }}</td>
                 <td>{{ item.price|floatformat:0|default:0 }} ریال</td>
-                <td>{{ item.price|multiply:item.allocated_quantity|floatformat:0 }} ریال</td>
+                <td>{{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال</td>
                 <td>{{ item.get_payment_term_display|default:"-" }}</td>
               </tr>
               {% empty %}
               <tr>
-                <td colspan="7">هیچ کالایی ثبت نشده.</td>
+                <td colspan="8">هیچ کالایی ثبت نشده.</td>
               </tr>
               {% endfor %}
             </tbody>

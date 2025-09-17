@@ -160,7 +160,13 @@ body, html, input, button, select, textarea {
                     <td>{{ item.product.name }}</td>
                     <td>{{ item.product.code }}</td>
                     <td>{{ item.requested_quantity|default_if_none:"-" }}</td>
-                    <td>{{ item.allocated_quantity|default_if_none:"-" }}</td>
+                    <td>
+                        {% if order.status in 'pending,cart' %}
+                            <span style="color: #888;">در انتظار تخصیص</span>
+                        {% else %}
+                            {{ item.allocated_quantity|default_if_none:"-" }}
+                        {% endif %}
+                    </td>
                     <td>{{ item.delivered_quantity|default_if_none:"-" }}</td>
                     <td>{{ item.price|intcomma }}</td>
                     <td>
