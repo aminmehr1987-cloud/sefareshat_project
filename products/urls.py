@@ -69,6 +69,7 @@ urlpatterns = [
     path('api/update-order-status/', views.update_order_status, name='update_order_status'),
     path('api/update-warehouse-items/', views.update_warehouse_items, name='update_warehouse_items'),
     path('api/send-item-to-warehouse/', views.resend_backorder_item_to_warehouse, name='send_item_to_warehouse'),
+    path('api/send-items-to-warehouse/', views.send_selected_items_to_warehouse, name='send_items_to_warehouse'),
     path('order/<int:order_id>/detail/', views.order_detail_view, name='order_detail_view'),
     path('allocate/<int:order_id>/', views.allocate_to_warehouse, name='allocate_to_warehouse'),
     path('add_to_cart/', views.add_to_cart, name='add_to_cart'),

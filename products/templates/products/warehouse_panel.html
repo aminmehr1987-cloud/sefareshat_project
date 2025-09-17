@@ -852,73 +852,59 @@
     </thead>
     <tbody>
       {% for order in waiting_for_confirmation_orders %}
-        {% for order_item in order.filtered_items %}
-          <tr class="order-row">
-            <td>{{ order.order_number }}</td>
-            <td class="customer-name">{{ order.customer_name }}</td>
-            <td>{{ order_item.get_warehouse_status_display }}</td>
-            <td>
-              <button class="action-button details-button" onclick="toggleDetails('confirmation-details-{{ order_item.id }}')">جزئیات و تخصیص</button>
-            </td>
-          </tr>
-          <tr id="confirmation-details-{{ order_item.id }}" class="details-row">
-            <td colspan="4">
-              <form id="confirmation-allocation-form-{{ order_item.id }}" onsubmit="submitSingleItemAllocation(event, '{{ order_item.id }}', '{{ order.id }}')">
-                <table class="items-table">
-                  <thead>
-                    <tr>
-                      <th>کد کالا</th>
-                      <th>نام محصول</th>
-                      <th>تعداد درخواستی</th>
-                      <th>تعداد تخصیص</th>
-                      <th>توضیحات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{{ order_item.product.code }}</td>
-                      <td>{{ order_item.product.name }}</td>
-                      <td>{{ order_item.requested_quantity }}</td>
-                      <td>
-                        <input type="number" 
-                               class="quantity-input" 
-                               name="allocation_{{ order_item.id }}" 
-                               min="0" 
-                               max="{{ order_item.requested_quantity }}" 
-                               value="{{ order_item.allocated_quantity|default:0 }}">
-                      </td>
-                      <td>
-                        <input type="text" 
-                               name="note_{{ order_item.id }}" 
-                               placeholder="توضیحات..." 
-                               value="{{ order_item.warehouse_note|default:'' }}">
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                
-                <div style="display: flex; align-items: center; justify-content: flex-end; margin-top: 10px; gap: 10px;">
-                  <input type="text" 
-                         class="document-number" 
-                         id="conf_doc_{{ order.id }}" 
-                         placeholder="شماره سند"
-                         value="{{ order.document_number|default:'' }}">
-
-                  <input type="number" 
-                         class="document-number" 
-                         id="conf_package_count_{{ order.id }}" 
-                         min="1" 
-                         placeholder="تعداد بسته"
-                         value="{{ order.package_count|default:'' }}">
-
-                  <button type="submit" class="action-button ready-button">تایید و آماده‌سازی آیتم</button>
-                </div>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
+      <tr class="order-row">
+        <td>{{ order.order_number }}</td>
+        <td class="customer-name">{{ order.customer_name }}</td>
+        <td><span class="status-badge status-processing">{{ order.items.first.get_warehouse_status_display }}</span></td>
+        <td>
+          <button class="action-button details-button" onclick="toggleDetails('confirmation-details-{{ order.id }}')">جزئیات و تخصیص</button>
+        </td>
+      </tr>
+      <tr id="confirmation-details-{{ order.id }}" class="details-row">
+        <td colspan="4">
+          <form id="allocation-form-{{ order.id }}" onsubmit="submitAllocation(event, '{{ order.id }}')">
+            <div class="table-responsive">
+              <table class="items-table">
+                <thead>
+                  <tr>
+                    <th>کد کالا</th>
+                    <th>نام محصول</th>
+                    <th>تعداد درخواستی</th>
+                    <th>تعداد تخصیص</th>
+                    <th>توضیحات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in order.items.all %}
+                  <tr>
+                    <td>{{ item.product.code }}</td>
+                    <td>{{ item.product.name }}</td>
+                    <td>{{ item.requested_quantity }}</td>
+                    <td>
+                      <input type="number" class="quantity-input" name="allocation_{{ item.id }}" min="0" max="{{ item.requested_quantity }}" value="0">
+                    </td>
+                    <td>
+                      <input type="text" name="note_{{ item.id }}" placeholder="توضیحات...">
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="allocation-footer">
+                <label>شماره سند:</label>
+                <input type="text" class="document-number" id="doc_{{ order.id }}" required pattern="\S+">
+                <label>تعداد بسته:</label>
+                <input type="number" class="document-number" id="package_count_{{ order.id }}" required min="1" placeholder="تعداد بسته">
+                <button type="submit" class="ready-button">ثبت تخصیص و آماده‌سازی</button>
+            </div>
+          </form>
+        </td>
+      </tr>
       {% empty %}
-        <tr><td colspan="4">هیچ سفارشی در انتظار تأیید انباردار نیست.</td></tr>
+      <tr>
+        <td colspan="4">هیچ سفارشی در انتظار تأیید انباردار نیست.</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

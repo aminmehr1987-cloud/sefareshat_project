@@ -1544,21 +1544,26 @@
 
           {% if order.items.all %}
           <h5 style="margin-top: 20px;">تخصیص دستی یا ارسال آیتم به انبار</h5>
-          <table class="items-table">
+          <table class="items-table" id="backorder-items-{{ order.id }}">
             <thead>
               <tr>
+                <th>
+                  <input type="checkbox" onclick="toggleAllCheckboxes(this, '{{ order.id }}')" title="انتخاب همه">
+                </th>
                 <th>کد کالا</th>
                 <th>نام محصول</th>
                 <th>تعداد مورد نیاز</th>
                 <th>قیمت (قابل تغییر)</th>
-                <th>تخصیص جدید</th>
+                <th>تعداد</th>
                 <th>وضعیت</th>
-                <th>عملیات</th>
               </tr>
             </thead>
             <tbody>
               {% for item in order.items.all %}
               <tr>
+                <td>
+                  <input type="checkbox" class="item-checkbox" data-item-id="{{ item.id }}">
+                </td>
                 <td>{{ item.product.code }}</td>
                 <td>{{ item.product.name }}</td>
                 <td>{{ item.requested_quantity }}</td>
@@ -1567,32 +1572,11 @@
                          data-item-id="{{ item.id }}" name="price_{{ item.id }}">
                 </td>
                 <td>
-                  <input type="number" value="0" min="0" max="{{ item.requested_quantity }}" class="form-control allocate-input" style="width: 80px"
-                         data-item-id="{{ item.id }}" name="allocate_{{ item.id }}">
+                  <input type="number" value="0" min="0" max="{{ item.requested_quantity }}" class="form-control quantity-input" style="width: 80px"
+                         data-item-id="{{ item.id }}" name="quantity_{{ item.id }}">
                 </td>
                 <td>در انتظار موجودی</td>
-                <td style="text-align:center;">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                      <input
-                        type="number"
-                        id="send_to_warehouse_qty_{{ item.id }}"
-                        min="1"
-                        max="{{ item.requested_quantity }}"
-                        value="1"
-                        class="allocated-qty-input"
-                        style="width: 40px; height: 18px; font-size: 12px; padding: 2px 4px;"
-                        placeholder="تعداد"
-                      >
-                      <button
-                        class="btn btn-warning btn-sm"
-                        style="height: 24px; font-size: 10px; padding: 2px 10px;"
-                        onclick="sendItemToWarehouse('{{ item.id }}')"
-                      >
-                        ارسال به انبار
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+              </tr>
               {% endfor %}
             </tbody>
           </table>
@@ -1616,6 +1600,7 @@
             </div>
           </div>
           <button class="btn btn-success" onclick="submitAllocation('{{ order.id }}')">ثبت تخصیص‌ها</button>
+          <button class="btn btn-warning" onclick="sendSelectedItemsToWarehouse('{{ order.id }}')">ارسال موارد انتخابی به انبار</button>
           {% endif %}
           {% else %}
           <p>هیچ آیتمی برای این سفارش وجود ندارد.</p>
@@ -2071,7 +2056,7 @@
         return;
     }
 
-    const rows = document.querySelectorAll(`#details-row-backordered-${orderId} .allocate-input`);
+    const rows = document.querySelectorAll(`#backorder-items-${orderId} .quantity-input`);
     const items = [];
 
     let totalAllocated = 0;
@@ -2284,6 +2269,65 @@
     // تعداد سفارشات باقی‌مانده را دوباره بشمار
     const visibleOrders = document.querySelectorAll('#backordered-orders tr[data-order-id]');
     backorderCountElem.textContent = visibleOrders.length;
+  }
+
+  function toggleAllCheckboxes(source, orderId) {
+    const checkboxes = document.querySelectorAll(`#backorder-items-${orderId} .item-checkbox`);
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = source.checked;
+    });
+  }
+
+  function sendSelectedItemsToWarehouse(orderId) {
+    const selectedItems = [];
+    const checkboxes = document.querySelectorAll(`#backorder-items-${orderId} .item-checkbox:checked`);
+
+    checkboxes.forEach(checkbox => {
+        const itemId = checkbox.getAttribute('data-item-id');
+        const quantityInput = document.querySelector(`#backorder-items-${orderId} [name="quantity_${itemId}"]`);
+        const quantity = parseInt(quantityInput.value) || 0;
+
+        if (quantity > 0) {
+            selectedItems.push({
+                item_id: itemId,
+                quantity: quantity
+            });
+        }
+    });
+
+    if (selectedItems.length === 0) {
+        alert('لطفاً حداقل یک کالا با تعداد مشخص برای ارسال انتخاب کنید.');
+        return;
+    }
+
+    if (!confirm(`آیا از ارسال ${selectedItems.length} مورد به انبار اطمینان دارید؟`)) {
+        return;
+    }
+
+    fetch('/api/send-items-to-warehouse/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            order_id: orderId,
+            items: selectedItems
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert(result.message || 'موارد با موفقیت به انبار ارسال شدند.');
+            location.reload();
+        } else {
+            alert(result.message || 'خطا در ارسال موارد به انبار.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('خطا در ارتباط با سرور.');
+    });
   }
 
   function toggleSendButton(orderId) {

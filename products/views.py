@@ -2437,6 +2437,97 @@ def search_customers(request):
 @login_required
 @user_passes_test(is_manager)
 @require_POST
+@transaction.atomic
+def send_selected_items_to_warehouse(request):
+    try:
+        data = json.loads(request.body)
+        order_id = data.get('order_id')
+        items_data = data.get('items', [])
+
+        if not order_id or not items_data:
+            return JsonResponse({'success': False, 'message': 'اطلاعات ارسالی ناقص است.'}, status=400)
+
+        original_order = get_object_or_404(Order, id=order_id)
+        
+        # Group items by warehouse
+        items_by_warehouse = {}
+        for item_info in items_data:
+            item = get_object_or_404(OrderItem, id=item_info['item_id'])
+            if item.warehouse_status != 'backorder':
+                 return JsonResponse({'success': False, 'message': f'آیتم {item.product.name} در وضعیت بک اوردر نیست.'}, status=400)
+            
+            quantity = int(item_info.get('quantity', 0))
+            if quantity <= 0:
+                continue # Skip items with no quantity
+            if quantity > item.requested_quantity:
+                return JsonResponse({'success': False, 'message': f'مقدار برای آیتم {item.product.name} بیش از حد مجاز است.'}, status=400)
+
+            warehouse_id = item.warehouse.id if item.warehouse else None
+            if warehouse_id not in items_by_warehouse:
+                items_by_warehouse[warehouse_id] = []
+            
+            items_by_warehouse[warehouse_id].append({'item': item, 'quantity': quantity})
+
+        if not items_by_warehouse:
+            return JsonResponse({'success': False, 'message': 'هیچ کالایی برای ارسال انتخاب نشده است.'}, status=400)
+
+        # Create one new order per warehouse
+        for warehouse_id, grouped_items in items_by_warehouse.items():
+            warehouse = get_object_or_404(Warehouse, id=warehouse_id) if warehouse_id else None
+            
+            # --- Generate new order number ---
+            warehouse_name_fa = warehouse.name if warehouse else "UNKNOWN"
+            warehouse_code = "PAKHSH" if warehouse_name_fa == "انبار پخش" else "SHOP" if warehouse_name_fa == "انبار فروشگاه" else "unknown"
+            parent_order = original_order.parent_order or original_order
+            prefix = f"BO-{warehouse_code}-{parent_order.order_number}-"
+            existing_resends = Order.objects.filter(order_number__startswith=prefix, order_number__endswith='RE').count()
+            new_order_number = f"BO-{warehouse_code}-{parent_order.order_number}-{str(existing_resends + 1).zfill(4)}-RE"
+
+            # Create new resupply order
+            new_order = Order.objects.create(
+                parent_order=parent_order,
+                status='waiting_for_warehouse_confirmation',
+                customer=original_order.customer,
+                order_number=new_order_number,
+                warehouse=warehouse
+            )
+
+            for data in grouped_items:
+                item = data['item']
+                quantity = data['quantity']
+
+                # Create new item in the resupply order
+                OrderItem.objects.create(
+                    order=new_order,
+                    product=item.product,
+                    requested_quantity=quantity,
+                    price=item.price,
+                    payment_term=item.payment_term,
+                    warehouse=item.warehouse,
+                    warehouse_status='waiting_for_warehouse_confirmation'
+                )
+
+                # Update original backorder item
+                if quantity == item.requested_quantity:
+                    item.delete()
+                else:
+                    item.requested_quantity -= quantity
+                    item.save()
+
+        # Check if original backorder should be removed
+        if not original_order.items.exists():
+            original_order.delete()
+
+        return JsonResponse({'success': True, 'message': f'{len(items_data)} مورد با موفقیت به انبار ارسال شد.'})
+
+    except Exception as e:
+        logger.exception("An error occurred in send_selected_items_to_warehouse.")
+        return JsonResponse({'success': False, 'message': f'خطا در سرور: {str(e)}'}, status=500)
+
+
+@login_required
+@user_passes_test(is_manager)
+@require_POST
 def resend_backorder_item_to_warehouse(request):
     try:
         data = json.loads(request.body)
