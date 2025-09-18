@@ -228,12 +228,13 @@ body, html, input, button, select, textarea {
         <a href="{{ back_url }}" class="order-detail-btn">
             {{ back_text }}
         </a>
+        {% if order.status == 'delivered' %}
+        <a href="{% url 'products:sales_invoice_pdf' order_id=order.id %}" class="order-detail-btn" target="_blank" style="background: linear-gradient(45deg, #22c55e, #16a34a);">
+            چاپ فاکتور قطعی
+        </a>
+        {% else %}
         <a href="{% url 'products:order_pdf' order_id=order.id %}" class="order-detail-btn" target="_blank" style="background: linear-gradient(45deg, #f9a825, #f57f17);">
             چاپ پیش فاکتور
-        </a>
-        {% if has_final_invoice %}
-        <a href="{% url 'products:sales_invoice_pdf' order_id=order.id %}" class="order-detail-btn" target="_blank" style="background: linear-gradient(45deg, #22c55e, #16a34a);">
-            چاپ فاکتور
         </a>
         {% endif %}
     </div>

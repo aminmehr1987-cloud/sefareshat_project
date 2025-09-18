@@ -1320,12 +1320,22 @@ def get_user_orders(request):
     
 @login_required
 def order_pdf(request, order_id):
-    logger.info(f"Request received for PDF of order {order_id}")
+    logger.info(f"Request received for PDF of order {order_id} by user {request.user.username}")
     try:
-        logger.info(f"Fetching order {order_id}")
-        order = Order.objects.get(id=order_id, visitor_name=request.user.username)
+        # Step 1: Get the order by ID first, without user filtering
+        order = get_object_or_404(Order, id=order_id)
+
+        # Step 2: Check permissions, similar to order_detail_view
+        is_manager = request.user.groups.filter(name='مدیر').exists()
+        is_accounting = request.user.groups.filter(name='حسابداری').exists()
+        is_order_creator = (order.visitor_name == request.user.username)
+
+        if not (is_manager or is_order_creator or is_accounting):
+            logger.warning(f"Unauthorized PDF access attempt for order {order_id} by user {request.user.username}")
+            return HttpResponse('شما اجازه دسترسی به این سند را ندارید.', status=403)
+
         items = order.items.all()
-        logger.info(f"Order {order_id} found with {items.count()} items")
+        logger.info(f"Order {order_id} found with {items.count()} items. User authorized.")
 
         # فیلدهای سفارش
         customer = order.customer or "-"
@@ -1521,8 +1531,11 @@ def order_pdf(request, order_id):
         response['Content-Disposition'] = f'attachment; filename="order_{order_number}.pdf"'
         response.write(pdf_content)
         return response
+    except Order.DoesNotExist:
+        logger.error(f"PDF generation failed: Order {order_id} does not exist.")
+        return HttpResponse('خطا در ایجاد PDF: سفارش مورد نظر یافت نشد.', status=404)
     except Exception as e:
-        logger.error(f"PDF generation failed: {str(e)}")
+        logger.error(f"PDF generation failed for order {order_id}: {str(e)}", exc_info=True)
         return HttpResponse(f'خطا در ایجاد PDF: {str(e)}', status=500)
 
 @login_required
@@ -3308,23 +3321,24 @@ def sales_invoice_pdf(request, order_id):
     logger.info(f"Request received for sales invoice PDF of order {order_id}")
     try:
         order = get_object_or_404(Order, id=order_id)
+        
+        # Permission check
+        is_manager = request.user.groups.filter(name='مدیر').exists()
+        is_accounting = request.user.groups.filter(name='حسابداری').exists()
+        is_order_creator = (order.visitor_name == request.user.username)
+        if not (is_manager or is_order_creator or is_accounting):
+            return HttpResponse('شما اجازه دسترسی به این سند را ندارید.', status=403)
 
-        # Find the corresponding financial operation
-        financial_operation = FinancialOperation.objects.filter(
-            operation_type='SALES_INVOICE',
-            description__icontains=f"سفارش شماره {order.order_number}"
-        ).first()
-
-        if not financial_operation:
-            return HttpResponse('فاکتور فروش قطعی برای این سفارش هنوز صادر نشده است.', status=404)
+        if order.status != 'delivered':
+            return HttpResponse('فاکتور قطعی فقط برای سفارش‌های تحویل داده شده قابل صدور است.', status=400)
 
         items = order.items.all()
         logger.info(f"Order {order_id} found with {items.count()} items for final invoice.")
 
-        # Fields from the financial operation and order
+        # Fields from the order
         customer_name = order.customer.get_full_name() if order.customer else "-"
-        invoice_number = financial_operation.operation_number
-        invoice_date = jdatetime.datetime.fromgregorian(datetime=financial_operation.date).strftime('%Y/%m/%d')
+        invoice_number = order.order_number
+        invoice_date = jdatetime.datetime.fromgregorian(datetime=timezone.now()).strftime('%Y/%m/%d')
         
         visitor_user = User.objects.filter(username=order.visitor_name).first()
         visitor_name = f"{visitor_user.first_name} {visitor_user.last_name}".strip() if visitor_user else order.visitor_name
@@ -3332,13 +3346,13 @@ def sales_invoice_pdf(request, order_id):
         customer_address = order.customer.address or "-"
         customer_mobile = order.customer.mobile or "-"
 
-        # Calculate total based on allocated quantity
-        total = sum(item.price * (item.allocated_quantity or 0) for item in items)
+        # Calculate total based on delivered quantity
+        total = sum(item.price * (item.delivered_quantity or 0) for item in items)
 
         latex_content = f"""
-\\documentclass[a4paper,12pt]{{article}}
+\\documentclass[a4paper,10pt]{{article}}
 \\usepackage{{geometry}}
-\\geometry{{a4paper, margin=1in}}
+\\geometry{{a4paper, margin=0.8in}}
 \\usepackage{{longtable}}
 \\usepackage{{colortbl}}
 \\usepackage{{xcolor}}
@@ -3375,21 +3389,22 @@ def sales_invoice_pdf(request, order_id):
 \\vspace{{0.5cm}}
 
 % Items Table
-\\begin{{longtable}}{{|c|c|p{{4cm}}|c|c|c|c|}}
+\\begin{{longtable}}{{|c|p{{4cm}}|c|c|c|c|c|c|}}
 \\hline
 \\rowcolor{{headerblue}} \\color{{white}}
-\\textbf{{ردیف}} &  \\textbf{{کد کالا}} & \\textbf{{شرح}} & \\textbf{{تعداد}} & \\textbf{{واحد}} & \\textbf{{فی}} & \\textbf{{قیمت کل}} \\\\
+\\textbf{{ردیف}} & \\textbf{{شرح}} & \\textbf{{درخواست}} & \\textbf{{تخصیص}} & \\textbf{{تحویل}} & \\textbf{{واحد}} & \\textbf{{فی}} & \\textbf{{قیمت کل}} \\\\
 \\hline
 \\endhead
 """
         for idx, item in enumerate(items, 1):
-            if item.allocated_quantity and item.allocated_quantity > 0:
-                product_code = item.product.code
+            if item.delivered_quantity and item.delivered_quantity > 0:
                 product_name = item.product.name
-                quantity = item.allocated_quantity
-                price = item.price
-                item_total = price * quantity
-                latex_content += f"{idx} & {product_code} & {product_name} & {quantity} & عدد & {price:,.0f} & {item_total:,.0f} \\\\\n\\hline\n"
+                req_qty = item.requested_quantity or 0
+                alloc_qty = item.allocated_quantity or 0
+                deliv_qty = item.delivered_quantity or 0
+                price = item.price or 0
+                item_total = price * deliv_qty
+                latex_content += f"{idx} & {product_name} & {req_qty} & {alloc_qty} & {deliv_qty} & عدد & {price:,.0f} & {item_total:,.0f} \\\\\n\\hline\n"
 
         latex_content += f"""\\end{{longtable}}
 
