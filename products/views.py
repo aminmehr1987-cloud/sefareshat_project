@@ -1705,33 +1705,73 @@ def update_order_status(request):
             if not courier_name:
                 return JsonResponse({'success': False, 'message': 'نام پیک وارد نشده است'}, status=400)
             
-            # 1. تغییر وضعیت همه زیرسفارش‌های مرتبط به 'shipped'
-            sub_orders = order.get_sub_orders().filter(status='ready')
-            sub_orders.update(status='shipped', courier_name=courier_name)
-            
-            # 2. تغییر وضعیت سفارش مادر به 'shipped'
-            order.status = 'shipped'
-            order.save()
+            is_standalone_backorder = order.parent_order and order.order_number and order.order_number.startswith('BO-')
 
-            # 3. ایجاد یک Shipment واحد برای این ارسال
-            shipment = Shipment.objects.create(
-                order=order,
-                courier_name=courier_name,
-                status='shipped',
-                description=f"ارسال سفارش اصلی {order.order_number}"
-            )
-            # اضافه کردن تمام زیرسفارش‌ها به این ارسال
-            shipment.sub_orders.set(sub_orders)
+            if is_standalone_backorder:
+                parent = order.parent_order
+                order.status = 'shipped'
+                order.courier_name = courier_name
+                order.save()
 
-            # اضافه کردن تمام آیتم‌های زیرسفارش‌ها به ShipmentItem
-            for sub_order in sub_orders:
-                for item in sub_order.items.filter(allocated_quantity__gt=0):
-                    ShipmentItem.objects.create(
-                        shipment=shipment,
-                        order_item=item,
-                        quantity_shipped=item.allocated_quantity
+                # A parent order should only have ONE shipment record. Find it.
+                shipment = Shipment.objects.filter(parent_order=parent).first()
+
+                if shipment:
+                    # Add this backorder to the existing shipment.
+                    shipment.sub_orders.add(order)
+                    
+                    # If the shipment was already delivered, change it back to 'shipped'
+                    # because we've just added new items to it.
+                    if shipment.status == 'delivered':
+                        shipment.status = 'shipped'
+                    
+                    # Update the courier name
+                    shipment.courier_name = courier_name
+                    shipment.save()
+
+                else:
+                    # This case is a fallback. A parent order should always have a shipment.
+                    shipment = Shipment.objects.create(
+                        order=parent,
+                        parent_order=parent,
+                        courier_name=courier_name,
+                        status='shipped',
+                        description=f"ارسال سفارش {parent.order_number}",
+                        is_backorder=True
                     )
+                    shipment.sub_orders.add(order)
 
+                # Add this backorder's items to the shipment's items.
+                for item in order.items.filter(allocated_quantity__gt=0):
+                    if not ShipmentItem.objects.filter(shipment=shipment, order_item=item).exists():
+                        ShipmentItem.objects.create(
+                            shipment=shipment,
+                            order_item=item,
+                            quantity_shipped=item.allocated_quantity
+                        )
+            else:
+                # Original logic for shipping a parent order with its sub-orders
+                sub_orders = order.get_sub_orders().filter(status__in=['ready', 'waiting_for_customer_shipment'])
+                sub_orders.update(status='shipped', courier_name=courier_name)
+                
+                order.status = 'shipped'
+                order.save()
+
+                shipment = Shipment.objects.create(
+                    order=order,
+                    courier_name=courier_name,
+                    status='shipped',
+                    description=f"ارسال سفارش اصلی {order.order_number}"
+                )
+                shipment.sub_orders.set(sub_orders)
+
+                for sub_order in sub_orders:
+                    for item in sub_order.items.filter(allocated_quantity__gt=0):
+                        ShipmentItem.objects.create(
+                            shipment=shipment,
+                            order_item=item,
+                            quantity_shipped=item.allocated_quantity
+                        )
 
             return JsonResponse({
                 'success': True,
@@ -1755,10 +1795,13 @@ def update_order_status(request):
         
         # اگر یک زیرسفارش به حالت "آماده" یا "منتظر ارسال مشتری" تغییر وضعیت دهد،
         # وضعیت سفارش مادر را نیز به "منتظر ارسال مشتری" تغییر می‌دهیم تا در پنل مدیر نمایش داده شود.
-        if order.parent_order and next_status in ['ready', 'waiting_for_customer_shipment']:
+        # این کار نباید برای بک‌اوردرها انجام شود چون آنها باید مستقل نمایش داده شوند
+        is_backorder = order.order_number and order.order_number.startswith('BO-')
+        if not is_backorder and order.parent_order and next_status in ['ready', 'waiting_for_customer_shipment']:
             parent = order.parent_order
             # اگر هر بخشی از سفارش آماده ارسال باشد، کل سفارش مادر باید در لیست "آماده ارسال" نمایش داده شود
-            if parent.status != 'waiting_for_customer_shipment':
+            # یک شرط اضافه شد: اگر وضعیت سفارش مادر تحویل شده یا تکمیل شده است، آن را تغییر نده
+            if parent.status not in ['delivered', 'completed', 'waiting_for_customer_shipment']:
                 parent.status = 'waiting_for_customer_shipment'
                 parent.save()
 
@@ -2054,7 +2097,10 @@ def manager_order_list(request):
     all_requests = base_query.filter(parent_order__isnull=True)
     pending_requests = all_requests.filter(status='pending')
     warehouse_requests = all_requests.filter(status='parent') # Corrected from parent_requests
-    ready_requests = all_requests.filter(status='waiting_for_customer_shipment')
+    ready_requests = base_query.filter(
+        Q(status='waiting_for_customer_shipment') &
+        (Q(parent_order__isnull=True) | Q(order_number__startswith='BO-'))
+    ).prefetch_related('items', 'customer').distinct()
     delivered_requests = all_requests.filter(status='delivered')
     parent_requests = all_requests.filter(status='parent') # Kept for backward compatibility if template uses it
 

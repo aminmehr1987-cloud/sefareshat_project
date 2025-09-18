@@ -1152,50 +1152,7 @@
                 <tr id="sub-details-warehouse-{{ sub_order.id }}" class="details-content-row">
                   <td colspan="6">
                     <div class="table-wrapper">
-                      <table class="items-table">
-                        <thead>
-                          <tr>
-                            <th>کد کالا</th>
-                            <th>نام محصول</th>
-                            <th>تعداد درخواستی</th>
-                            <th>تعداد تخصیص یافته</th>
-                            <th>قیمت واحد</th>
-                            <th>جمع کل</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {% for item in sub_order.items.all %}
-                          <tr>
-                            <td>{{ item.product.code }}</td>
-                            <td>{{ item.product.name }}</td>
-                            <td>{{ item.requested_quantity }}</td>
-                            <td>
-                              {% if sub_order.status in 'pending,warehouse,parent' %}
-                                <span style="color:#ff0000;">در انتظار تخصیص</span>
-                              {% elif sub_order.parent_order.status == 'waiting_for_customer_shipment' and sub_order.order_number|slice:":2" == "BO" %}
-                                {{ item.requested_quantity }}
-                              {% else %}
-                                {{ item.allocated_quantity|default:"-" }}
-                              {% endif %}
-                            </td>
-                            <td>{{ item.price|floatformat:0|default:0 }} ریال</td>
-                            <td>
-                              {% if sub_order.status in 'pending,warehouse,parent' %}
-                                <span style="color:#fa0000;">-</span>
-                              {% elif sub_order.parent_order.status == 'waiting_for_customer_shipment' and sub_order.order_number|slice:":2" == "BO" %}
-                                {% widthratio item.requested_quantity 1 item.price %} ریال
-                              {% else %}
-                                {% widthratio item.allocated_quantity|default:"0" 1 item.price %} ریال
-                              {% endif %}
-                            </td>
-                          </tr>
-                          {% empty %}
-                          <tr>
-                            <td colspan="6">هیچ کالایی یافت نشد.</td>
-                          </tr>
-                          {% endfor %}
-                        </tbody>
-                      </table>
+                      {% include 'products/partials/item_details_table.html' with items=sub_order.items.all order=sub_order %}
                     </div>
                   </td>
                 </tr>
@@ -1236,168 +1193,100 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-waiting_for_customer_shipment">در انتظار ارسال به مشتری</span></td>
         <td>
+          <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ order.id }}';" class="action-button print-order-button" title="چاپ">
+            <i class="bi bi-printer-fill"></i>
+          </button>
           <button class="action-button details-button" onclick="toggleDetails('details-row-ready-{{ order.id }}')" title="جزئیات">
             <i class="bi bi-eye-fill"></i>
           </button>
-          {% if not order.get_sub_orders.exists %}
-          <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" disabled title="ارسال شد">
-            <i class="bi bi-send"></i>
-          </button>
-          {% endif %}
         </td>
       </tr>
       <tr id="details-row-ready-{{ order.id }}" class="details-content-row">
-        <td colspan="5">
+        <td colspan="6">
+          
           {% if order.get_sub_orders.exists %}
-          <h4>زیرسفارش‌ها:</h4>
-          <div style="margin: 15px 0; text-align: center;">
-            <div class="form-group" style="margin-bottom: 10px;">
-              <input type="text"
-                    class="courier-input"
-                    id="courier-{{ order.id }}"
-                    onchange="checkParentCourierInput('{{ order.id }}')"
-                    placeholder="نام پیک را وارد کنید"
-                    style="width: 200px; direction: rtl;">
+            <h4>زیرسفارش‌ها:</h4>
+            <div class="table-wrapper">
+              <table class="items-table" id="sub-orders-{{ order.id }}">
+                <thead>
+                  <tr>
+                    <th>شماره سفارش</th>
+                    <th>انبار</th>
+                    <th>وضعیت</th>
+                    <th>شماره سند</th>
+                    <th>تعداد بسته</th>
+                    <th>عملیات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for sub_order in order.get_sub_orders %}
+                    {% if sub_order.status != 'backorder' %}
+                    <tr>
+                      <td>{{ sub_order.order_number }}</td>
+                      <td>{{ sub_order.items.first.warehouse.name }}</td>
+                      <td><span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span></td>
+                      <td>{{ sub_order.document_number|default:"-" }}</td>
+                      <td>{{ sub_order.package_count|default:"0" }}</td>
+                      <td>
+                        <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                            <i class="bi bi-printer-fill"></i>
+                        </button>
+                        <button class="action-button details-button" onclick="toggleDetails('sub-details-ready-{{ sub_order.id }}')" title="جزئیات">
+                          <i class="bi bi-eye-fill"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr id="sub-details-ready-{{ sub_order.id }}" class="details-content-row">
+                      <td colspan="6">
+                        {% include 'products/partials/item_details_table.html' with items=sub_order.items.all order=sub_order %}
+                      </td>
+                    </tr>
+                    {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
             </div>
-            <button class="action-button next-stage-button"
-                    onclick="sendAllSubOrders('{{ order.id }}')"
-                    id="send-all-button-{{ order.id }}"
-                    disabled title="ارسال همه زیرسفارش‌ها">
-              <i class="bi bi-truck"></i>
+          {% else %}
+            {# This is a standalone order (like a backorder). Show its order details and then its items. #}
+            <h4>جزئیات سفارش:</h4>
+            <div class="table-wrapper">
+              <table class="items-table">
+                <thead>
+                  <tr>
+                    <th>انبار</th>
+                    <th>وضعیت</th>
+                    <th>شماره سند</th>
+                    <th>تعداد بسته</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{{ order.warehouse.name|default:"-" }}</td>
+                    <td><span class="order-status status-{{ order.status }}">{{ order.get_status_display }}</span></td>
+                    <td>{{ order.document_number|default:"-" }}</td>
+                    <td>{{ order.package_count|default:"-" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <h4 style="margin-top:15px;">اقلام سفارش:</h4>
+            <div class="table-wrapper">
+                {% include 'products/partials/item_details_table.html' with items=order.items.all order=order %}
+            </div>
+          {% endif %}
+
+          {# This outer div now contains the courier input and send button for ALL order types in this tab #}
+          <div style="padding: 10px; border-top: 2px solid #ddd; margin-top: 10px; text-align: center;">
+            <input type="text" class="courier-input" id="courier-{{ order.id }}" oninput="checkCourierInput('{{ order.id }}')" placeholder="نام پیک را وارد کنید" style="width: 250px; display: inline-block; vertical-align: middle; margin-left: 10px;">
+            <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" disabled title="ارسال سفارش">
+              <i class="bi bi-truck" style="font-size: 20px;"></i>
             </button>
           </div>
-          <div class="table-wrapper">
-            <table class="items-table" id="sub-orders-{{ order.id }}">
-              <thead>
-                <tr>
-                  <th>شماره سفارش <i class="bi bi-funnel filter-icon" onclick="toggleFilter('sub-order-number', event)"></i></th>
-                  <th>انبار <i class="bi bi-funnel filter-icon" onclick="toggleFilter('warehouse', event)"></i></th>
-                  <th>وضعیت <i class="bi bi-funnel filter-icon" onclick="toggleFilter('sub-status', event)"></i></th>
-                  <th>شماره سند</th>
-                  <th>تعداد بسته</th>
-                  <th>عملیات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for sub_order in order.get_sub_orders %}
-                {% if sub_order.status != 'backorder' %}
-                <tr>
-                  <td>{{ sub_order.order_number }}</td>
-                  <td>{{ sub_order.items.first.warehouse.name }}</td>
-                  <td><span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span></td>
-                  <td>{{ sub_order.document_number|default:"-" }}</td>
-                  <td>{{ sub_order.package_count|default:"0" }}</td>
-                  <td>
-                    <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
-                        <i class="bi bi-printer-fill"></i>
-                    </button>
-                    <button class="action-button details-button" onclick="toggleDetails('sub-details-ready-{{ sub_order.id }}')" title="جزئیات">
-                      <i class="bi bi-eye-fill"></i>
-                    </button>
-                  </td>
-                </tr>
-                <tr id="sub-details-ready-{{ sub_order.id }}" class="details-content-row">
-                  <td colspan="6">
-                    <div class="table-wrapper">
-                      <table class="items-table">
-                        <thead>
-                          <tr>
-                            <th>کد کالا</th>
-                            <th>نام محصول</th>
-                            <th>تعداد درخواستی</th>
-                            <th>تعداد تخصیص‌یافته</th>
-                            <th>قیمت واحد</th>
-                            <th>جمع کل</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {% for item in sub_order.items.all %}
-                          <tr>
-                            <td>{{ item.product.code }}</td>
-                            <td>{{ item.product.name }}</td>
-                            <td>{{ item.requested_quantity }}</td>
-                            <td>
-                              {% if sub_order.status in 'pending,warehouse,parent' %}
-                                <span style="color:#aaa;">-</span>
-                              {% elif sub_order.parent_order.status == 'waiting_for_customer_shipment' and sub_order.order_number|slice:":2" == "BO" %}
-                                {{ item.requested_quantity }}
-                              {% else %}
-                                {{ item.allocated_quantity|default:"-" }}
-                              {% endif %}
-                            </td>
-                            <td>{{ item.price|floatformat:0|default:0 }} ریال</td>
-                            <td>
-                              {% if sub_order.status in 'pending,warehouse,parent' %}
-                                <span style="color:#aaa;">-</span>
-                              {% elif sub_order.parent_order.status == 'waiting_for_customer_shipment' and sub_order.order_number|slice:":2" == "BO" %}
-                                {% widthratio item.requested_quantity 1 item.price %} ریال
-                              {% else %}
-                                {% widthratio item.allocated_quantity|default:"0" 1 item.price %} ریال
-                              {% endif %}
-                            </td>
-                          </tr>
-                          {% empty %}
-                          <tr><td colspan="6">هیچ کالایی یافت نشد.</td></tr>
-                          {% endfor %}
-                        </tbody>
-                      </table>
-                    </div>
-                  </td>
-                </tr>
-                {% endif %}
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          {# اگر سفارش مادر نیست، نمایش به‌صورت کالا به کالا همراه با پیک و بسته #}
-          <div class="table-wrapper">
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th>کد کالا</th>
-                  <th>نام محصول</th>
-                  <th>تعداد درخواستی</th>
-                  <th>تعداد تخصیص‌یافته</th>
-                  <th>قیمت واحد</th>
-                  <th>جمع کل</th>
-                  <th>شماره سند</th>
-                  <th>تعداد بسته</th>
-                  <th>نام پیک</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in order.items.all %}
-                <tr>
-                  <td>{{ item.product.code|default:"-" }}</td>
-                  <td>{{ item.product.name|default:"-" }}</td>
-                  <td>{{ item.requested_quantity }}</td>
-                  <td>{{ item.allocated_quantity }}</td>
-                  <td>{{ item.price|floatformat:0|default:0 }} ریال</td>
-                  <td>{% widthratio item.quantity 1 item.price %} ریال</td>
-                  <td>{{ order.document_number|default:"-" }}</td>
-                  <td>{{ order.package_count|default:"-" }}</td>
-                  <td>
-                    <input type="text"
-                          class="courier-input"
-                          id="courier-{{ order.id }}"
-                          onchange="checkCourierInput('{{ order.id }}')"
-                          placeholder="نام پیک را وارد کنید"
-                          style="width: 120px; direction: rtl;">
-                  </td>
-                </tr>
-                {% empty %}
-                <tr><td colspan="9">هیچ کالایی ثبت نشده.</td></tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% endif %}
         </td>
       </tr>
       {% empty %}
       <tr>
-        <td colspan="5">هیچ سفارشی یافت نشد.</td>
+        <td colspan="6">هیچ سفارشی یافت نشد.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -1649,49 +1538,16 @@
           <button class="action-button details-button" onclick="toggleDetails('details-row-backorder-ready-{{ order.id }}')" title="جزئیات">
             <i class="bi bi-eye-fill"></i>
           </button>
-          <button class="action-button next-stage-button" id="send-btn-{{ order.id }}" onclick="sendBackorderToCustomer('{{ order.id }}')" title="مرحله بعدی">
+          <button class="action-button next-stage-button" id="send-btn-{{ order.id }}" onclick="moveToNext('{{ order.id }}', 'ready')" title="مرحله بعدی">
             <i class="bi bi-arrow-right-circle"></i>
           </button>
         </td>
       </tr>
       <tr id="details-row-backorder-ready-{{ order.id }}" class="details-content-row">
         <td colspan="8">
-          {% if order.items.all %}
           <div class="table-wrapper">
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th>کد کالا</th>
-                  <th>نام محصول</th>
-                  <th>تعداد درخواستی</th>
-                  <th>تعداد تخصیصی</th>
-                  <th>قیمت واحد</th>
-                  <th>جمع کل</th>
-                  <th>تسویه</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in order.items.all %}
-                <tr>
-                  <td>{{ item.product.code|default:"-" }}</td>
-                  <td>{{ item.product.name|default:"-" }}</td>
-                  <td>{{ item.requested_quantity }}</td>
-                  <td>{{ item.allocated_quantity }}</td>
-                  <td>{{ item.price|floatformat:0|default:0 }} ریال</td>
-                  <td>{% widthratio item.allocated_quantity 1 item.price %} ریال</td>
-                  <td>{{ item.get_payment_term_display|default:"-" }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                  <td colspan="6">هیچ کالایی یافت نشد.</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+            {% include 'products/partials/item_details_table.html' with items=order.items.all order=order %}
           </div>
-          {% else %}
-          <p>هیچ آیتمی برای این سفارش وجود ندارد.</p>
-          {% endif %}
         </td>
       </tr>
       {% empty %}
