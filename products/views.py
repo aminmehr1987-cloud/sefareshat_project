@@ -1626,18 +1626,25 @@ def update_order_status(request):
                 shipment.save()
                 shipment.refresh_from_db()
 
-                # --- START: Create Financial Operation Directly ---
-                # Get all sub-orders related to this shipment
+                # --- START: Create Financial Operation ---
+                customer = None
+                description = ""
+                
+                # Case 1: Shipment has sub-orders (standard flow)
                 sub_orders_in_shipment = shipment.sub_orders.all()
                 if sub_orders_in_shipment.exists():
-                    # Use the customer from the first sub-order (they are all the same)
                     customer = sub_orders_in_shipment.first().customer
-                    
-                    # Create a list of sub-order numbers for the description
                     sub_order_numbers = ", ".join([so.order_number for so in sub_orders_in_shipment])
                     description = f"فاکتور فروش بابت سفارشات: {sub_order_numbers}"
+                
+                # Case 2: Shipment is a standalone backorder without sub-orders
+                elif shipment.is_backorder and shipment.order:
+                    customer = shipment.order.customer
+                    description = f"فاکتور فروش بابت بک اوردر: {shipment.order.order_number}"
 
-                    # Check if an invoice for this exact set of sub-orders already exists
+                # Proceed if we have a customer and description
+                if customer and description:
+                    # Check if an invoice for this exact description already exists
                     if not FinancialOperation.objects.filter(
                         operation_type='SALES_INVOICE',
                         customer=customer,
@@ -1646,12 +1653,13 @@ def update_order_status(request):
                         
                         total_price = 0
                         # Calculate total price from the items *actually in the shipment*
-                        for shipment_item in shipment.items.all():
-                            if shipment_item.order_item:
-                                total_price += (shipment_item.order_item.price or 0) * shipment_item.quantity_shipped
+                        for shipment_item in shipment.shipmentitem_set.all():
+                            if shipment_item.order_item and shipment_item.order_item.price is not None:
+                                total_price += shipment_item.order_item.price * shipment_item.quantity_shipped
                         
                         if total_price > 0:
-                            user = customer.created_by or User.objects.filter(username=sub_orders_in_shipment.first().visitor_name).first() or User.objects.filter(is_superuser=True).first()
+                            # Try to find the original user who created the customer or order
+                            user = customer.created_by or User.objects.filter(username=shipment.order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
                             if user:
                                 FinancialOperation.objects.create(
                                     operation_type='SALES_INVOICE',
@@ -1659,13 +1667,13 @@ def update_order_status(request):
                                     amount=total_price,
                                     payment_method='credit_sale',
                                     date=timezone.now().date(),
-                                    description=description, # Use the new description
+                                    description=description,
                                     created_by=user,
                                     status='CONFIRMED',
                                     confirmed_by=user,
                                     confirmed_at=timezone.now()
                                 )
-                # --- END: Create Financial Operation Directly ---
+                # --- END: Create Financial Operation ---
 
                 # Update the status of all sub-orders related to this shipment
                 sub_orders_to_update = shipment.sub_orders.all()
