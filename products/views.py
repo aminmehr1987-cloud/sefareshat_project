@@ -1753,12 +1753,12 @@ def update_order_status(request):
         order.status = next_status
         order.save()
         
-        # اگر سفارش زیرسفارش باشد و به 'ready' تغییر کند، وضعیت مادر را چک کن
-        if order.parent_order and next_status == 'ready':
+        # اگر یک زیرسفارش به حالت "آماده" یا "منتظر ارسال مشتری" تغییر وضعیت دهد،
+        # وضعیت سفارش مادر را نیز به "منتظر ارسال مشتری" تغییر می‌دهیم تا در پنل مدیر نمایش داده شود.
+        if order.parent_order and next_status in ['ready', 'waiting_for_customer_shipment']:
             parent = order.parent_order
-            sub_orders = parent.get_sub_orders()
-            # اگر همه زیرسفارش‌ها یا آماده هستند یا بک‌اوردر، مادر را آماده ارسال کن
-            if all(sub.status in ['ready', 'backorder', 'closed_backordered'] for sub in sub_orders):
+            # اگر هر بخشی از سفارش آماده ارسال باشد، کل سفارش مادر باید در لیست "آماده ارسال" نمایش داده شود
+            if parent.status != 'waiting_for_customer_shipment':
                 parent.status = 'waiting_for_customer_shipment'
                 parent.save()
 

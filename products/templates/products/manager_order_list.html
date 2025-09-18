@@ -1655,7 +1655,7 @@
         </td>
       </tr>
       <tr id="details-row-backorder-ready-{{ order.id }}" class="details-content-row">
-        <td colspan="7">
+        <td colspan="8">
           {% if order.items.all %}
           <div class="table-wrapper">
             <table class="items-table">
@@ -1663,9 +1663,10 @@
                 <tr>
                   <th>کد کالا</th>
                   <th>نام محصول</th>
-                  <th>تعداد</th>
+                  <th>تعداد درخواستی</th>
+                  <th>تعداد تخصیصی</th>
                   <th>قیمت واحد</th>
-                  <th>جمع</th>
+                  <th>جمع کل</th>
                   <th>تسویه</th>
                 </tr>
               </thead>
@@ -1675,8 +1676,9 @@
                   <td>{{ item.product.code|default:"-" }}</td>
                   <td>{{ item.product.name|default:"-" }}</td>
                   <td>{{ item.requested_quantity }}</td>
+                  <td>{{ item.allocated_quantity }}</td>
                   <td>{{ item.price|floatformat:0|default:0 }} ریال</td>
-                  <td>{{ item.total_price|floatformat:0|default:0 }} ریال</td>
+                  <td>{% widthratio item.allocated_quantity 1 item.price %} ریال</td>
                   <td>{{ item.get_payment_term_display|default:"-" }}</td>
                 </tr>
                 {% empty %}
