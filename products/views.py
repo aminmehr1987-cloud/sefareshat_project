@@ -4681,6 +4681,15 @@ def financial_operation_detail_view(request, operation_id):
             except Exception as e:
                 logger.error(f"Error parsing new invoice description format: {e}")
                 related_orders = [] # Reset on error
+        # Backorder format: "فاکتور فروش بابت بک اوردر: BO-..."
+        elif 'فاکتور فروش بابت بک اوردر:' in operation.description:
+            try:
+                order_number_str = operation.description.split(':', 1)[1].strip()
+                if order_number_str:
+                    related_orders = list(Order.objects.filter(order_number=order_number_str))
+            except Exception as e:
+                logger.error(f"Error parsing backorder invoice description format: {e}")
+                related_orders = []
         # Old format: "فاکتور فروش بابت سفارش شماره PARENT-ORD-1"
         else:
             match = re.search(r'سفارش شماره (.*?)$', operation.description)
