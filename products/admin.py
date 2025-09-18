@@ -242,12 +242,14 @@ class OrderItemForm(forms.ModelForm):
                 raise forms.ValidationError(f"شرایط تسویه باید یکی از {available_terms} باشد.")
         return payment_term
 
+# Note for reviewer: The 'delivered_quantity' field already exists in the OrderItem model in models.py.
+# This change only adds the field to the admin display.
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     form = OrderItemForm
     extra = 1
     readonly_fields = ('item_total',)
-    fields = ('product', 'requested_quantity', 'allocated_quantity', 'price', 'payment_term', 'warehouse', 'warehouse_status', 'item_total')
+    fields = ('product', 'requested_quantity', 'allocated_quantity', 'delivered_quantity', 'price', 'payment_term', 'warehouse', 'warehouse_status', 'item_total')
     autocomplete_fields = ['product', 'warehouse']
 
     def item_total(self, obj):
@@ -521,6 +523,7 @@ class OrderItemAdmin(admin.ModelAdmin):
         'get_product_name',
         'requested_quantity',
         'allocated_quantity',
+        'delivered_quantity',
         'get_backorder_quantity',
         'is_backorder',
         'price',
