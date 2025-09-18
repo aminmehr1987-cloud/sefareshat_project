@@ -1614,38 +1614,44 @@ def update_order_status(request):
                 shipment.refresh_from_db()
 
                 # --- START: Create Financial Operation Directly ---
-                order = shipment.order
-                if not FinancialOperation.objects.filter(
-                    operation_type='SALES_INVOICE',
-                    customer=order.customer,
-                    description__icontains=f"سفارش شماره {order.order_number}"
-                ).exists():
+                # Get all sub-orders related to this shipment
+                sub_orders_in_shipment = shipment.sub_orders.all()
+                if sub_orders_in_shipment.exists():
+                    # Use the customer from the first sub-order (they are all the same)
+                    customer = sub_orders_in_shipment.first().customer
                     
-                    total_price = 0
-                    for item_data in items_data:
-                        try:
-                            order_item = OrderItem.objects.get(id=item_data['item_id'])
-                            delivered_qty = int(item_data['delivered_quantity'])
-                            total_price += (order_item.price or 0) * delivered_qty
-                        except (OrderItem.DoesNotExist, ValueError, TypeError):
-                            # Skip if item not found or data is invalid
-                            continue
-                    
-                    if total_price > 0:
-                        user = order.customer.created_by or User.objects.filter(username=order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
-                        if user:
-                            FinancialOperation.objects.create(
-                                operation_type='SALES_INVOICE',
-                                customer=order.customer,
-                                amount=total_price,
-                                payment_method='credit_sale',
-                                date=timezone.now().date(),
-                                description=f"فاکتور فروش بابت سفارش شماره {order.order_number}",
-                                created_by=user,
-                                status='CONFIRMED',
-                                confirmed_by=user,
-                                confirmed_at=timezone.now()
-                            )
+                    # Create a list of sub-order numbers for the description
+                    sub_order_numbers = ", ".join([so.order_number for so in sub_orders_in_shipment])
+                    description = f"فاکتور فروش بابت سفارشات: {sub_order_numbers}"
+
+                    # Check if an invoice for this exact set of sub-orders already exists
+                    if not FinancialOperation.objects.filter(
+                        operation_type='SALES_INVOICE',
+                        customer=customer,
+                        description=description
+                    ).exists():
+                        
+                        total_price = 0
+                        # Calculate total price from the items *actually in the shipment*
+                        for shipment_item in shipment.items.all():
+                            if shipment_item.order_item:
+                                total_price += (shipment_item.order_item.price or 0) * shipment_item.quantity_shipped
+                        
+                        if total_price > 0:
+                            user = customer.created_by or User.objects.filter(username=sub_orders_in_shipment.first().visitor_name).first() or User.objects.filter(is_superuser=True).first()
+                            if user:
+                                FinancialOperation.objects.create(
+                                    operation_type='SALES_INVOICE',
+                                    customer=customer,
+                                    amount=total_price,
+                                    payment_method='credit_sale',
+                                    date=timezone.now().date(),
+                                    description=description, # Use the new description
+                                    created_by=user,
+                                    status='CONFIRMED',
+                                    confirmed_by=user,
+                                    confirmed_at=timezone.now()
+                                )
                 # --- END: Create Financial Operation Directly ---
 
                 # Update the status of all sub-orders related to this shipment
@@ -4609,19 +4615,43 @@ def financial_operation_detail_view(request, operation_id):
     """
     operation = get_object_or_404(FinancialOperation, id=operation_id)
     
-    # New logic to find the related order for sales invoices
-    related_order = None
+    # New logic to find related orders for sales invoices (supports both new and old formats)
+    related_orders = []
     if operation.operation_type == 'SALES_INVOICE' and operation.description:
         import re
-        match = re.search(r'سفارش شماره (.*?)$', operation.description)
-        if match:
-            order_number = match.group(1)
-            related_order = Order.objects.filter(order_number=order_number).first()
+        # New format: "فاکتور فروش بابت سفارشات: ORD-1, ORD-2"
+        if 'فاکتور فروش بابت سفارشات:' in operation.description:
+            try:
+                # Extract the part after the colon and split by comma
+                order_numbers_str = operation.description.split(':', 1)[1]
+                order_numbers = [num.strip() for num in order_numbers_str.split(',') if num.strip()]
+                if order_numbers:
+                    related_orders = list(Order.objects.filter(order_number__in=order_numbers))
+            except Exception as e:
+                logger.error(f"Error parsing new invoice description format: {e}")
+                related_orders = [] # Reset on error
+        # Old format: "فاکتور فروش بابت سفارش شماره PARENT-ORD-1"
+        else:
+            match = re.search(r'سفارش شماره (.*?)$', operation.description)
+            if match:
+                order_number = match.group(1).strip()
+                # For old format, we find the parent and then its sub-orders that were shipped
+                parent_order = Order.objects.filter(order_number=order_number).first()
+                if parent_order:
+                    # Attempt to find the specific sub-orders that were part of a shipment
+                    # This is an approximation for backward compatibility
+                    shipped_sub_orders = parent_order.sub_orders.filter(status='delivered')
+                    if shipped_sub_orders.exists():
+                        related_orders = list(shipped_sub_orders)
+                    else:
+                        # Fallback to just showing the parent if no delivered sub-orders are found
+                        related_orders = [parent_order]
+
 
     context = {
         'operation': operation,
         'transactions': operation.transactions.all(),
-        'related_order': related_order, # Add to context
+        'related_orders': related_orders, # Use 'related_orders' (plural)
     }
     
     return render(request, 'products/financial_operation_detail.html', context)

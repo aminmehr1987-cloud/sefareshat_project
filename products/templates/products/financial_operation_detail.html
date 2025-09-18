@@ -143,15 +143,21 @@
                 <h3><i class="bi bi-gear"></i> اطلاعات تکمیلی</h3>
             </div>
             <div class="card-content">
-                {% if related_order %}
-                <div class="info-row">
-                    <span class="label">فاکتور مرتبط:</span>
-                    <span class="value">
-                        <a href="{% url 'products:order_detail_view' related_order.id %}" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-receipt"></i> مشاهده جزئیات سفارش #{{ related_order.order_number }}
-                        </a>
-                    </span>
-                </div>
+                {% if related_orders %}
+                    <div class="info-row full-width">
+                        <span class="label">سفارشات مرتبط:</span>
+                        <div class="value">
+                            <ul class="list-unstyled mb-0" style="padding-right: 0;">
+                                {% for order in related_orders %}
+                                    <li class="mb-2">
+                                        <a href="{% url 'products:order_detail_view' order.id %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-receipt"></i> مشاهده جزئیات سفارش #{{ order.order_number }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
                 {% endif %}
 
                 {% if operation.reference_number %}
