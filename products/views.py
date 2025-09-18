@@ -1708,47 +1708,29 @@ def update_order_status(request):
             is_standalone_backorder = order.parent_order and order.order_number and order.order_number.startswith('BO-')
 
             if is_standalone_backorder:
-                parent = order.parent_order
+                # This is a backorder. It must get its own, new shipment and not be
+                # tied to the parent's existing shipment.
                 order.status = 'shipped'
                 order.courier_name = courier_name
                 order.save()
 
-                # A parent order should only have ONE shipment record. Find it.
-                shipment = Shipment.objects.filter(parent_order=parent).first()
+                # Create a new, independent shipment for the backorder itself.
+                shipment = Shipment.objects.create(
+                    order=order,  # The shipment is FOR this specific backorder.
+                    parent_order=order.parent_order, # We can still link to the parent for reference.
+                    courier_name=courier_name,
+                    status='shipped',
+                    description=f"ارسال بک اوردر {order.order_number}",
+                    is_backorder=True
+                )
 
-                if shipment:
-                    # Add this backorder to the existing shipment.
-                    shipment.sub_orders.add(order)
-                    
-                    # If the shipment was already delivered, change it back to 'shipped'
-                    # because we've just added new items to it.
-                    if shipment.status == 'delivered':
-                        shipment.status = 'shipped'
-                    
-                    # Update the courier name
-                    shipment.courier_name = courier_name
-                    shipment.save()
-
-                else:
-                    # This case is a fallback. A parent order should always have a shipment.
-                    shipment = Shipment.objects.create(
-                        order=parent,
-                        parent_order=parent,
-                        courier_name=courier_name,
-                        status='shipped',
-                        description=f"ارسال سفارش {parent.order_number}",
-                        is_backorder=True
-                    )
-                    shipment.sub_orders.add(order)
-
-                # Add this backorder's items to the shipment's items.
+                # Add the items from this backorder to the new shipment.
                 for item in order.items.filter(allocated_quantity__gt=0):
-                    if not ShipmentItem.objects.filter(shipment=shipment, order_item=item).exists():
-                        ShipmentItem.objects.create(
-                            shipment=shipment,
-                            order_item=item,
-                            quantity_shipped=item.allocated_quantity
-                        )
+                    ShipmentItem.objects.create(
+                        shipment=shipment,
+                        order_item=item,
+                        quantity_shipped=item.allocated_quantity
+                    )
             else:
                 # Original logic for shipping a parent order with its sub-orders
                 sub_orders = order.get_sub_orders().filter(status__in=['ready', 'waiting_for_customer_shipment'])
