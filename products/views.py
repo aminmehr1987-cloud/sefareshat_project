@@ -483,6 +483,13 @@ def order_detail_view(request, order_id):
         'items__order_item__product'  # برای دسترسی به محصولات
     )
 
+    # Check if the order is "finalized"
+    is_finalized = order.status in ['completed', 'delivered'] or shipments.filter(status='delivered').exists()
+
+    if is_finalized:
+        # If so, filter shipments to show only 'in_transit' and 'delivered'
+        shipments = shipments.filter(status__in=['in_transit', 'delivered'])
+
     # --- محاسبه مبلغ کل مرحله ---
     # The total is calculated based on the most relevant quantity field depending on the order's progress.
     # 1. delivered_quantity: If available, it's the most accurate value for finalized orders.

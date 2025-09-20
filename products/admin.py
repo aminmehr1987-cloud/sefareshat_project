@@ -51,7 +51,14 @@ class CountyAdmin(admin.ModelAdmin):
 class ShipmentItemInline(admin.TabularInline):
     model = ShipmentItem
     extra = 1
-    readonly_fields = ('order_item', 'quantity_shipped')
+    readonly_fields = ('order_item', 'quantity_shipped', 'get_delivered_quantity')
+    fields = ('order_item', 'quantity_shipped', 'get_delivered_quantity')
+
+    def get_delivered_quantity(self, obj):
+        if obj.order_item:
+            return obj.order_item.delivered_quantity
+        return '-'
+    get_delivered_quantity.short_description = 'تعداد تحویلی'
 
 @admin.register(Shipment)
 class ShipmentAdmin(admin.ModelAdmin):
