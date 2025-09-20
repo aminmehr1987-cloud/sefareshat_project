@@ -213,6 +213,8 @@ def get_shipped_orders():
         ).values('order_id')))
     ).distinct()
 
+from .models import Courier
+
 @login_required
 @transaction.atomic  # اضافه کردن دکوراتور
 def create_shipment_for_order(request, order_id):
@@ -221,14 +223,21 @@ def create_shipment_for_order(request, order_id):
     """
     order = get_object_or_404(Order, id=order_id)
     parent_order = order.parent_order if order.parent_order else order
+    couriers = Courier.objects.filter(is_active=True)
 
     if request.method == 'POST':
-        courier_name = request.POST.get('courier_name', '')
+        courier_id = request.POST.get('courier')
         description = request.POST.get('description', '')
         selected_sub_orders = request.POST.getlist('selected_sub_orders', [])
 
-        if not courier_name:
-            messages.error(request, 'نام پیک الزامی است.')
+        if not courier_id:
+            messages.error(request, 'پیک الزامی است.')
+            return redirect('products:order_detail_view', order_id=order.id)
+
+        try:
+            courier = Courier.objects.get(id=courier_id)
+        except Courier.DoesNotExist:
+            messages.error(request, 'پیک انتخاب شده معتبر نیست.')
             return redirect('products:order_detail_view', order_id=order.id)
 
         try:
@@ -241,7 +250,7 @@ def create_shipment_for_order(request, order_id):
             new_shipment = Shipment.objects.create(
                 order=parent_order,
                 parent_order=parent_order,
-                courier_name=courier_name,
+                courier=courier,
                 description=description,
                 status='in_transit',
                 is_backorder=order.order_number.startswith('BO-')
@@ -315,7 +324,8 @@ def create_shipment_for_order(request, order_id):
 
     return render(request, 'products/create_shipment.html', {
         'order': order,
-        'available_sub_orders': available_sub_orders
+        'available_sub_orders': available_sub_orders,
+        'couriers': couriers
     })
 
 @csrf_exempt
@@ -1600,7 +1610,7 @@ def update_order_status(request):
         order_id = data.get('order_id')
         shipment_id = data.get('shipment_id')
         current_status = data.get('current_status')
-        courier_name = data.get('courier_name')
+        courier_id = data.get('courier_id')
 
         # منطق جدید برای نهایی کردن ارسال
         if current_status == 'shipped':
@@ -1717,8 +1727,13 @@ def update_order_status(request):
 
         # تغییر وضعیت از 'منتظر ارسال مشتری' به 'ارسال شده'
         if current_status == 'waiting_for_customer_shipment':
-            if not courier_name:
-                return JsonResponse({'success': False, 'message': 'نام پیک وارد نشده است'}, status=400)
+            if not courier_id:
+                return JsonResponse({'success': False, 'message': 'پیک انتخاب نشده است'}, status=400)
+            
+            try:
+                courier = Courier.objects.get(id=courier_id)
+            except Courier.DoesNotExist:
+                return JsonResponse({'success': False, 'message': 'پیک معتبر نیست'}, status=400)
             
             is_standalone_backorder = order.parent_order and order.order_number and order.order_number.startswith('BO-')
 
@@ -1726,14 +1741,14 @@ def update_order_status(request):
                 # This is a backorder. It must get its own, new shipment and not be
                 # tied to the parent's existing shipment.
                 order.status = 'shipped'
-                order.courier_name = courier_name
+                order.courier = courier
                 order.save()
 
                 # Create a new, independent shipment for the backorder itself.
                 shipment = Shipment.objects.create(
                     order=order,  # The shipment is FOR this specific backorder.
                     parent_order=order.parent_order, # We can still link to the parent for reference.
-                    courier_name=courier_name,
+                    courier=courier,
                     status='shipped',
                     description=f"ارسال بک اوردر {order.order_number}",
                     is_backorder=True
@@ -1749,14 +1764,14 @@ def update_order_status(request):
             else:
                 # Original logic for shipping a parent order with its sub-orders
                 sub_orders = order.get_sub_orders().filter(status__in=['ready', 'waiting_for_customer_shipment'])
-                sub_orders.update(status='shipped', courier_name=courier_name)
+                sub_orders.update(status='shipped', courier=courier)
                 
                 order.status = 'shipped'
                 order.save()
 
                 shipment = Shipment.objects.create(
                     order=order,
-                    courier_name=courier_name,
+                    courier=courier,
                     status='shipped',
                     description=f"ارسال سفارش اصلی {order.order_number}"
                 )
@@ -2150,6 +2165,8 @@ def manager_order_list(request):
             Q(order__customer__store_name__icontains=customer_name)
         )
 
+    couriers = Courier.objects.filter(is_active=True)
+
     context = {
         'all_requests': all_requests,
         'pending_requests': pending_requests,
@@ -2164,6 +2181,7 @@ def manager_order_list(request):
         'parent_requests': parent_requests,
         'status_choices': [choice for choice in Order.STATUS_CHOICES if choice[0] != 'cart'],
         'request': request,
+        'couriers': couriers,
     }
     return render(request, 'products/manager_order_list.html', context)
 

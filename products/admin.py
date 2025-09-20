@@ -17,7 +17,7 @@ from .models import (
     CashRegister, CheckBook, Check, Voucher, VoucherItem, SalesInvoiceItem,
     Fund, FundBalanceHistory, FinancialOperation, CustomerBalance, PettyCashOperation,
     FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement, ReceivedCheque, ReceivedChequeAuditTrail,
-    DocumentNumberSettings, Province, County
+    DocumentNumberSettings, Province, County, Courier
 )
 import jdatetime as jmodels
 from django.db.models import Q, F, Sum
@@ -48,6 +48,13 @@ class CountyAdmin(admin.ModelAdmin):
     ordering = ['province__name', 'name']
 
 
+@admin.register(Courier)
+class CourierAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+
+
 class ShipmentItemInline(admin.TabularInline):
     model = ShipmentItem
     extra = 1
@@ -63,9 +70,9 @@ class ShipmentItemInline(admin.TabularInline):
 @admin.register(Shipment)
 class ShipmentAdmin(admin.ModelAdmin):
     list_display = ['shipment_number', 'order', 'parent_order', 'shipment_date', 
-                   'courier_name', 'status', 'is_backorder']
-    list_filter = ['shipment_date', 'status', 'is_backorder']
-    search_fields = ['shipment_number', 'courier_name', 'order__order_number']
+                   'courier', 'status', 'is_backorder']
+    list_filter = ['shipment_date', 'status', 'is_backorder', 'courier']
+    search_fields = ['shipment_number', 'courier__name', 'order__order_number']
     readonly_fields = ['shipment_number']
     inlines = [ShipmentItemInline]
     
@@ -268,13 +275,13 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('fixed_document_number', 'order_number', 'document_number', 'package_count', 'courier_name', 'visitor_name', 'customer_name', 'created_at_jalali', 'payment_term', 'status', 'total_price')
+    list_display = ('fixed_document_number', 'order_number', 'document_number', 'package_count', 'courier', 'visitor_name', 'customer_name', 'created_at_jalali', 'payment_term', 'status', 'total_price')
     list_filter = (
         'status',
         'payment_term',
         'created_at',
         ('document_number', admin.EmptyFieldListFilter),
-        ('courier_name', admin.EmptyFieldListFilter),
+        'courier',
         'package_count',
     )
     search_fields = [
@@ -282,7 +289,7 @@ class OrderAdmin(admin.ModelAdmin):
         'document_number',
         'visitor_name',
         'customer_name',
-        'courier_name',
+        'courier__name',
     ]
     date_hierarchy = 'created_at'
     inlines = [OrderItemInline]
@@ -381,7 +388,7 @@ class OrderAdmin(admin.ModelAdmin):
                 obj.order_number or '',
                 obj.document_number or '',
                 obj.package_count or 0,
-                obj.courier_name or '',
+                obj.courier.name if obj.courier else '',
                 obj.visitor_name,
                 obj.customer_name,
                 jalali_date,

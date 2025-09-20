@@ -109,6 +109,21 @@ class Warehouse(models.Model):
     def __str__(self):
         return self.name
 
+
+class Courier(models.Model):
+    """مدل پیک"""
+    name = models.CharField(max_length=100, unique=True, verbose_name="نام پیک")
+    is_active = models.BooleanField(default=True, verbose_name="فعال")
+
+    class Meta:
+        verbose_name = "پیک"
+        verbose_name_plural = "پیک‌ها"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Product(models.Model):
     PAYMENT_TERMS_CHOICES = [
         ('cash', 'نقدی'),
@@ -251,11 +266,18 @@ class Order(models.Model):
         blank=True,
         verbose_name="تعداد بسته"
     )
+    courier = models.ForeignKey(
+        'Courier',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="پیک"
+    )
     courier_name = models.CharField(
         max_length=100,
         blank=True,
         null=True,
-        verbose_name="نام پیک"
+        verbose_name="نام پیک (منسوخ شده)"
     )
     visitor_name = models.CharField(max_length=100, verbose_name="نام ویزیتور")
     customer = models.ForeignKey(
@@ -740,7 +762,19 @@ class Shipment(models.Model):
     )
     shipment_number = models.CharField(max_length=50, unique=True, verbose_name="شماره ارسال")
     shipment_date = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ارسال")
-    courier_name = models.CharField(max_length=100, verbose_name="نام پیک")
+    courier = models.ForeignKey(
+        'Courier',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name="پیک"
+    )
+    courier_name = models.CharField(
+        max_length=100,
+        verbose_name="نام پیک (منسوخ شده)",
+        blank=True,
+        null=True
+    )
     is_backorder = models.BooleanField(default=False, verbose_name="ارسال بک‌اوردر")
     description = models.TextField(blank=True, null=True, verbose_name="توضیحات")
     items = models.ManyToManyField('OrderItem', through='ShipmentItem', related_name='shipments')

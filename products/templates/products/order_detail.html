@@ -206,7 +206,7 @@ body, html, input, button, select, textarea {
                 <tr>
                     <td>{{ shipment.shipment_number|default:'-' }}</td>
                     <td>{{ shipment.shipment_date|jalali_date }}</td>
-                    <td>{{ shipment.courier_name|default:'تعیین نشده' }}</td>
+                    <td>{{ shipment.courier.name|default:'تعیین نشده' }}</td>
                     <td>{{ shipment.get_status_display|default:'-' }}</td>
                     <td>
                         <ul style="padding-right:1.2rem;">
