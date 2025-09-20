@@ -1733,7 +1733,7 @@ def update_order_status(request):
             
             try:
                 courier = Courier.objects.get(id=courier_id)
-            except Courier.DoesNotExist:
+            except (Courier.DoesNotExist, ValueError):
                 return JsonResponse({'success': False, 'message': 'پیک معتبر نیست'}, status=400)
             
             is_standalone_backorder = order.parent_order and order.order_number and order.order_number.startswith('BO-')
@@ -1756,6 +1756,7 @@ def update_order_status(request):
                     description=final_description,
                     is_backorder=True
                 )
+                shipment.sub_orders.add(order)
 
                 # Add the items from this backorder to the new shipment.
                 for item in order.items.filter(allocated_quantity__gt=0):
@@ -2139,8 +2140,8 @@ def manager_order_list(request):
 
 
     # --- Shipped and Delivered Shipments Tabs ---
-    shipped_shipments_query = Shipment.objects.filter(status='shipped').select_related('order__customer').order_by('-shipment_date')
-    delivered_shipments_query = Shipment.objects.filter(status='delivered').select_related('order__customer').order_by('-shipment_date')
+    shipped_shipments_query = Shipment.objects.filter(status='shipped').select_related('order__customer').prefetch_related('sub_orders', 'sub_orders__items', 'sub_orders__warehouse').order_by('-shipment_date')
+    delivered_shipments_query = Shipment.objects.filter(status='delivered').select_related('order__customer').prefetch_related('sub_orders', 'sub_orders__items', 'sub_orders__warehouse').order_by('-shipment_date')
 
     # Apply common filters to both shipment queries
     if date_from:

@@ -1277,7 +1277,12 @@
 
           {# This outer div now contains the courier input and send button for ALL order types in this tab #}
           <div style="padding: 10px; border-top: 2px solid #ddd; margin-top: 10px; text-align: center;">
-            <input type="text" class="courier-input" id="courier-{{ order.id }}" oninput="checkCourierInput('{{ order.id }}')" placeholder="نام پیک را وارد کنید" style="width: 250px; display: inline-block; vertical-align: middle; margin-left: 10px;">
+            <select class="courier-input" id="courier-{{ order.id }}" onchange="checkCourierInput('{{ order.id }}')" style="width: 250px; display: inline-block; vertical-align: middle; margin-left: 10px;">
+              <option value="">یک پیک انتخاب کنید</option>
+              {% for courier in couriers %}
+              <option value="{{ courier.id }}">{{ courier.name }}</option>
+              {% endfor %}
+            </select>
             <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" disabled title="ارسال سفارش">
               <i class="bi bi-truck" style="font-size: 20px;"></i>
             </button>
@@ -1597,9 +1602,7 @@
           </tr>
           <tr id="details-row-shipped-{{ shipment.id }}" class="details-content-row">
             <td colspan="6">
-              <div>
-                {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=True shipment_id=shipment.id prefix='shipped' %}
-              </div>
+              {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment %}
             </td>
           </tr>
           {% empty %}
@@ -1643,9 +1646,7 @@
           </tr>
           <tr id="details-row-delivered-{{ shipment.id }}" class="details-content-row">
               <td colspan="6">
-                <div>
-                  {% include 'products/partials/order_details_partial.html' with order=shipment.order is_finalizing=False prefix='delivered' %}
-                </div>
+                {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment %}
               </td>
           </tr>
           {% empty %}
@@ -1718,21 +1719,14 @@
       current_status: currentStatus
     };
 
-    // اگر وضعیت در انتظار ارسال به مشتری است، نام پیک را هم ارسال می‌کنیم
+    // اگر وضعیت در انتظار ارسال به مشتری است، شناسه پیک را هم ارسال می‌کنیم
     if (currentStatus === 'waiting_for_customer_shipment') {
-        const courierInput = document.getElementById(`courier-${orderId}`);
-        if (!courierInput || !courierInput.value.trim()) {
-            // This case handles parent orders where the input is in the details row
-            const parentCourierInput = document.getElementById(`courier-${orderId}`);
-            if (parentCourierInput && parentCourierInput.value.trim()){
-                requestData.courier_name = parentCourierInput.value.trim();
-            } else {
-                alert('لطفاً نام پیک را وارد کنید.');
-                return;
-            }
-        } else {
-            requestData.courier_name = courierInput.value.trim();
+        const courierSelect = document.getElementById(`courier-${orderId}`);
+        if (!courierSelect || !courierSelect.value) {
+            alert('لطفاً یک پیک را انتخاب کنید.');
+            return;
         }
+        requestData.courier_id = courierSelect.value;
     } else if (currentStatus === 'shipped') {
         // This is the finalization step. We gather the delivered quantities.
         const items = [];
@@ -1982,50 +1976,10 @@
     });
   }
    
-  function checkCourierInput(subOrderId) {
-    const input = document.getElementById(`courier-${subOrderId}`);
-    const button = document.getElementById(`send-button-${subOrderId}`);
-    button.disabled = !(input.value.trim().length > 0);
-  }
-  
-  function sendSubOrder(subOrderId) {
-    const courierName = document.getElementById(`courier-${subOrderId}`).value.trim();
-    if (!courierName) {
-      alert("نام پیک را وارد کنید.");
-      return;
-    }
-  
-    fetch('/api/update-order-status/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCookie('csrftoken')
-      },
-      body: JSON.stringify({
-        order_id: subOrderId,
-        current_status: 'waiting_for_customer_shipment',
-        courier_name: courierName
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert("سفارش ارسال شد.");
-        location.reload();
-      } else {
-        alert("خطا در ارسال سفارش: " + (data.message || "نامشخص"));
-      }
-    })
-    .catch(error => {
-      console.error("Error:", error);
-      alert("خطا در ارتباط با سرور.");
-    });
-  }
-
-  function checkParentCourierInput(orderId) {
-    const input = document.getElementById(`courier-${orderId}`);
-    const button = document.getElementById(`send-all-button-${orderId}`);
-    button.disabled = !(input.value.trim().length > 0);
+  function checkCourierInput(orderId) {
+    const select = document.getElementById(`courier-${orderId}`);
+    const button = document.getElementById(`send-button-${orderId}`);
+    button.disabled = !select.value;
   }
   
   function sendAllSubOrders(orderId) {

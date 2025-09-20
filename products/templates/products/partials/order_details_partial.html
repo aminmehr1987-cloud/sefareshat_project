@@ -1,27 +1,32 @@
 {% comment %}
-This partial template renders the details of a single order.
-It expects an `order` object, and optionally `is_finalizing` (boolean) and `shipment_id`.
-It handles both simple orders and parent orders (with sub-orders).
-If `is_finalizing` is true, it shows inputs for delivered quantities.
-Otherwise, it displays the delivered quantities as read-only.
+This partial template renders the details of a single SHIPMENT.
+It expects a `shipment` object, and optionally `is_finalizing` (boolean) and `shipment_id`.
+
+It first checks if the shipment is composed of sub-orders. If so, it lists them
+and their respective items, using the `quantity_shipped` filter to get the
+correct quantity for this specific shipment.
+
+If the shipment does not have sub-orders, it falls back to displaying a flat
+list of all items contained within the shipment.
 {% endcomment %}
 {% load custom_filters %}
+{% load shipment_extras math_filters %}
 
-{% if order.get_sub_orders.exists %}
-  {# Parent order with sub-orders #}
-  <h4>زیرسفارش‌ها:</h4>
+{# Check if the shipment contains sub-orders, which is the primary use case #}
+{% if shipment.sub_orders.all %}
+  <h4>بسته‌های شامل این ارسال:</h4>
   <div class="table-wrapper">
     <table class="items-table">
       <thead>
         <tr>
-          <th>شماره زیرسفارش</th>
+          <th>شماره بسته (سفارش)</th>
           <th>انبار</th>
           <th>وضعیت</th>
           <th>عملیات</th>
         </tr>
       </thead>
       <tbody>
-        {% for sub_order in order.get_sub_orders %}
+        {% for sub_order in shipment.sub_orders.all %}
         <tr>
           <td>{{ sub_order.order_number }}</td>
           <td>{{ sub_order.items.first.warehouse.name|default:'-' }}</td>
@@ -40,7 +45,7 @@ Otherwise, it displays the delivered quantities as read-only.
                   <tr>
                     <th>کد کالا</th>
                     <th>نام محصول</th>
-                    <th>تخصیص یافته</th>
+                    <th>ارسال شده</th>
                     {% if is_finalizing %}
                       <th>تعداد تحویل شده</th>
                     {% else %}
@@ -56,31 +61,32 @@ Otherwise, it displays the delivered quantities as read-only.
                   <tr>
                     <td>{{ item.product.code }}</td>
                     <td>{{ item.product.name }}</td>
-                    <td>{{ item.allocated_quantity }}</td>
+                    <td>{{ item|quantity_shipped:shipment }}</td>
                     <td>
                       {% if is_finalizing %}
-                        <input type="number" name="delivered_quantity" value="{{ item.allocated_quantity }}"
-                               min="0" max="{{ item.allocated_quantity }}"
+                        <input type="number" name="delivered_quantity" id="delivered-qty-{{ item.id }}" value="{{ item|quantity_shipped:shipment }}"
+                               min="0" max="{{ item|quantity_shipped:shipment }}"
                                data-item-id="{{ item.id }}"
+                               oninput="updatePrice(this, {{ item.price }})"
                                class="allocated-qty-input" style="width: 70px;">
                       {% else %}
                         {{ item.delivered_quantity|default:"-" }}
                       {% endif %}
                     </td>
                     {% if not is_finalizing %}
-                      <td>{{ item.returned_quantity }}</td>
+                      <td>{{ item|quantity_shipped:shipment|subtract:item.delivered_quantity|default:0 }}</td>
                     {% endif %}
                     <td>{{ item.price|floatformat:0 }} ریال</td>
                     <td>
                         {% if is_finalizing %}
-                            <span class="price-display-{{ item.id }}">{{ item.price|multiply:item.allocated_quantity|floatformat:0 }}</span> ریال
+                            <span id="price-display-{{ item.id }}">{{ item.price|multiply:item|quantity_shipped:shipment|floatformat:0 }}</span> ریال
                         {% else %}
                             {{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال
                         {% endif %}
                     </td>
                   </tr>
                   {% empty %}
-                  <tr><td colspan="7">هیچ کالایی ثبت نشده.</td></tr>
+                  <tr><td colspan="7">هیچ کالایی در این بسته یافت نشد.</td></tr>
                   {% endfor %}
                 </tbody>
               </table>
@@ -91,15 +97,17 @@ Otherwise, it displays the delivered quantities as read-only.
       </tbody>
     </table>
   </div>
+
 {% else %}
-  {# Simple order with items #}
+  {# Fallback for shipments that don't have the sub-order structure #}
+  <h4>اقلام ارسال:</h4>
   <div class="table-wrapper">
     <table class="items-table">
       <thead>
         <tr>
           <th>کد کالا</th>
           <th>نام محصول</th>
-          <th>تخصیص یافته</th>
+          <th>تعداد ارسال شده</th>
           {% if is_finalizing %}
             <th>تعداد تحویل شده</th>
           {% else %}
@@ -111,35 +119,38 @@ Otherwise, it displays the delivered quantities as read-only.
         </tr>
       </thead>
       <tbody>
-        {% for item in order.items.all %}
-        <tr>
+        {% for shipment_item in shipment.shipmentitem_set.all %}
+        {% with item=shipment_item.order_item %}
+        <tr data-item-id="{{ item.id }}" data-allocated="{{ shipment_item.quantity_shipped }}">
           <td>{{ item.product.code }}</td>
           <td>{{ item.product.name }}</td>
-          <td>{{ item.allocated_quantity }}</td>
+          <td>{{ shipment_item.quantity_shipped }}</td>
           <td>
             {% if is_finalizing %}
-              <input type="number" name="delivered_quantity" value="{{ item.allocated_quantity }}"
-                     min="0" max="{{ item.allocated_quantity }}"
+              <input type="number" name="delivered_quantity" id="delivered-qty-{{ item.id }}" value="{{ shipment_item.quantity_shipped }}"
+                     min="0" max="{{ shipment_item.quantity_shipped }}"
                      data-item-id="{{ item.id }}"
+                     oninput="updatePrice(this, {{ item.price }})"
                      class="allocated-qty-input" style="width: 70px;">
             {% else %}
               {{ item.delivered_quantity|default:"-" }}
             {% endif %}
           </td>
           {% if not is_finalizing %}
-            <td>{{ item.returned_quantity }}</td>
+            <td>{{ shipment_item.quantity_shipped|subtract:item.delivered_quantity|default:0 }}</td>
           {% endif %}
           <td>{{ item.price|floatformat:0 }} ریال</td>
           <td>
             {% if is_finalizing %}
-                <span class="price-display-{{ item.id }}">{{ item.price|multiply:item.allocated_quantity|floatformat:0 }}</span> ریال
+                <span id="price-display-{{ item.id }}">{{ item.price|multiply:shipment_item.quantity_shipped|floatformat:0 }}</span> ریال
             {% else %}
                 {{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال
             {% endif %}
           </td>
         </tr>
+        {% endwith %}
         {% empty %}
-        <tr><td colspan="7">هیچ کالایی ثبت نشده.</td></tr>
+        <tr><td colspan="7">هیچ کالایی در این ارسال یافت نشد.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -152,4 +163,16 @@ Otherwise, it displays the delivered quantities as read-only.
         <i class="bi bi-check-circle-fill"></i> نهایی کردن ارسال
     </button>
 </div>
+<script>
+function updatePrice(input, price) {
+  const itemId = input.dataset.itemId;
+  const quantity = parseInt(input.value, 10);
+  const priceDisplay = document.getElementById(`price-display-${itemId}`);
+  
+  if (!isNaN(quantity) && priceDisplay) {
+    const totalPrice = (quantity * price).toLocaleString('fa-IR');
+    priceDisplay.textContent = totalPrice;
+  }
+}
+</script>
 {% endif %}
