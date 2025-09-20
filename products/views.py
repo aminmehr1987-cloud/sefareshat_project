@@ -1611,6 +1611,7 @@ def update_order_status(request):
         shipment_id = data.get('shipment_id')
         current_status = data.get('current_status')
         courier_id = data.get('courier_id')
+        description = data.get('description', '') # Get the description
 
         # منطق جدید برای نهایی کردن ارسال
         if current_status == 'shipped':
@@ -1745,12 +1746,14 @@ def update_order_status(request):
                 order.save()
 
                 # Create a new, independent shipment for the backorder itself.
+                auto_description = f"ارسال بک اوردر {order.order_number}"
+                final_description = f"{auto_description} - {description}" if description else auto_description
                 shipment = Shipment.objects.create(
                     order=order,  # The shipment is FOR this specific backorder.
                     parent_order=order.parent_order, # We can still link to the parent for reference.
                     courier=courier,
                     status='shipped',
-                    description=f"ارسال بک اوردر {order.order_number}",
+                    description=final_description,
                     is_backorder=True
                 )
 
@@ -1769,11 +1772,13 @@ def update_order_status(request):
                 order.status = 'shipped'
                 order.save()
 
+                auto_description = f"ارسال سفارش اصلی {order.order_number}"
+                final_description = f"{auto_description} - {description}" if description else auto_description
                 shipment = Shipment.objects.create(
                     order=order,
                     courier=courier,
                     status='shipped',
-                    description=f"ارسال سفارش اصلی {order.order_number}"
+                    description=final_description
                 )
                 shipment.sub_orders.set(sub_orders)
 

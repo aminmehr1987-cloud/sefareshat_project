@@ -1277,15 +1277,9 @@
 
           {# This outer div now contains the courier input and send button for ALL order types in this tab #}
           <div style="padding: 10px; border-top: 2px solid #ddd; margin-top: 10px; text-align: center;">
-            <select class="form-select courier-select" id="courier-{{ order.id }}" style="width: 250px; display: inline-block; vertical-align: middle; margin-left: 10px;">
-                <option value="">پیک را انتخاب کنید</option>
-                {% for courier in couriers %}
-                <option value="{{ courier.id }}">{{ courier.name }}</option>
-                {% endfor %}
-            </select>
-            <textarea class="form-control" id="description-{{ order.id }}" placeholder="توضیحات (اختیاری)" style="width: 250px; display: inline-block; vertical-align: middle; margin-left: 10px; margin-top: 5px;"></textarea>
-            <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" title="ارسال سفارش">
-                <i class="bi bi-truck" style="font-size: 20px;"></i>
+            <input type="text" class="courier-input" id="courier-{{ order.id }}" oninput="checkCourierInput('{{ order.id }}')" placeholder="نام پیک را وارد کنید" style="width: 250px; display: inline-block; vertical-align: middle; margin-left: 10px;">
+            <button class="action-button next-stage-button" onclick="moveToNext('{{ order.id }}', 'waiting_for_customer_shipment')" id="send-button-{{ order.id }}" disabled title="ارسال سفارش">
+              <i class="bi bi-truck" style="font-size: 20px;"></i>
             </button>
           </div>
         </td>
@@ -1594,7 +1588,7 @@
                 {% endif %}
               </td>
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
-              <td>{{ shipment.courier.name|default:'-' }}</td>
+              <td>{{ shipment.courier_name|default:'-' }}</td>
               <td>
                   <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="جزئیات و نهایی‌سازی">
                     <i class="bi bi-pencil-square"></i>
@@ -1637,7 +1631,7 @@
               <td>{{ shipment.shipment_number|default:'-' }}</td>
               <td>{{ shipment.order.customer_name }}</td>
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
-              <td>{{ shipment.courier.name|default:'-' }}</td>
+              <td>{{ shipment.courier_name|default:'-' }}</td>
               <td>
                 <a href="{% url 'products:sales_invoice_pdf' shipment.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
                     <i class="bi bi-receipt"></i>
@@ -1724,18 +1718,20 @@
       current_status: currentStatus
     };
 
-    // اگر وضعیت در انتظار ارسال به مشتری است، آیدی پیک و توضیحات را هم ارسال می‌کنیم
+    // اگر وضعیت در انتظار ارسال به مشتری است، نام پیک را هم ارسال می‌کنیم
     if (currentStatus === 'waiting_for_customer_shipment') {
-        const courierSelect = document.getElementById(`courier-${orderId}`);
-        if (!courierSelect || !courierSelect.value) {
-            alert('لطفاً یک پیک را انتخاب کنید.');
-            return;
-        }
-        requestData.courier_id = courierSelect.value;
-
-        const descriptionInput = document.getElementById(`description-${orderId}`);
-        if (descriptionInput) {
-            requestData.description = descriptionInput.value;
+        const courierInput = document.getElementById(`courier-${orderId}`);
+        if (!courierInput || !courierInput.value.trim()) {
+            // This case handles parent orders where the input is in the details row
+            const parentCourierInput = document.getElementById(`courier-${orderId}`);
+            if (parentCourierInput && parentCourierInput.value.trim()){
+                requestData.courier_name = parentCourierInput.value.trim();
+            } else {
+                alert('لطفاً نام پیک را وارد کنید.');
+                return;
+            }
+        } else {
+            requestData.courier_name = courierInput.value.trim();
         }
     } else if (currentStatus === 'shipped') {
         // This is the finalization step. We gather the delivered quantities.
@@ -1986,11 +1982,16 @@
     });
   }
    
+  function checkCourierInput(subOrderId) {
+    const input = document.getElementById(`courier-${subOrderId}`);
+    const button = document.getElementById(`send-button-${subOrderId}`);
+    button.disabled = !(input.value.trim().length > 0);
+  }
+  
   function sendSubOrder(subOrderId) {
-    const courierSelect = document.getElementById(`courier-${subOrderId}`);
-    const courierId = courierSelect ? courierSelect.value : '';
-    if (!courierId) {
-      alert("یک پیک را انتخاب کنید.");
+    const courierName = document.getElementById(`courier-${subOrderId}`).value.trim();
+    if (!courierName) {
+      alert("نام پیک را وارد کنید.");
       return;
     }
   
@@ -2003,7 +2004,7 @@
       body: JSON.stringify({
         order_id: subOrderId,
         current_status: 'waiting_for_customer_shipment',
-        courier_id: courierId
+        courier_name: courierName
       })
     })
     .then(response => response.json())
@@ -2020,12 +2021,17 @@
       alert("خطا در ارتباط با سرور.");
     });
   }
+
+  function checkParentCourierInput(orderId) {
+    const input = document.getElementById(`courier-${orderId}`);
+    const button = document.getElementById(`send-all-button-${orderId}`);
+    button.disabled = !(input.value.trim().length > 0);
+  }
   
   function sendAllSubOrders(orderId) {
-    const courierSelect = document.getElementById(`courier-${orderId}`);
-    const courierId = courierSelect ? courierSelect.value : '';
-    if (!courierId) {
-      alert("یک پیک را انتخاب کنید.");
+    const courierName = document.getElementById(`courier-${orderId}`).value.trim();
+    if (!courierName) {
+      alert("نام پیک را وارد کنید.");
       return;
     }
   
@@ -2038,7 +2044,7 @@
       body: JSON.stringify({
         order_id: orderId,
         current_status: 'waiting_for_customer_shipment',
-        courier_id: courierId
+        courier_name: courierName
       })
     })
     .then(response => response.json())
@@ -2195,39 +2201,40 @@
   }
 
   function sendBackorderToCustomer(orderId, currentStatus = 'ready') {
-    const courierSelect = document.getElementById('courier-' + orderId);
-    const courierId = courierSelect ? courierSelect.value : '';
+const courierInput = document.getElementById('courier-' + orderId);
+const courierName = courierInput ? courierInput.value.trim() : '';
 
-    if (currentStatus === 'waiting_for_customer_shipment' && !courierId) {
-      alert('لطفاً یک پیک را انتخاب کنید.');
-      courierSelect.focus();
-      return;
-    }
+// فقط اگر می‌خواهی سفارش را Delivered کنی، نام پیک را چک کن
+if (currentStatus === 'waiting_for_customer_shipment' && !courierName) {
+  alert('لطفاً نام پیک را وارد کنید.');
+  courierInput.focus();
+  return;
+}
 
-    fetch('/api/update-order-status/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCookie('csrftoken')
-      },
-      body: JSON.stringify({
-        order_id: orderId,
-        current_status: currentStatus,
-        courier_id: courierId
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        alert('سفارش با موفقیت ارسال شد.');
-        location.reload();
-      } else {
-        alert('خطا: ' + (data.message || 'خطای نامشخص'));
-      }
-    })
-    .catch(error => {
-      alert('خطا در ارتباط با سرور.');
-    });
+fetch('/api/update-order-status/', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-CSRFToken': getCookie('csrftoken')
+  },
+  body: JSON.stringify({
+    order_id: orderId,
+    current_status: currentStatus,
+    courier_name: courierName
+  })
+})
+.then(response => response.json())
+.then(data => {
+  if (data.success) {
+    alert('سفارش با موفقیت ارسال شد.');
+    location.reload();
+  } else {
+    alert('خطا: ' + (data.message || 'خطای نامشخص'));
   }
+})
+.catch(error => {
+  alert('خطا در ارتباط با سرور.');
+});
+}
 </script>
 {% endblock %}
