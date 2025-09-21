@@ -826,6 +826,20 @@ class Shipment(models.Model):
     def __str__(self):
         return f"ارسال {self.shipment_number}"
 
+    @property
+    def get_orders_in_shipment(self):
+        """
+        Returns a queryset of unique orders included in this shipment,
+        derived from the shipment's items. This is more reliable than
+        the sub_orders M2M field.
+        """
+        # Get all OrderItems linked through ShipmentItem
+        order_items = OrderItem.objects.filter(shipmentitem__shipment=self)
+        # Get the unique Order IDs from these OrderItems
+        order_ids = order_items.values_list('order_id', flat=True).distinct()
+        # Return the Order queryset
+        return Order.objects.filter(id__in=order_ids)
+
     class Meta:
         ordering = ['-shipment_date']
         verbose_name = "ارسال"
