@@ -216,12 +216,11 @@ def get_shipped_orders():
 from .models import Courier
 
 @login_required
-@transaction.atomic
+@transaction.atomic  # اضافه کردن دکوراتور
 def create_shipment_for_order(request, order_id):
     """
     ایجاد یک ارسال جدید برای سفارش و زیرسفارش‌های آن
     """
-    logger.info(f"[SHIPMENT_CREATE] Starting create_shipment_for_order for order_id: {order_id}")
     order = get_object_or_404(Order, id=order_id)
     parent_order = order.parent_order if order.parent_order else order
     couriers = Courier.objects.filter(is_active=True)
@@ -256,7 +255,6 @@ def create_shipment_for_order(request, order_id):
                 status='in_transit',
                 is_backorder=order.order_number.startswith('BO-')
             )
-            logger.info(f"[SHIPMENT_CREATE] Created Shipment object with id: {new_shipment.id} and number: {new_shipment.shipment_number}")
 
             # 2. جمع‌آوری آیتم‌های آماده ارسال از سفارش‌های انتخاب شده
             sub_orders_to_process = []
@@ -270,7 +268,6 @@ def create_shipment_for_order(request, order_id):
             
             items_added = False
             for sub_order in sub_orders_to_process:
-                logger.info(f"[SHIPMENT_CREATE] Processing sub_order with id: {sub_order.id} for shipment: {new_shipment.id}")
                 # بررسی وجود ارسال قبلی برای زیرسفارش
                 if Shipment.objects.filter(order=sub_order).exists():
                     continue  # رد کردن این زیرسفارش و رفتن به زیرسفارش بعدی
@@ -279,15 +276,13 @@ def create_shipment_for_order(request, order_id):
                 
                 if order_items_to_ship.exists():
                     new_shipment.sub_orders.add(sub_order)
-                    logger.info(f"[SHIPMENT_CREATE] Added sub_order {sub_order.id} to shipment {new_shipment.id}")
                     
                     for item in order_items_to_ship:
-                        shipment_item = ShipmentItem.objects.create(
+                        ShipmentItem.objects.create(
                             shipment=new_shipment,
                             order_item=item,
                             quantity_shipped=item.allocated_quantity
                         )
-                        logger.info(f"[SHIPMENT_CREATE] Created ShipmentItem with id: {shipment_item.id} linking shipment {new_shipment.id} to OrderItem {item.id}")
                         item.warehouse_status = 'shipped'
                         item.save()
                         items_added = True
@@ -295,7 +290,6 @@ def create_shipment_for_order(request, order_id):
             if not items_added:
                 messages.error(request, 'هیچ کالای آماده ارسالی وجود ندارد.')
                 new_shipment.delete()
-                logger.warning(f"[SHIPMENT_CREATE] No items were added to shipment {new_shipment.id}, so it was deleted.")
                 return redirect('products:order_detail_view', order_id=order.id)
 
             # 3. به‌روزرسانی وضعیت سفارش‌ها
@@ -320,7 +314,6 @@ def create_shipment_for_order(request, order_id):
             messages.error(request, 'خطا در ثبت ارسال: این سفارش قبلاً ارسال شده است.')
             return redirect('products:order_detail_view', order_id=order.id)
         except Exception as e:
-            logger.error(f"[SHIPMENT_CREATE] Exception in create_shipment_for_order: {str(e)}", exc_info=True)
             messages.error(request, f'خطا در ثبت ارسال: {str(e)}')
             return redirect('products:order_detail_view', order_id=order.id)
 
@@ -658,6 +651,8 @@ def send_order_to_warehouse(request, order_id):
             new_order.status = 'warehouse'
             new_order.parent_order = original_order
             new_order.warehouse_name = warehouse_name  # تنظیم نام انبار برای تولید شماره سفارش
+            if items:
+                new_order.warehouse = items[0].warehouse
             new_order.save()
 
             # ایجاد آیتم‌های سفارش جدید
@@ -1618,20 +1613,18 @@ def update_order_status(request):
         shipment_id = data.get('shipment_id')
         current_status = data.get('current_status')
         courier_id = data.get('courier_id')
-        description = data.get('description', '')
-        
-        logger.info(f"[SHIPMENT_UPDATE] Starting update_order_status. order_id: {order_id}, shipment_id: {shipment_id}, current_status: {current_status}")
+        description = data.get('description', '') # Get the description
+        document_number = data.get('document_number')
+        package_count = data.get('package_count')
 
         # منطق جدید برای نهایی کردن ارسال
         if current_status == 'shipped':
             if not shipment_id:
-                logger.error("[SHIPMENT_UPDATE] Finalization failed: shipment_id is missing.")
                 return JsonResponse({'success': False, 'message': 'شناسه ارسال ارسال نشده'}, status=400)
             
             try:
                 shipment = Shipment.objects.get(id=shipment_id)
                 items_data = data.get('items', [])
-                logger.info(f"[SHIPMENT_UPDATE] Finalizing shipment {shipment.id} with {len(items_data)} items.")
 
                 for item_data in items_data:
                     order_item = get_object_or_404(OrderItem, id=item_data['item_id'])
@@ -1657,29 +1650,37 @@ def update_order_status(request):
 
                 # --- START: Create Financial Operation ---
                 customer = None
-                description_op = ""
+                description = ""
                 
                 # Case 1: Shipment has sub-orders (standard flow)
                 sub_orders_in_shipment = shipment.sub_orders.all()
                 if sub_orders_in_shipment.exists():
                     customer = sub_orders_in_shipment.first().customer
                     sub_order_numbers = ", ".join([so.order_number for so in sub_orders_in_shipment])
-                    description_op = f"فاکتور فروش بابت سفارشات: {sub_order_numbers}"
+                    description = f"فاکتور فروش بابت سفارشات: {sub_order_numbers}"
                 
                 # Case 2: Shipment is a standalone backorder without sub-orders
                 elif shipment.is_backorder and shipment.order:
                     customer = shipment.order.customer
-                    description_op = f"فاکتور فروش بابت بک اوردر: {shipment.order.order_number}"
+                    description = f"فاکتور فروش بابت بک اوردر: {shipment.order.order_number}"
 
                 # Proceed if we have a customer and description
-                if customer and description_op:
-                    if not FinancialOperation.objects.filter(operation_type='SALES_INVOICE', customer=customer, description=description_op).exists():
+                if customer and description:
+                    # Check if an invoice for this exact description already exists
+                    if not FinancialOperation.objects.filter(
+                        operation_type='SALES_INVOICE',
+                        customer=customer,
+                        description=description
+                    ).exists():
+                        
                         total_price = 0
+                        # Calculate total price from the items *actually in the shipment*
                         for shipment_item in shipment.shipmentitem_set.all():
                             if shipment_item.order_item and shipment_item.order_item.price is not None:
                                 total_price += shipment_item.order_item.price * shipment_item.quantity_shipped
                         
                         if total_price > 0:
+                            # Try to find the original user who created the customer or order
                             user = customer.created_by or User.objects.filter(username=shipment.order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
                             if user:
                                 FinancialOperation.objects.create(
@@ -1688,7 +1689,7 @@ def update_order_status(request):
                                     amount=total_price,
                                     payment_method='credit_sale',
                                     date=timezone.now().date(),
-                                    description=description_op,
+                                    description=description,
                                     created_by=user,
                                     status='CONFIRMED',
                                     confirmed_by=user,
@@ -1707,6 +1708,7 @@ def update_order_status(request):
                 if sub_orders_to_update.exists():
                     sub_orders_to_update.update(status='delivered')
 
+                # Optionally update the parent order status if present
                 if shipment.order:
                     shipment.order.status = 'delivered'
                     shipment.order.save()
@@ -1716,11 +1718,11 @@ def update_order_status(request):
             except Shipment.DoesNotExist:
                 return JsonResponse({'success': False, 'message': 'ارسال یافت نشد'}, status=404)
             except Exception as e:
-                logger.error(f"[SHIPMENT_UPDATE] Exception during finalization: {str(e)}", exc_info=True)
                 return JsonResponse({'success': False, 'message': f'خطا در نهایی کردن ارسال: {str(e)}'}, status=500)
 
+
+        # منطق قبلی برای سایر تغییر وضعیت‌ها
         if not order_id:
-            logger.error("[SHIPMENT_UPDATE] Status update failed: order_id is missing.")
             return JsonResponse({'success': False, 'message': 'شناسه سفارش ارسال نشده'}, status=400)
 
         order = get_object_or_404(Order, id=order_id)
@@ -1728,8 +1730,8 @@ def update_order_status(request):
         if current_status == 'pending':
             return send_order_to_warehouse(request, order_id)
 
+        # تغییر وضعیت از 'منتظر ارسال مشتری' به 'ارسال شده'
         if current_status == 'waiting_for_customer_shipment':
-            logger.info(f"[SHIPMENT_UPDATE] Processing 'waiting_for_customer_shipment' for order {order.id}")
             if not courier_id:
                 return JsonResponse({'success': False, 'message': 'پیک انتخاب نشده است'}, status=400)
             
@@ -1741,36 +1743,42 @@ def update_order_status(request):
             is_standalone_backorder = order.parent_order and order.order_number and order.order_number.startswith('BO-')
 
             if is_standalone_backorder:
+                # This is a backorder. It must get its own, new shipment and not be
+                # tied to the parent's existing shipment.
                 order.status = 'shipped'
                 order.courier = courier
                 order.save()
-                
+
+                # Create a new, independent shipment for the backorder itself.
                 auto_description = f"ارسال بک اوردر {order.order_number}"
                 final_description = f"{auto_description} - {description}" if description else auto_description
                 shipment = Shipment.objects.create(
-                    order=order,
-                    parent_order=order.parent_order,
+                    order=order,  # The shipment is FOR this specific backorder.
+                    parent_order=order.parent_order, # We can still link to the parent for reference.
                     courier=courier,
                     status='shipped',
                     description=final_description,
                     is_backorder=True
                 )
-                logger.info(f"[SHIPMENT_UPDATE] Created Shipment for standalone backorder. Shipment ID: {shipment.id}, Number: {shipment.shipment_number}")
                 shipment.sub_orders.add(order)
-                logger.info(f"[SHIPMENT_UPDATE] Added backorder {order.id} to shipment {shipment.id}")
 
+                # Add the items from this backorder to the new shipment.
                 for item in order.items.filter(allocated_quantity__gt=0):
-                    shipment_item = ShipmentItem.objects.create(
+                    ShipmentItem.objects.create(
                         shipment=shipment,
                         order_item=item,
                         quantity_shipped=item.allocated_quantity
                     )
-                    logger.info(f"[SHIPMENT_UPDATE] Created ShipmentItem {shipment_item.id} for standalone backorder. Links shipment {shipment.id} to OrderItem {item.id}")
             else:
+                # Original logic for shipping a parent order with its sub-orders
                 sub_orders = order.get_sub_orders().filter(status__in=['ready', 'waiting_for_customer_shipment'])
                 sub_orders.update(status='shipped', courier=courier)
                 
                 order.status = 'shipped'
+                if document_number:
+                    order.document_number = document_number
+                if package_count:
+                    order.package_count = package_count
                 order.save()
 
                 auto_description = f"ارسال سفارش اصلی {order.order_number}"
@@ -1781,18 +1789,15 @@ def update_order_status(request):
                     status='shipped',
                     description=final_description
                 )
-                logger.info(f"[SHIPMENT_UPDATE] Created Shipment for parent order. Shipment ID: {shipment.id}, Number: {shipment.shipment_number}")
                 shipment.sub_orders.set(sub_orders)
-                logger.info(f"[SHIPMENT_UPDATE] Set sub_orders for shipment {shipment.id}. Sub-order IDs: {[so.id for so in sub_orders]}")
 
                 for sub_order in sub_orders:
                     for item in sub_order.items.filter(allocated_quantity__gt=0):
-                        shipment_item = ShipmentItem.objects.create(
+                        ShipmentItem.objects.create(
                             shipment=shipment,
                             order_item=item,
                             quantity_shipped=item.allocated_quantity
                         )
-                        logger.info(f"[SHIPMENT_UPDATE] Created ShipmentItem {shipment_item.id} for parent order. Links shipment {shipment.id} to OrderItem {item.id}")
 
             return JsonResponse({
                 'success': True,
@@ -1801,7 +1806,11 @@ def update_order_status(request):
                 'next_status_display': 'ارسال شده'
             })
 
-        status_flow = {'warehouse': 'ready', 'ready': 'waiting_for_customer_shipment'}
+        # سایر تغییر وضعیت‌های ساده
+        status_flow = {
+            'warehouse': 'ready',
+            'ready': 'waiting_for_customer_shipment',
+        }
         next_status = status_flow.get(current_status)
 
         if not next_status:
@@ -1810,9 +1819,14 @@ def update_order_status(request):
         order.status = next_status
         order.save()
         
+        # اگر یک زیرسفارش به حالت "آماده" یا "منتظر ارسال مشتری" تغییر وضعیت دهد،
+        # وضعیت سفارش مادر را نیز به "منتظر ارسال مشتری" تغییر می‌دهیم تا در پنل مدیر نمایش داده شود.
+        # این کار نباید برای بک‌اوردرها انجام شود چون آنها باید مستقل نمایش داده شوند
         is_backorder = order.order_number and order.order_number.startswith('BO-')
         if not is_backorder and order.parent_order and next_status in ['ready', 'waiting_for_customer_shipment']:
             parent = order.parent_order
+            # اگر هر بخشی از سفارش آماده ارسال باشد، کل سفارش مادر باید در لیست "آماده ارسال" نمایش داده شود
+            # یک شرط اضافه شد: اگر وضعیت سفارش مادر تحویل شده یا تکمیل شده است، آن را تغییر نده
             if parent.status not in ['delivered', 'completed', 'waiting_for_customer_shipment']:
                 parent.status = 'waiting_for_customer_shipment'
                 parent.save()
@@ -1825,11 +1839,17 @@ def update_order_status(request):
         })
 
     except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error in update_order_status: {str(e)}")
-        return JsonResponse({'success': False, 'message': 'داده‌های ارسالی نامعتبر است'}, status=400)
+        print(f"JSON decode error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'داده‌های ارسالی نامعتبر است'
+        }, status=400)
     except Exception as e:
-        logger.error(f"Unexpected error in update_order_status: {str(e)}", exc_info=True)
-        return JsonResponse({'success': False, 'message': f'خطای سرور: {str(e)}'}, status=500)
+        print(f"Unexpected error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'خطای سرور: {str(e)}'
+        }, status=500)
 
 @login_required
 def admin_panel(request):

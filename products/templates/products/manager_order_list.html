@@ -1081,6 +1081,10 @@
           {% endif %}
         </td>
       </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6">هیچ سفارشی یافت نشد.</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -1157,6 +1161,10 @@
             </table>
           </div>
         </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5">هیچ سفارشی یافت نشد.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -1281,6 +1289,10 @@
           </div>
         </td>
       </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6">هیچ سفارشی یافت نشد.</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -1352,6 +1364,10 @@
           <p>هیچ آیتمی برای این سفارش وجود ندارد.</p>
           {% endif %}
         </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5">هیچ سفارشی یافت نشد.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -1489,6 +1505,10 @@
           {% endif %}
         </td>
       </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5">هیچ سفارشی یافت نشد.</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
@@ -1534,6 +1554,10 @@
             {% include 'products/partials/item_details_table.html' with items=order.items.all order=order %}
           </div>
         </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7">هیچ سفارشی یافت نشد.</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -1581,6 +1605,10 @@
               {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment %}
             </td>
           </tr>
+          {% empty %}
+          <tr>
+              <td colspan="6">هیچ ارسال ثبت نشده است.</td>
+          </tr>
           {% endfor %}
       </tbody>
   </table>
@@ -1608,7 +1636,7 @@
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
               <td>{{ shipment.courier_name|default:'-' }}</td>
               <td>
-                <a href="{% url 'products:sales_invoice_pdf' shipment.order.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
+                <a href="{% url 'products:sales_invoice_pdf' shipment.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
                     <i class="bi bi-receipt"></i>
                 </a>
                 <button class="action-button details-button" onclick="toggleDetails('details-row-delivered-{{ shipment.id }}')" title="جزئیات">
@@ -1620,6 +1648,10 @@
               <td colspan="6">
                 {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment %}
               </td>
+          </tr>
+          {% empty %}
+          <tr>
+              <td colspan="6">هیچ سفارش نهایی شده‌ای یافت نشد.</td>
           </tr>
           {% endfor %}
       </tbody>

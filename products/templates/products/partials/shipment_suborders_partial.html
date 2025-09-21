@@ -1,78 +1,82 @@
+{% comment %}
+This partial template renders the sub-orders associated with a single shipment.
+It expects a `shipment` object.
+{% endcomment %}
 {% load custom_filters %}
 
 <div class="table-wrapper">
-    <h4>سفارش‌های داخل این ارسال:</h4>
-    <table class="items-table">
-        <thead>
-            <tr>
-                <th>شماره سفارش</th>
-                <th>انبار</th>
-                <th>نوع سفارش</th>
-                <th>وضعیت</th>
-                <th>شماره سند</th>
-                <th>تعداد بسته</th>
-                <th>عملیات</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for order in shipment.get_orders_in_shipment %}
-            <tr>
-                <td>{{ order.order_number }}</td>
-                <td>{{ order.warehouse.name|default:"-" }}</td>
-                <td>
-                    {% if order.order_number|slice:":2" == "BO" %}
-                    بک‌اوردر
-                    {% else %}
-                    عادی
-                    {% endif %}
-                </td>
-                <td>
-                    <span class="order-status status-{{ order.status }}">{{ order.get_status_display }}</span>
-                </td>
-                <td>{{ order.document_number|default:"-" }}</td>
-                <td>{{ order.package_count|default:"-" }}</td>
-                <td>
-                    <button class="action-button details-button" onclick="toggleDetails('shipment-details-{{ order.id }}')" title="مشاهده آیتم‌ها">
-                        <i class="bi bi-list-check"></i>
-                    </button>
-                </td>
-            </tr>
-            <tr id="shipment-details-{{ order.id }}" class="details-content-row">
-                <td colspan="7">
-                    <h5>آیتم‌های سفارش {{ order.order_number }} در این ارسال:</h5>
-                    <div class="table-wrapper">
-                        <table class="items-table">
-                            <thead>
-                                <tr>
-                                    <th>کد کالا</th>
-                                    <th>نام محصول</th>
-                                    <th>تعداد ارسال شده</th>
-                                    <th>قیمت واحد</th>
-                                    <th>جمع کل</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for shipment_item in shipment.shipmentitem_set.all %}
-                                    {% if shipment_item.order_item.order == order %}
-                                    <tr>
-                                        <td>{{ shipment_item.order_item.product.code }}</td>
-                                        <td>{{ shipment_item.order_item.product.name }}</td>
-                                        <td>{{ shipment_item.quantity_shipped }}</td>
-                                        <td>{{ shipment_item.order_item.price|floatformat:0 }} ریال</td>
-                                        <td>{{ shipment_item.order_item.price|multiply:shipment_item.quantity_shipped|floatformat:0 }} ریال</td>
-                                    </tr>
-                                    {% endif %}
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="7">هیچ سفارشی در این ارسال یافت نشد.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <h4>زیرسفارش‌های داخل این ارسال:</h4>
+  <table class="items-table">
+    <thead>
+      <tr>
+        <th>شماره زیرسفارش</th>
+        <th>انبار</th>
+        <th>نوع سفارش</th>
+        <th>وضعیت</th>
+        <th>شماره سند</th>
+        <th>تعداد بسته</th>
+        <th>عملیات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sub_order in shipment.sub_orders.all %}
+      <tr>
+        <td>{{ sub_order.order_number }}</td>
+        <td>{{ sub_order.warehouse.name|default:"-" }}</td>
+        <td>
+          {% if sub_order.order_number|slice:":2" == "BO" %}
+            بک‌اوردر
+          {% else %}
+            عادی
+          {% endif %}
+        </td>
+        <td>
+          <span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
+        </td>
+        <td>{{ sub_order.document_number|default:"-" }}</td>
+        <td>{{ sub_order.package_count|default:"-" }}</td>
+        <td>
+          <button class="action-button details-button" onclick="toggleDetails('shipment-sub-details-{{ sub_order.id }}')" title="مشاهده آیتم‌ها">
+            <i class="bi bi-list-check"></i>
+          </button>
+        </td>
+      </tr>
+      <tr id="shipment-sub-details-{{ sub_order.id }}" class="details-content-row">
+        <td colspan="7">
+          <h5>آیتم‌های زیرسفارش {{ sub_order.order_number }}:</h5>
+          <div class="table-wrapper">
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>کد کالا</th>
+                  <th>نام محصول</th>
+                  <th>تعداد</th>
+                  <th>قیمت واحد</th>
+                  <th>جمع کل</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in sub_order.items.all %}
+                <tr>
+                  <td>{{ item.product.code }}</td>
+                  <td>{{ item.product.name }}</td>
+                  <td>{{ item.allocated_quantity }}</td>
+                  <td>{{ item.price|floatformat:0 }} ریال</td>
+                  <td>{{ item.price|multiply:item.allocated_quantity|floatformat:0 }} ریال</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="5">هیچ کالایی برای این زیرسفارش یافت نشد.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7">هیچ زیرسفارشی در این ارسال یافت نشد.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
