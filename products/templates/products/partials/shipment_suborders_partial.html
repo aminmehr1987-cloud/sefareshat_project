@@ -3,6 +3,7 @@ This partial template renders the sub-orders associated with a single shipment.
 It expects a `shipment` object.
 {% endcomment %}
 {% load custom_filters %}
+{% load shipment_extras %}
 
 <div class="table-wrapper">
   <h4>زیرسفارش‌های داخل این ارسال:</h4>
@@ -19,7 +20,8 @@ It expects a `shipment` object.
       </tr>
     </thead>
     <tbody>
-      {% for sub_order in shipment.sub_orders.all %}
+      {% get_sub_orders_for_shipment shipment as sub_orders_list %}
+      {% for sub_order in sub_orders_list %}
       <tr>
         <td>{{ sub_order.order_number }}</td>
         <td>{{ sub_order.warehouse.name|default:"-" }}</td>
