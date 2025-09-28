@@ -6,7 +6,7 @@ It expects a `shipment` object.
 {% load shipment_extras %}
 
 <div class="table-wrapper">
-  <h4>زیرسفارش‌های داخل این ارسال:</h4>
+  <h4>فاکتورهای ارسال شده:</h4>
   <table class="items-table">
     <thead>
       <tr>
@@ -24,7 +24,15 @@ It expects a `shipment` object.
       {% for sub_order in sub_orders_list %}
       <tr>
         <td>{{ sub_order.order_number }}</td>
-        <td>{{ sub_order.warehouse.name|default:"-" }}</td>
+        <td>
+          {% if sub_order.items.first and sub_order.items.first.warehouse %}
+            {{ sub_order.items.first.warehouse.name }}
+          {% elif sub_order.warehouse %}
+            {{ sub_order.warehouse.name }}
+          {% else %}
+            -
+          {% endif %}
+        </td>
         <td>
           {% if sub_order.order_number|slice:":2" == "BO" %}
             بک‌اوردر
@@ -38,39 +46,90 @@ It expects a `shipment` object.
         <td>{{ sub_order.document_number|default:"-" }}</td>
         <td>{{ sub_order.package_count|default:"-" }}</td>
         <td>
-          <button class="action-button details-button" onclick="toggleDetails('shipment-sub-details-{{ sub_order.id }}')" title="مشاهده آیتم‌ها">
-            <i class="bi bi-list-check"></i>
+          <button class="action-button details-button" onclick="toggleDetails('shipment-sub-details-{{ sub_order.id }}')" title="مشاهده جزئیات فاکتور">
+            <i class="bi bi-receipt-cutoff"></i>
           </button>
         </td>
       </tr>
       <tr id="shipment-sub-details-{{ sub_order.id }}" class="details-content-row">
         <td colspan="7">
-          <h5>آیتم‌های زیرسفارش {{ sub_order.order_number }}:</h5>
+          <h5>جزئیات فاکتور زیرسفارش {{ sub_order.order_number }}:</h5>
           <div class="table-wrapper">
             <table class="items-table">
               <thead>
                 <tr>
                   <th>کد کالا</th>
                   <th>نام محصول</th>
-                  <th>تعداد</th>
+                  <th>تعداد درخواستی</th>
+                  <th>تعداد تخصیص یافته</th>
+                  <th>تعداد تحویلی</th>
                   <th>قیمت واحد</th>
                   <th>جمع کل</th>
+                  <th>تسویه</th>
                 </tr>
               </thead>
               <tbody>
                 {% for item in sub_order.items.all %}
-                <tr>
+                <tr data-item-id="{{ item.id }}" data-allocated="{{ item.allocated_quantity|default:0 }}">
                   <td>{{ item.product.code }}</td>
                   <td>{{ item.product.name }}</td>
-                  <td>{{ item.allocated_quantity }}</td>
+                  <td>{{ item.requested_quantity }}</td>
+                  <td>{{ item.allocated_quantity|default:"-" }}</td>
+                  <td>
+                    <input type="number" 
+                           id="delivered-qty-{{ item.id }}" 
+                           name="delivered_quantity" 
+                           data-item-id="{{ item.id }}"
+                           value="{{ item.delivered_quantity|default:0 }}" 
+                           min="0" 
+                           max="{{ item.allocated_quantity|default:0 }}"
+                           class="form-control delivered-qty-input"
+                           style="width: 80px; text-align: center;"
+                           onchange="updateItemTotal({{ item.id }}, {{ item.price }})">
+                  </td>
                   <td>{{ item.price|floatformat:0 }} ریال</td>
-                  <td>{{ item.price|multiply:item.allocated_quantity|floatformat:0 }} ریال</td>
+                  <td id="total-{{ item.id }}">{{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال</td>
+                  <td>{{ item.get_payment_term_display }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="5">هیچ کالایی برای این زیرسفارش یافت نشد.</td></tr>
+                <tr><td colspan="8">هیچ کالایی برای این زیرسفارش یافت نشد.</td></tr>
                 {% endfor %}
               </tbody>
             </table>
+          </div>
+          
+          <!-- خلاصه فاکتور -->
+          <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px; border: 1px solid #e9ecef;">
+            <h6 style="margin-bottom: 10px; font-weight: bold;">خلاصه فاکتور:</h6>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+              <div><strong>مجموع اقلام:</strong> {{ sub_order.items.count }} قلم</div>
+              <div><strong>مجموع تعداد تحویلی:</strong> 
+                {% with total_delivered=sub_order.items.all|sum_delivered_quantity %}
+                  {{ total_delivered|default:"0" }}
+                {% endwith %}
+              </div>
+              <div><strong>مجموع مبلغ:</strong> 
+                {% with total_amount=sub_order.items.all|sum_total_delivered_amount %}
+                  {{ total_amount|floatformat:0|default:"0" }} ریال
+                {% endwith %}
+              </div>
+              <div><strong>تاریخ تحویل:</strong> 
+                {% if shipment.delivery_date %}
+                  {{ shipment.delivery_date|jformat:'%Y/%m/%d %H:%M' }}
+                {% else %}
+                  {{ shipment.shipment_date|jformat:'%Y/%m/%d %H:%M' }}
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <!-- دکمه نهایی کردن فاکتور -->
+          <div style="margin-top: 15px; text-align: center; padding: 10px; border-top: 2px solid #ddd;">
+            <button class="btn btn-success" 
+                    onclick="finalizeSubOrder('{{ sub_order.id }}', '{{ shipment.id }}')" 
+                    style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-size: 14px; font-weight: bold;">
+              <i class="bi bi-check-circle"></i> نهایی کردن فاکتور {{ sub_order.order_number }}
+            </button>
           </div>
         </td>
       </tr>
@@ -81,4 +140,15 @@ It expects a `shipment` object.
       {% endfor %}
     </tbody>
   </table>
+  
+  <!-- دکمه نهایی کردن کل ارسال -->
+  {% if sub_orders_list %}
+  <div style="margin-top: 20px; text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+    <button class="btn btn-primary" 
+            onclick="finalizeEntireShipment('{{ shipment.id }}')" 
+            style="background: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-size: 16px; font-weight: bold;">
+      <i class="bi bi-truck"></i> نهایی کردن کل ارسال شماره {{ shipment.shipment_number }}
+    </button>
+  </div>
+  {% endif %}
 </div>

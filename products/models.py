@@ -747,6 +747,7 @@ class OrderStatusHistory(models.Model):
 class Shipment(models.Model):
     STATUS_CHOICES = [
         ('pending', 'در انتظار'),
+        ('shipped', 'ارسال شده'),
         ('in_transit', 'در حال ارسال'),
         ('delivered', 'تحویل داده شده'),
     ]
@@ -762,6 +763,7 @@ class Shipment(models.Model):
     )
     shipment_number = models.CharField(max_length=50, unique=True, verbose_name="شماره ارسال")
     shipment_date = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ارسال")
+    delivery_date = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ تحویل")
     courier = models.ForeignKey(
         'Courier',
         on_delete=models.PROTECT,

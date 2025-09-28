@@ -5,10 +5,11 @@ from django.urls import reverse
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.db.models import Count, Q, F, Sum
+from django.db import transaction
 import pandas as pd
 from django.utils import timezone
 import jdatetime
@@ -2148,7 +2149,7 @@ def manager_order_list(request):
 
 
     # --- Shipped and Delivered Shipments Tabs ---
-    shipped_shipments_query = Shipment.objects.filter(status='shipped').select_related('order__customer').prefetch_related('sub_orders', 'sub_orders__items', 'sub_orders__warehouse').order_by('-shipment_date')
+    shipped_shipments_query = Shipment.objects.filter(status='shipped').select_related('order__customer').prefetch_related('sub_orders', 'sub_orders__items', 'sub_orders__items__warehouse', 'order', 'order__items', 'order__items__warehouse').order_by('-shipment_date')
     delivered_shipments_query = Shipment.objects.filter(status='delivered').select_related('order__customer').prefetch_related('sub_orders', 'sub_orders__items', 'sub_orders__warehouse').order_by('-shipment_date')
 
     # Apply common filters to both shipment queries
@@ -8595,3 +8596,100 @@ def backorder_pdf(request, order_id):
     except Exception as e:
         logger.error(f"Backorder PDF generation failed: {str(e)}")
         return HttpResponse(f'خطا در ایجاد PDF کسری: {str(e)}', status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def finalize_sub_order(request):
+    """نهایی کردن یک زیرسفارش در ارسال"""
+    try:
+        data = json.loads(request.body)
+        sub_order_id = data.get('sub_order_id')
+        shipment_id = data.get('shipment_id')
+        items_data = data.get('items', [])
+        
+        if not sub_order_id or not shipment_id:
+            return JsonResponse({'success': False, 'message': 'شناسه زیرسفارش و ارسال الزامی است'})
+        
+        with transaction.atomic():
+            # پیدا کردن زیرسفارش و ارسال
+            sub_order = get_object_or_404(Order, id=sub_order_id)
+            shipment = get_object_or_404(Shipment, id=shipment_id)
+            
+            # بروزرسانی تعداد تحویلی اقلام
+            for item_data in items_data:
+                item_id = item_data.get('item_id')
+                delivered_quantity = item_data.get('delivered_quantity', 0)
+                
+                order_item = get_object_or_404(OrderItem, id=item_id, order=sub_order)
+                order_item.delivered_quantity = delivered_quantity
+                order_item.save()
+                
+                # کاهش موجودی محصول
+                if delivered_quantity > 0 and order_item.product:
+                    product = order_item.product
+                    if product.quantity >= delivered_quantity:
+                        product.quantity -= delivered_quantity
+                        product.save()
+            
+            # تغییر وضعیت زیرسفارش به delivered
+            sub_order.status = 'delivered'
+            sub_order.save()
+            
+            # بررسی اینکه آیا همه زیرسفارش‌های ارسال نهایی شده‌اند
+            all_sub_orders = shipment.sub_orders.all()
+            if all_sub_orders.filter(status='delivered').count() == all_sub_orders.count():
+                shipment.status = 'delivered'
+                shipment.delivery_date = timezone.now()
+                shipment.save()
+        
+        return JsonResponse({'success': True, 'message': 'فاکتور با موفقیت نهایی شد'})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'خطا در نهایی‌سازی فاکتور: {str(e)}'})
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def finalize_entire_shipment(request):
+    """نهایی کردن کل ارسال"""
+    try:
+        data = json.loads(request.body)
+        shipment_id = data.get('shipment_id')
+        items_data = data.get('items', [])
+        
+        if not shipment_id:
+            return JsonResponse({'success': False, 'message': 'شناسه ارسال الزامی است'})
+        
+        with transaction.atomic():
+            shipment = get_object_or_404(Shipment, id=shipment_id)
+            
+            # بروزرسانی تعداد تحویلی تمام اقلام
+            for item_data in items_data:
+                item_id = item_data.get('item_id')
+                delivered_quantity = item_data.get('delivered_quantity', 0)
+                
+                order_item = get_object_or_404(OrderItem, id=item_id)
+                order_item.delivered_quantity = delivered_quantity
+                order_item.save()
+                
+                # کاهش موجودی محصول
+                if delivered_quantity > 0 and order_item.product:
+                    product = order_item.product
+                    if product.quantity >= delivered_quantity:
+                        product.quantity -= delivered_quantity
+                        product.save()
+            
+            # تغییر وضعیت همه زیرسفارش‌های ارسال به delivered
+            sub_orders = shipment.sub_orders.all()
+            for sub_order in sub_orders:
+                sub_order.status = 'delivered'
+                sub_order.save()
+            
+            # تغییر وضعیت ارسال به delivered
+            shipment.status = 'delivered'
+            shipment.delivery_date = timezone.now()
+            shipment.save()
+        
+        return JsonResponse({'success': True, 'message': 'کل ارسال با موفقیت نهایی شد'})
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'خطا در نهایی‌سازی ارسال: {str(e)}'})

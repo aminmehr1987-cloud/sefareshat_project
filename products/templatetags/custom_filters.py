@@ -166,3 +166,28 @@ def intcomma(value):
         return formatted
     except (ValueError, TypeError):
         return "0"
+
+@register.filter
+def sum_delivered_quantity(items):
+    """Calculate the total delivered quantity for a list of order items."""
+    try:
+        total = 0
+        for item in items:
+            if hasattr(item, 'delivered_quantity') and item.delivered_quantity:
+                total += item.delivered_quantity
+        return total
+    except (ValueError, TypeError, AttributeError):
+        return 0
+
+@register.filter
+def sum_total_delivered_amount(items):
+    """Calculate the total delivered amount for a list of order items."""
+    try:
+        total = 0
+        for item in items:
+            if hasattr(item, 'delivered_quantity') and hasattr(item, 'price'):
+                if item.delivered_quantity and item.price:
+                    total += item.delivered_quantity * item.price
+        return total
+    except (ValueError, TypeError, AttributeError):
+        return 0

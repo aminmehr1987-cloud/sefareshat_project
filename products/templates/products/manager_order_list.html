@@ -686,6 +686,21 @@
     background: #fffbe6;
   }
 
+  .delivered-qty-input {
+    border: 2px solid #007bff;
+    border-radius: 5px;
+    padding: 4px 6px;
+    font-size: 12px;
+    background: #f8f9ff;
+    transition: border 0.2s, box-shadow 0.2s;
+    font-weight: bold;
+  }
+  .delivered-qty-input:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 4px #28a74555;
+    background: #f0fff4;
+  }
+
   /* Table wrapper for mobile scrolling */
   .table-wrapper {
     overflow-x: auto;
@@ -1593,10 +1608,10 @@
                 {% endif %}
               </td>
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
-              <td>{{ shipment.courier_name|default:'-' }}</td>
+              <td>{{ shipment.courier|default:'-' }}</td>
               <td>
-                  <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="جزئیات و نهایی‌سازی">
-                    <i class="bi bi-pencil-square"></i>
+                  <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="مشاهده جزئیات فاکتور">
+                    <i class="bi bi-receipt-cutoff"></i>
                   </button>
               </td>
           </tr>
@@ -1634,13 +1649,13 @@
               <td>{{ shipment.shipment_number|default:'-' }}</td>
               <td>{{ shipment.order.customer_name }}</td>
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
-              <td>{{ shipment.courier_name|default:'-' }}</td>
+              <td>{{ shipment.courier|default:'-' }}</td>
               <td>
                 <a href="{% url 'products:sales_invoice_pdf' shipment.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
                     <i class="bi bi-receipt"></i>
                 </a>
-                <button class="action-button details-button" onclick="toggleDetails('details-row-delivered-{{ shipment.id }}')" title="جزئیات">
-                    <i class="bi bi-eye-fill"></i>
+                <button class="action-button details-button" onclick="toggleDetails('details-row-delivered-{{ shipment.id }}')" title="مشاهده جزئیات فاکتور">
+                    <i class="bi bi-receipt-cutoff"></i>
                 </button>
               </td>
           </tr>
@@ -2189,6 +2204,137 @@ fetch('/api/update-order-status/', {
 .catch(error => {
   alert('خطا در ارتباط با سرور.');
 });
+}
+
+// Functions for finalizing shipments and invoices
+function updateItemTotal(itemId, unitPrice) {
+  const deliveredQtyInput = document.getElementById(`delivered-qty-${itemId}`);
+  const totalCell = document.getElementById(`total-${itemId}`);
+  
+  if (deliveredQtyInput && totalCell) {
+    const deliveredQty = parseInt(deliveredQtyInput.value) || 0;
+    const total = deliveredQty * unitPrice;
+    totalCell.textContent = total.toLocaleString() + ' ریال';
+  }
+}
+
+function finalizeSubOrder(subOrderId, shipmentId) {
+  if (!confirm('آیا از نهایی کردن این فاکتور اطمینان دارید؟ پس از نهایی شدن، امکان تغییر وجود نخواهد داشت.')) {
+    return;
+  }
+
+  // جمع‌آوری داده‌های تعداد تحویلی
+  const items = [];
+  const itemInputs = document.querySelectorAll(`input[data-item-id]`);
+  let isValid = true;
+
+  itemInputs.forEach(input => {
+    const itemId = input.dataset.itemId;
+    const deliveredQty = parseInt(input.value) || 0;
+    const maxQty = parseInt(input.max) || 0;
+    
+    if (deliveredQty < 0 || deliveredQty > maxQty) {
+      alert(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`);
+      input.style.border = '2px solid red';
+      isValid = false;
+      return;
+    }
+    
+    input.style.border = '';
+    items.push({
+      item_id: itemId,
+      delivered_quantity: deliveredQty
+    });
+  });
+
+  if (!isValid) {
+    return;
+  }
+
+  fetch('/api/finalize-sub-order/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      sub_order_id: subOrderId,
+      shipment_id: shipmentId,
+      items: items
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('فاکتور با موفقیت نهایی شد.');
+      location.reload();
+    } else {
+      alert('خطا در نهایی‌سازی فاکتور: ' + (data.message || 'خطای نامشخص'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('خطا در ارتباط با سرور.');
+  });
+}
+
+function finalizeEntireShipment(shipmentId) {
+  if (!confirm('آیا از نهایی کردن کل ارسال اطمینان دارید؟ تمام فاکتورهای این ارسال نهایی خواهند شد.')) {
+    return;
+  }
+
+  // جمع‌آوری داده‌های تمام اقلام در ارسال
+  const allItems = [];
+  const itemInputs = document.querySelectorAll(`input[data-item-id]`);
+  let isValid = true;
+
+  itemInputs.forEach(input => {
+    const itemId = input.dataset.itemId;
+    const deliveredQty = parseInt(input.value) || 0;
+    const maxQty = parseInt(input.max) || 0;
+    
+    if (deliveredQty < 0 || deliveredQty > maxQty) {
+      alert(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`);
+      input.style.border = '2px solid red';
+      isValid = false;
+      return;
+    }
+    
+    input.style.border = '';
+    allItems.push({
+      item_id: itemId,
+      delivered_quantity: deliveredQty
+    });
+  });
+
+  if (!isValid) {
+    return;
+  }
+
+  fetch('/api/finalize-entire-shipment/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken')
+    },
+    body: JSON.stringify({
+      shipment_id: shipmentId,
+      items: allItems
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('کل ارسال با موفقیت نهایی شد.');
+      location.reload();
+    } else {
+      alert('خطا در نهایی‌سازی ارسال: ' + (data.message || 'خطای نامشخص'));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('خطا در ارتباط با سرور.');
+  });
 }
 </script>
 {% endblock %}
