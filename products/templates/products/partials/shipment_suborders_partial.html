@@ -29,11 +29,26 @@ It expects a `shipment` object.
 }
 </style>
 
+<style>
+  .finalize-shipment-btn:disabled {
+    background: #d9d9d9 !important;
+    color: #777 !important;
+    border-color: #d0d0d0 !important;
+    cursor: not-allowed !important;
+    opacity: 1 !important;
+  }
+  .ltr-number {
+    direction: ltr;
+    unicode-bidi: bidi-override;
+    display: inline-block;
+  }
+</style>
+
 <div class="table-wrapper">
   <h4>فاکتورهای ارسال شده:</h4>
   <table class="items-table">
     <thead>
-      <tr>
+      <tr id="suborder-row-{{ sub_order.id }}">
         <th>شماره زیرسفارش</th>
         <th>انبار</th>
         <th>نوع سفارش</th>
@@ -65,11 +80,16 @@ It expects a `shipment` object.
           {% endif %}
         </td>
         <td>
-          <span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
+          <span id="suborder-status-{{ sub_order.id }}" class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
         </td>
         <td>{{ sub_order.document_number|default:"-" }}</td>
         <td>{{ sub_order.package_count|default:"-" }}</td>
         <td>
+          {% if is_delivered %}
+          <a href="{% url 'products:sales_invoice_pdf' sub_order.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
+            <i class="bi bi-receipt"></i>
+          </a>
+          {% endif %}
           <button class="action-button details-button" onclick="toggleDetails('shipment-sub-details-{{ sub_order.id }}')" title="مشاهده جزئیات فاکتور">
             <i class="bi bi-eye-fill"></i>
           </button>
@@ -94,27 +114,34 @@ It expects a `shipment` object.
               </thead>
               <tbody>
                 {% for item in sub_order.items.all %}
+                {% if item.allocated_quantity and item.allocated_quantity|add:0 > 0 %}
                 <tr data-item-id="{{ item.id }}" data-allocated="{{ item.allocated_quantity|default:0 }}">
                   <td>{{ item.product.code }}</td>
                   <td>{{ item.product.name }}</td>
                   <td>{{ item.requested_quantity }}</td>
                   <td>{{ item.allocated_quantity|default:"-" }}</td>
                   <td>
+                    {% if not is_delivered %}
                     <input type="number" 
                            id="delivered-qty-{{ item.id }}" 
                            name="delivered_quantity" 
                            data-item-id="{{ item.id }}"
+                           data-unit-price="{{ item.price|default:0 }}"
                            value="{{ item.delivered_quantity|default:0 }}" 
                            min="0" 
                            max="{{ item.allocated_quantity|default:0 }}"
                            class="form-control delivered-qty-input"
                            style="width: 80px; text-align: center;"
-                           onchange="updateItemTotal({{ item.id }}, {{ item.price }})">
+                           onchange="updateItemTotal('{{ item.id }}')">
+                    {% else %}
+                      {{ item.delivered_quantity|default:"0" }}
+                    {% endif %}
                   </td>
                   <td>{{ item.price|floatformat:0 }} ریال</td>
                   <td id="total-{{ item.id }}">{{ item.price|multiply:item.delivered_quantity|floatformat:0 }} ریال</td>
                   <td>{{ item.get_payment_term_display }}</td>
                 </tr>
+                {% endif %}
                 {% empty %}
                 <tr><td colspan="8">هیچ کالایی برای این زیرسفارش یافت نشد.</td></tr>
                 {% endfor %}
@@ -147,14 +174,17 @@ It expects a `shipment` object.
             </div>
           </div>
           
+          {% if not is_delivered %}
           <!-- دکمه نهایی کردن فاکتور -->
           <div style="margin-top: 15px; text-align: center; padding: 10px; border-top: 2px solid #ddd;">
-            <button class="btn btn-success" 
+            <button class="btn btn-success finalize-suborder-btn" 
+                    data-suborder-id="{{ sub_order.id }}"
                     onclick="finalizeSubOrder('{{ sub_order.id }}', '{{ shipment.id }}')" 
                     style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-size: 14px; font-weight: bold;">
               <i class="bi bi-check-circle"></i> نهایی کردن فاکتور {{ sub_order.order_number }}
             </button>
           </div>
+          {% endif %}
         </td>
       </tr>
       {% empty %}
@@ -167,12 +197,16 @@ It expects a `shipment` object.
   
   <!-- دکمه نهایی کردن کل ارسال -->
   {% if sub_orders_list %}
+  {% if not is_delivered %}
   <div style="margin-top: 20px; text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-    <button class="btn btn-primary" 
+    <button class="btn btn-primary finalize-shipment-btn" 
+            data-shipment-id="{{ shipment.id }}"
             onclick="finalizeEntireShipment('{{ shipment.id }}')" 
-            style="background: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-size: 16px; font-weight: bold;">
-      <i class="bi bi-truck"></i> نهایی کردن کل ارسال شماره {{ shipment.shipment_number }}
+            style="background: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-size: 16px; font-weight: bold;"
+            disabled>
+      <i class="bi bi-truck"></i> نهایی کردن کل ارسال شماره <span class="ltr-number">{{ shipment.shipment_number }}</span>
     </button>
   </div>
+  {% endif %}
   {% endif %}
 </div>

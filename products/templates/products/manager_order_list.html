@@ -316,33 +316,16 @@
   }
   
   .print-button {
-    padding: 8px 12px;
-    border: 2px solid #4CAF50;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 14px;
-    margin: 0 5px;
-    width: 36px;
-    height: 36px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-    background-color: white;
+    border-color: #4CAF50;
     color: #4CAF50;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    text-decoration: none;
   }
   
-  .print-button i {
-    font-size: 16px;
-  }
+  /* Inherit icon size from .action-button i */
   
   .print-button:hover {
     background-color: #4CAF50;
     color: white;
-    transform: scale(1.1);
-    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+    transform: scale(1.05);
     text-decoration: none;
   }
 
@@ -626,19 +609,11 @@
     }
     
     .print-button {
-      padding: 2px 4px;
-      font-size: 10px;
-      margin: 0 1px;
-      width: 24px;
-      height: 24px;
-      border: 2px solid #4CAF50;
-      background-color: white;
+      border-color: #4CAF50;
       color: #4CAF50;
     }
     
-    .print-button i {
-      font-size: 10px;
-    }
+    /* Inherit icon size from .action-button i */
   }
 
   .status-history {
@@ -1680,9 +1655,9 @@
                   </button>
               </td>
           </tr>
-          <tr id="details-row-shipped-{{ shipment.id }}" class="details-content-row">
+          <tr id="details-row-shipped-{{ shipment.id }}" class="details-content_row details-content-row">
             <td colspan="6">
-              {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment %}
+              {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment is_delivered=False %}
             </td>
           </tr>
           {% empty %}
@@ -1716,17 +1691,14 @@
               <td>{{ shipment.order.visitor_name|get_user_full_name }}</td>
               <td>{{ shipment.courier|default:'-' }}</td>
               <td>
-                <a href="{% url 'products:sales_invoice_pdf' shipment.id %}" target="_blank" class="action-button print-button" title="چاپ فاکتور">
-                    <i class="bi bi-receipt"></i>
-                </a>
                 <button class="action-button details-button" onclick="toggleDetails('details-row-delivered-{{ shipment.id }}')" title="مشاهده جزئیات فاکتور">
                     <i class="bi bi-eye-fill"></i>
                 </button>
               </td>
           </tr>
-          <tr id="details-row-delivered-{{ shipment.id }}" class="details-content-row">
+          <tr id="details-row-delivered-{{ shipment.id }}" class="details-content_row details-content-row">
               <td colspan="6">
-                {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment %}
+                {% include 'products/partials/shipment_suborders_partial.html' with shipment=shipment is_delivered=True %}
               </td>
           </tr>
           {% empty %}
@@ -1745,8 +1717,33 @@
 <script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
 
 <script>
+  // Normalize Persian/Arabic digits to Latin digits before parsing numbers
+  function normalizeToEnglishDigits(value) {
+    if (typeof value !== 'string') return value;
+    const persianZeroCharCode = '۰'.charCodeAt(0);
+    const arabicZeroCharCode = '٠'.charCodeAt(0);
+    let normalized = '';
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      // Persian digits
+      if (code >= persianZeroCharCode && code <= persianZeroCharCode + 9) {
+        normalized += String(code - persianZeroCharCode);
+        continue;
+      }
+      // Arabic-Indic digits
+      if (code >= arabicZeroCharCode && code <= arabicZeroCharCode + 9) {
+        normalized += String(code - arabicZeroCharCode);
+        continue;
+      }
+      normalized += value[i];
+    }
+    return normalized;
+  }
+
   function openTabByName(tabName, clickedElement) {
     console.log('Opening tab:', tabName);
+    // Persist selected tab
+    try { localStorage.setItem('manager_orders_active_tab', tabName); } catch (e) {}
     var tabcontent = document.getElementsByClassName("tabcontent");
     for (var i = 0; i < tabcontent.length; i++) {
       tabcontent[i].classList.remove("active");
@@ -1769,6 +1766,11 @@
     if (detailRow) {
       detailRow.classList.toggle("active");
       console.log('Row toggled:', id, 'Active:', detailRow.classList.contains('active'));
+      // When details open/close, re-evaluate shipment finalize button if applicable
+      if (id.startsWith('details-row-shipped-')) {
+        const shipmentId = id.replace('details-row-shipped-', '');
+        updateFinalizeShipmentButton(shipmentId);
+      }
     } else {
       console.error('Error: Row with ID ' + id + ' not found');
     }
@@ -1787,6 +1789,20 @@
       }
     }
     return cookieValue;
+  }
+
+  function updateFinalizeShipmentButton(shipmentId) {
+    const container = document.getElementById(`details-row-shipped-${shipmentId}`);
+    if (!container) return;
+    const finalizeBtn = container.querySelector('.finalize-shipment-btn');
+    if (!finalizeBtn) return;
+    const statusSpans = container.querySelectorAll('.order-status');
+    if (statusSpans.length === 0) {
+      finalizeBtn.disabled = true;
+      return;
+    }
+    const allDelivered = Array.from(statusSpans).every(span => span.classList.contains('status-delivered'));
+    finalizeBtn.disabled = !allDelivered;
   }
 
   function moveToNext(orderId, currentStatus) {
@@ -1957,6 +1973,15 @@
           }
       });
 
+      // Restore last active tab if present
+      try {
+        const savedTab = localStorage.getItem('manager_orders_active_tab');
+        if (savedTab) {
+          const card = document.querySelector(`.tile-card[onclick*="${savedTab}"]`);
+          if (card) card.click();
+        }
+      } catch (e) {}
+
       // Show search fields if there are any active filters
       const urlParams = new URLSearchParams(window.location.search);
       let hasFilter = false;
@@ -1969,6 +1994,13 @@
       if (hasFilter) {
         toggleAdvancedSearch();
       }
+
+      // Enable/disable "Finalize Entire Shipment" buttons based on sub-orders statuses
+      const shipmentDetailRows = document.querySelectorAll('[id^="details-row-shipped-"]');
+      shipmentDetailRows.forEach(row => {
+        const shipmentId = row.id.replace('details-row-shipped-', '');
+        updateFinalizeShipmentButton(shipmentId);
+      });
   });
 
 
@@ -2272,13 +2304,15 @@ fetch('/api/update-order-status/', {
 }
 
 // Functions for finalizing shipments and invoices
-function updateItemTotal(itemId, unitPrice) {
+function updateItemTotal(itemId) {
   const deliveredQtyInput = document.getElementById(`delivered-qty-${itemId}`);
   const totalCell = document.getElementById(`total-${itemId}`);
   
   if (deliveredQtyInput && totalCell) {
-    const deliveredQty = parseInt(deliveredQtyInput.value) || 0;
-    const maxQty = parseInt(deliveredQtyInput.max) || 0;
+    const unitPriceRaw = deliveredQtyInput.getAttribute('data-unit-price') || '0';
+    const unitPrice = parseInt(normalizeToEnglishDigits(unitPriceRaw), 10) || 0;
+    const deliveredQty = parseInt(normalizeToEnglishDigits(deliveredQtyInput.value), 10) || 0;
+    const maxQty = parseInt(normalizeToEnglishDigits(deliveredQtyInput.max), 10) || 0;
     
     // Validate delivered quantity against allocated quantity
     if (deliveredQty > maxQty) {
@@ -2303,17 +2337,23 @@ function finalizeSubOrder(subOrderId, shipmentId) {
     return;
   }
 
-  // جمع‌آوری داده‌های تعداد تحویلی
+  // جمع‌آوری داده‌های تعداد تحویلی - محدود به این زیرسفارش خاص
   const items = [];
-  const itemInputs = document.querySelectorAll(`input[data-item-id]`);
+  const detailsContainer = document.getElementById(`shipment-sub-details-${subOrderId}`);
+  if (!detailsContainer) {
+    alert('خطا: جزئیات زیرسفارش یافت نشد.');
+    return;
+  }
+  
+  const itemInputs = detailsContainer.querySelectorAll('input[name="delivered_quantity"]');
   let isValid = true;
 
   itemInputs.forEach(input => {
     const itemId = input.dataset.itemId;
-    const deliveredQty = parseInt(input.value) || 0;
-    const maxQty = parseInt(input.max) || 0;
+    const deliveredQty = parseInt(normalizeToEnglishDigits(input.value), 10);
+    const maxQty = parseInt(normalizeToEnglishDigits(input.max), 10) || 0;
     
-    if (deliveredQty < 0 || deliveredQty > maxQty) {
+    if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > maxQty) {
       alert(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`);
       input.style.border = '2px solid red';
       isValid = false;
@@ -2347,7 +2387,15 @@ function finalizeSubOrder(subOrderId, shipmentId) {
   .then(data => {
     if (data.success) {
       alert('فاکتور با موفقیت نهایی شد.');
-      location.reload();
+      // به‌جای رفرش، وضعیت زیرسفارش را در DOM به delivered تغییر می‌دهیم
+      const statusSpan = document.getElementById(`suborder-status-${subOrderId}`);
+      if (statusSpan) {
+        statusSpan.textContent = 'تحویل شده';
+        statusSpan.classList.remove('status-pending', 'status-shipped');
+        statusSpan.classList.add('status-delivered');
+      }
+      // دکمه نهایی‌سازی ارسال را ارزیابی و در صورت لزوم فعال کنیم
+      updateFinalizeShipmentButton(shipmentId);
     } else {
       alert('خطا در نهایی‌سازی فاکتور: ' + (data.message || 'خطای نامشخص'));
     }
@@ -2363,17 +2411,23 @@ function finalizeEntireShipment(shipmentId) {
     return;
   }
 
-  // جمع‌آوری داده‌های تمام اقلام در ارسال
+  // جمع‌آوری داده‌های تمام اقلام در ارسال - محدود به این ارسال خاص
   const allItems = [];
-  const itemInputs = document.querySelectorAll(`input[data-item-id]`);
+  const shipmentContainer = document.getElementById(`details-row-shipped-${shipmentId}`);
+  if (!shipmentContainer) {
+    alert('خطا: جزئیات ارسال یافت نشد.');
+    return;
+  }
+  
+  const itemInputs = shipmentContainer.querySelectorAll('input[name="delivered_quantity"]');
   let isValid = true;
 
   itemInputs.forEach(input => {
     const itemId = input.dataset.itemId;
-    const deliveredQty = parseInt(input.value) || 0;
-    const maxQty = parseInt(input.max) || 0;
+    const deliveredQty = parseInt(normalizeToEnglishDigits(input.value), 10);
+    const maxQty = parseInt(normalizeToEnglishDigits(input.max), 10) || 0;
     
-    if (deliveredQty < 0 || deliveredQty > maxQty) {
+    if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > maxQty) {
       alert(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`);
       input.style.border = '2px solid red';
       isValid = false;

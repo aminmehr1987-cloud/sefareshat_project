@@ -8635,12 +8635,7 @@ def finalize_sub_order(request):
             sub_order.status = 'delivered'
             sub_order.save()
             
-            # بررسی اینکه آیا همه زیرسفارش‌های ارسال نهایی شده‌اند
-            all_sub_orders = shipment.sub_orders.all()
-            if all_sub_orders.filter(status='delivered').count() == all_sub_orders.count():
-                shipment.status = 'delivered'
-                shipment.delivery_date = timezone.now()
-                shipment.save()
+            # توجه: وضعیت ارسال تنها در finalize_entire_shipment به 'delivered' تغییر می‌کند
         
         return JsonResponse({'success': True, 'message': 'فاکتور با موفقیت نهایی شد'})
         
@@ -8661,29 +8656,13 @@ def finalize_entire_shipment(request):
         
         with transaction.atomic():
             shipment = get_object_or_404(Shipment, id=shipment_id)
-            
-            # بروزرسانی تعداد تحویلی تمام اقلام
-            for item_data in items_data:
-                item_id = item_data.get('item_id')
-                delivered_quantity = item_data.get('delivered_quantity', 0)
-                
-                order_item = get_object_or_404(OrderItem, id=item_id)
-                order_item.delivered_quantity = delivered_quantity
-                order_item.save()
-                
-                # کاهش موجودی محصول
-                if delivered_quantity > 0 and order_item.product:
-                    product = order_item.product
-                    if product.quantity >= delivered_quantity:
-                        product.quantity -= delivered_quantity
-                        product.save()
-            
-            # تغییر وضعیت همه زیرسفارش‌های ارسال به delivered
+
+            # اطمینان از اینکه تمام زیرسفارش‌ها قبلاً delivered شده‌اند
             sub_orders = shipment.sub_orders.all()
-            for sub_order in sub_orders:
-                sub_order.status = 'delivered'
-                sub_order.save()
-            
+            not_delivered_count = sub_orders.exclude(status='delivered').count()
+            if not_delivered_count > 0:
+                return JsonResponse({'success': False, 'message': 'ابتدا همه فاکتورها را نهایی کنید، سپس ارسال را نهایی نمایید.'})
+
             # تغییر وضعیت ارسال به delivered
             shipment.status = 'delivered'
             shipment.delivery_date = timezone.now()
