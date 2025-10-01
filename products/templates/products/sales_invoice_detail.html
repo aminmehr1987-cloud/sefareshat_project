@@ -212,9 +212,14 @@ body, html, input, button, select, textarea {
     </div>
 
     <div style="text-align:center; margin-top:2rem;">
-        <a href="{% url 'products:sales_invoice_list' %}" class="order-detail-btn">
-            بازگشت به لیست فاکتورها
+        <a href="{% url 'products:customer_balance_detail' invoice.customer.id %}" class="order-detail-btn">
+            بازگشت به جزئیات حساب مشتری
         </a>
+        {% if related_order_id %}
+        <a href="{% url 'products:sales_invoice_pdf' related_order_id %}" target="_blank" class="order-detail-btn" style="margin-right:1rem;">
+            چاپ فاکتور قطعی
+        </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

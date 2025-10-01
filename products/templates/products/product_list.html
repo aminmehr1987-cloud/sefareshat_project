@@ -915,6 +915,7 @@ body {
     border-radius: 15px;
     position: relative;
     direction: rtl;
+    
   }
   
   .customer-modal-header {
@@ -954,10 +955,16 @@ body {
     float: right;
   }
   
-  .customers-table {
-    width: 100%;
-    border-collapse: collapse;
+  .customers-table-wrapper {
+    max-height: 5 * 56px; /* حدوداً 5 ردیف (هر ردیف ~56px با padding) */
+    max-height: calc(56px * 5);
+    overflow-y: auto; /* اسکرول عمودی */
+    overflow-x: hidden;
+    border: 1px solid #eee;
+    border-radius: 10px;
   }
+
+  .customers-table { width: 100%; border-collapse: collapse; }
   
   .customers-table th,
   .customers-table td {
@@ -974,6 +981,10 @@ body {
   .customers-table tr:hover {
     background-color: #f9f9f9;
     cursor: pointer;
+  }
+  /* ریسپانسیو برای موبایل و صفحات کوچکتر (بدون تغییر ظاهر قبلی) */
+  @media (max-width: 768px) {
+    .customer-search-box { width: 100%; margin-right: 0; float: none; }
   }
   
   .select-customer-btn {

@@ -3625,7 +3625,19 @@ def sales_invoice_list_view(request):
 def sales_invoice_detail_view(request, invoice_id):
     invoice = get_object_or_404(SalesInvoice, id=invoice_id)
     items = invoice.items.select_related('product').all()
-    return render(request, 'products/sales_invoice_detail.html', {'invoice': invoice, 'items': items})
+    # تلاش برای یافتن سفارش مرتبط از روی شماره فاکتور (که برابر شماره سفارش است)
+    related_order_id = None
+    try:
+        related_order = Order.objects.filter(order_number=invoice.invoice_number).only('id').first()
+        if related_order:
+            related_order_id = related_order.id
+    except Exception:
+        related_order_id = None
+    return render(request, 'products/sales_invoice_detail.html', {
+        'invoice': invoice,
+        'items': items,
+        'related_order_id': related_order_id,
+    })
 
 
 @login_required
@@ -4706,6 +4718,18 @@ def financial_operation_detail_view(request, operation_id):
     نمایش جزئیات عملیات مالی
     """
     operation = get_object_or_404(FinancialOperation, id=operation_id)
+    related_sales_invoice = None
+    try:
+        if operation.operation_type == 'SALES_INVOICE' and operation.customer:
+            from .models import SalesInvoice
+            related_sales_invoice = SalesInvoice.objects.filter(
+                customer=operation.customer,
+                invoice_date=operation.date,
+                total_amount=operation.amount,
+                description=operation.description
+            ).order_by('-id').first()
+    except Exception as e:
+        logger.error(f"Failed to fetch related SalesInvoice for operation {operation.id}: {e}")
     
     # New logic to find related orders for sales invoices (supports both new and old formats)
     related_orders = []
@@ -4753,6 +4777,7 @@ def financial_operation_detail_view(request, operation_id):
         'operation': operation,
         'transactions': operation.transactions.all(),
         'related_orders': related_orders, # Use 'related_orders' (plural)
+        'related_sales_invoice': related_sales_invoice,
     }
     
     return render(request, 'products/financial_operation_detail.html', context)
@@ -8636,6 +8661,72 @@ def finalize_sub_order(request):
             sub_order.status = 'delivered'
             sub_order.save()
             
+            # ایجاد عملیات مالی و فاکتور فروش برای همین زیرسفارش جهت ثبت فوری در صورتحساب مشتری
+            try:
+                from .models import FinancialOperation, User, SalesInvoice, SalesInvoiceItem
+                import jdatetime as jdt
+                
+                customer = sub_order.customer
+                description = f"فاکتور فروش بابت سفارش: {sub_order.order_number}"
+                
+                if customer and description:
+                    # جلوگیری از ثبت تکراری برای همین زیرسفارش
+                    op_exists = FinancialOperation.objects.filter(
+                        operation_type='SALES_INVOICE',
+                        customer=customer,
+                        description=description
+                    ).exists()
+                    
+                    # محاسبه جمع مبلغ بر اساس اقلام همین زیرسفارش و تعداد تحویلی
+                    total_price = 0
+                    for oi in sub_order.items.all():
+                        if oi.price is not None and (oi.delivered_quantity or 0) > 0:
+                            total_price += oi.price * (oi.delivered_quantity or 0)
+                    
+                    if total_price > 0 and not op_exists:
+                        creator = getattr(customer, 'created_by', None) or request.user
+                        # ایجاد عملیات مالی تاییدشده
+                        FinancialOperation.objects.create(
+                            operation_type='SALES_INVOICE',
+                            customer=customer,
+                            amount=total_price,
+                            payment_method='credit_sale',
+                            date=jdt.date.today(),
+                            description=description,
+                            created_by=creator,
+                            status='CONFIRMED',
+                            confirmed_by=creator,
+                            confirmed_at=timezone.now()
+                        )
+                        
+                        # ایجاد فاکتور فروش و آیتم‌ها برای گزارش‌ها با همان شماره سفارش
+                        final_invoice_number = sub_order.order_number or description
+                        # جلوگیری از تکرار بر اساس شماره فاکتور
+                        existing_invoice = SalesInvoice.objects.filter(invoice_number=final_invoice_number).first()
+                        if not existing_invoice:
+                            sales_invoice = SalesInvoice.objects.create(
+                                invoice_number=final_invoice_number,
+                                invoice_date=jdt.date.today(),
+                                customer=customer,
+                                created_by=creator,
+                                total_amount=total_price,
+                                description=description,
+                                status='confirmed'
+                            )
+                            for oi in sub_order.items.all():
+                                delivered_qty = oi.delivered_quantity or 0
+                                if oi.price is not None and delivered_qty > 0:
+                                    SalesInvoiceItem.objects.create(
+                                        invoice=sales_invoice,
+                                        product=oi.product,
+                                        quantity=delivered_qty,
+                                        price=oi.price,
+                                        total=oi.price * delivered_qty,
+                                        description=''
+                                    )
+            except Exception as e:
+                logger.error(f"Failed to create SALES_INVOICE for sub_order {sub_order.id}: {e}")
+            
             # توجه: وضعیت ارسال تنها در finalize_entire_shipment به 'delivered' تغییر می‌کند
         
         return JsonResponse({'success': True, 'message': 'فاکتور با موفقیت نهایی شد'})
@@ -8716,29 +8807,20 @@ def finalize_entire_shipment(request):
                     from .models import SalesInvoice, SalesInvoiceItem
                     import jdatetime as jdt
                     
-                    def _generate_sales_invoice_number():
-                        # الگوی SIYYYYMMDDNNN
-                        today = timezone.now()
-                        shamsi = jdt.datetime.fromgregorian(datetime=today).strftime('%Y%m%d')
-                        prefix = f"SI{shamsi}"
-                        last = SalesInvoice.objects.filter(invoice_number__startswith=prefix).order_by('-invoice_number').first()
-                        if last:
-                            try:
-                                last_seq = int(last.invoice_number[-3:])
-                                seq = last_seq + 1
-                            except Exception:
-                                seq = 1
-                        else:
-                            seq = 1
-                        return f"{prefix}{seq:03d}"
+                    # استفاده از شماره سفارش به عنوان شماره فاکتور
                     
                     if customer and description:
-                        # عدم ایجاد تکراری بر اساس شرح و مشتری و تاریخ
-                        exists_invoice = SalesInvoice.objects.filter(
-                            customer=customer,
-                            description=description,
-                            invoice_date=jdt.date.today()
-                        ).exists()
+                        # تعیین شماره فاکتور از سفارش یا اولین زیرسفارش
+                        final_inv_number = None
+                        if shipment.order and shipment.order.order_number:
+                            final_inv_number = shipment.order.order_number
+                        elif sub_orders_in_shipment.exists():
+                            final_inv_number = sub_orders_in_shipment.first().order_number
+                        
+                        # عدم ایجاد تکراری بر اساس شماره فاکتور
+                        exists_invoice = False
+                        if final_inv_number:
+                            exists_invoice = SalesInvoice.objects.filter(invoice_number=final_inv_number).exists()
                         if not exists_invoice:
                             invoice_total = 0
                             items_to_create = []
@@ -8754,7 +8836,7 @@ def finalize_entire_shipment(request):
                                         'description': ''
                                     })
                             if invoice_total > 0:
-                                inv_number = _generate_sales_invoice_number()
+                                inv_number = final_inv_number or description
                                 creator = getattr(customer, 'created_by', None) or getattr(shipment.order, 'created_by', None) or request.user
                                 sales_invoice = SalesInvoice.objects.create(
                                     invoice_number=inv_number,

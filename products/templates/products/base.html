@@ -876,6 +876,59 @@
         font-size: 0.85rem;
     }
 
+    /* بهینه‌سازی جایگاه و رفتار باکس جستجو و لیست مشتریان در مودال */
+    .customer-search-box {
+        width: 100% !important;
+        display: block !important;
+        float: none !important;
+        margin: 0 0 12px 0 !important; /* بالای لیست قرار بگیرد */
+        box-sizing: border-box;
+    }
+    .customers-table-wrapper {
+        max-height: calc(56px * 5);
+        overflow-y: auto;
+        overflow-x: hidden;
+        border: 1px solid #eee;
+        border-radius: 10px;
+        margin-top: 8px; /* فاصله از باکس جستجو */
+    }
+
+    /* ریسپانسیو مودال مشتری برای موبایل */
+    @media (max-width: 600px) {
+        .customer-modal-content {
+            width: 96vw !important;
+            max-width: 96vw !important;
+            margin: 2vh auto !important;
+            padding: 12px !important;
+            box-sizing: border-box !important;
+        }
+        .customers-table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        .customers-table th,
+        .customers-table td {
+            padding: 8px 6px;
+            font-size: 0.8rem;
+            word-wrap: break-word;
+            white-space: normal;
+        }
+        /* ستون عملیات (دکمه انتخاب) بدون بیرون‌زدگی */
+        .customers-table th:last-child,
+        .customers-table td:last-child {
+            width: 88px; /* عرض ثابت برای دکمه */
+        }
+        .select-customer-btn {
+            width: 100%;
+            padding: 8px 6px;
+            font-size: 0.8rem;
+            box-sizing: border-box;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+
     @media (max-width: 600px) {
         .customers-table th, .customers-table td {
             font-size: 0.65rem;
@@ -1091,19 +1144,21 @@
                             </div>
                             <input type="text" id="customerSearchInput" class="customer-search-box" 
                                 placeholder="جستجوی مشتری بر اساس نام و نام خانوادگی...">
-                            <table class="customers-table">
-                                <thead>
-                                    <tr>
-                                        <th>نام</th>
-                                        <th>نام خانوادگی</th>
-                                        <th>نام فروشگاه</th>
-                                        <th>شماره تماس</th>
-                                        <th>عملیات</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="customersTableBody">
-                                </tbody>
-                            </table>
+                            <div class="customers-table-wrapper">
+                                <table class="customers-table">
+                                    <thead>
+                                        <tr>
+                                            <th>نام</th>
+                                            <th>نام خانوادگی</th>
+                                            <th>نام فروشگاه</th>
+                                            <th>شماره تماس</th>
+                                            <th>عملیات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="customersTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 {% endif %}

@@ -143,6 +143,25 @@
                 <h3><i class="bi bi-gear"></i> اطلاعات تکمیلی</h3>
             </div>
             <div class="card-content">
+                {% if related_sales_invoice %}
+                    <div class="info-row full-width">
+                        <span class="label">فاکتور مرتبط:</span>
+                        <div class="value">
+                            <a href="{% url 'products:sales_invoice_detail' related_sales_invoice.id %}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-receipt"></i>
+                                مشاهده فاکتور فروش {{ related_sales_invoice.invoice_number }}
+                            </a>
+                            {% if related_orders %}
+                                {% for order in related_orders %}
+                                    <a href="{% url 'products:sales_invoice_pdf' order.id %}" class="btn btn-outline-secondary btn-sm" target="_blank" style="margin-right: .5rem;">
+                                        <i class="bi bi-printer"></i>
+                                        چاپ سفارش {{ order.order_number }}
+                                    </a>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
                 {% if related_orders %}
                     <div class="info-row full-width">
                         <span class="label">سفارشات مرتبط:</span>
