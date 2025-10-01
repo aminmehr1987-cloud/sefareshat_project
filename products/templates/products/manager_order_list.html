@@ -316,14 +316,14 @@
   }
   
   .print-button {
-    padding: 0;
+    padding: 8px 12px;
     border: 2px solid #4CAF50;
     border-radius: 50%;
     cursor: pointer;
     font-size: 14px;
     margin: 0 5px;
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -335,7 +335,7 @@
   }
   
   .print-button i {
-    font-size: 14px;
+    font-size: 16px;
   }
   
   .print-button:hover {
@@ -349,6 +349,15 @@
   .print-order-button {
     border-color: #7e57c2;
     color: #7e57c2;
+  }
+  
+  .print-order-button i {
+    font-size: 16px;
+  }
+  
+  /* Make print button smaller in expanded details rows */
+  .details-content-row .print-order-button i {
+    font-size: 14px;
   }
   
   .print-order-button:hover {
@@ -467,6 +476,15 @@
       font-size: 12px;
     }
     
+    .print-order-button i {
+      font-size: 12px;
+    }
+    
+    /* Make print button smaller in expanded details rows - tablet */
+    .details-content-row .print-order-button i {
+      font-size: 11px;
+    }
+    
     .details-button {
       border-color: #4e9af1;
       color: #4e9af1;
@@ -483,18 +501,18 @@
     }
     
     .print-button {
-      padding: 0;
+      padding: 4px 6px;
       font-size: 12px;
       margin: 0 2px;
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       border: 2px solid #4CAF50;
       background-color: white;
       color: #4CAF50;
     }
     
     .print-button i {
-      font-size: 11px;
+      font-size: 12px;
     }
     .items-table {
       font-size: 11px;
@@ -583,6 +601,15 @@
       font-size: 10px;
     }
     
+    .print-order-button i {
+      font-size: 10px;
+    }
+    
+    /* Make print button smaller in expanded details rows - mobile */
+    .details-content-row .print-order-button i {
+      font-size: 9px;
+    }
+    
     .details-button {
       border-color: #4e9af1;
       color: #4e9af1;
@@ -599,18 +626,18 @@
     }
     
     .print-button {
-      padding: 0;
+      padding: 2px 4px;
       font-size: 10px;
       margin: 0 1px;
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       border: 2px solid #4CAF50;
       background-color: white;
       color: #4CAF50;
     }
     
     .print-button i {
-      font-size: 9px;
+      font-size: 10px;
     }
   }
 
@@ -669,6 +696,28 @@
     width: 140px;
     min-width: 140px;
     max-width: 140px;
+  }
+
+  /* Responsive column widths for all item tables */
+  .items-table th:nth-child(1), .items-table td:nth-child(1) { width: 10%; min-width: 80px; } /* کد کالا */
+  .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 15%; min-width: 100px; } /* نام محصول */
+  .items-table th:nth-child(3), .items-table td:nth-child(3) { width: 8%; min-width: 70px; } /* تعداد درخواستی */
+  .items-table th:nth-child(4), .items-table td:nth-child(4) { width: 8%; min-width: 70px; } /* تعداد تخصیص یافته */
+  .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 10%; min-width: 80px; } /* تعداد تحویلی */
+  .items-table th:nth-child(6), .items-table td:nth-child(6) { width: 12%; min-width: 90px; } /* قیمت واحد */
+  .items-table th:nth-child(7), .items-table td:nth-child(7) { width: 20%; min-width: 120px; } /* جمع کل */
+  .items-table th:nth-child(8), .items-table td:nth-child(8) { width: 7%; min-width: 60px; } /* تسویه */
+
+  /* Mobile responsiveness for item tables */
+  @media (max-width: 768px) {
+    .items-table th:nth-child(1), .items-table td:nth-child(1) { width: 12%; min-width: 60px; }
+    .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 18%; min-width: 80px; }
+    .items-table th:nth-child(3), .items-table td:nth-child(3) { width: 10%; min-width: 50px; }
+    .items-table th:nth-child(4), .items-table td:nth-child(4) { width: 10%; min-width: 50px; }
+    .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 12%; min-width: 60px; }
+    .items-table th:nth-child(6), .items-table td:nth-child(6) { width: 14%; min-width: 70px; }
+    .items-table th:nth-child(7), .items-table td:nth-child(7) { width: 24%; min-width: 100px; }
+    .items-table th:nth-child(8), .items-table td:nth-child(8) { width: 8%; min-width: 50px; }
   }
 
 
@@ -908,14 +957,18 @@
                   {% endif %}
                 </td>
                 <td>
-                  <span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
+                  {% if sub_order.status == 'shipped' or sub_order.status == 'delivered' %}
+                    <span class="order-status status-shipped">شماره ارسال: {{ sub_order|shipment_number_for_order }}</span>
+                  {% else %}
+                    <span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
+                  {% endif %}
                 </td>
                 <td>{{ sub_order.document_number|default:"-" }}</td>
                 <td>{{ sub_order.package_count|default:"-" }}</td>
                 <td>
-                  <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                  <a href="{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}" class="action-button print-order-button" title="چاپ">
                       <i class="bi bi-printer-fill"></i>
-                  </button>
+                  </a>
                   <button class="action-button details-button" onclick="toggleDetails('sub-details-{{ sub_order.id }}')" title="جزئیات">
                     <i class="bi bi-eye-fill"></i>
                   </button>
@@ -1044,9 +1097,9 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-pending">در انتظار تأیید</span></td>
         <td>
-          <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ order.id }}';" class="action-button print-order-button" title="چاپ">
+          <a href="{% url 'products:order_confirmation' %}?order_id={{ order.id }}" class="action-button print-order-button" title="چاپ">
               <i class="bi bi-printer-fill"></i>
-          </button>
+          </a>
           <button class="action-button details-button" onclick="toggleDetails('details-row-pending-{{ order.id }}')" title="جزئیات">
             <i class="bi bi-eye-fill"></i>
           </button>
@@ -1152,13 +1205,19 @@
                 <tr>
                   <td>{{ sub_order.order_number }}</td>
                   <td>{{ sub_order.items.first.warehouse.name }}</td>
-                  <td><span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span></td>
+                  <td>
+                    {% if sub_order.status == 'shipped' or sub_order.status == 'delivered' %}
+                      <span class="order-status status-shipped">شماره ارسال: {{ sub_order|shipment_number_for_order }}</span>
+                    {% else %}
+                      <span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
+                    {% endif %}
+                  </td>
                   <td>{{ sub_order.document_number|default:"-" }}</td>
                   <td>{{ sub_order.package_count }}</td>
                   <td>
-                    <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                    <a href="{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}" class="action-button print-order-button" title="چاپ">
                         <i class="bi bi-printer-fill"></i>
-                    </button>
+                    </a>
                     <button class="action-button details-button" onclick="toggleDetails('sub-details-warehouse-{{ sub_order.id }}')" title="جزئیات">
                       <i class="bi bi-eye-fill"></i>
                     </button>
@@ -1208,9 +1267,9 @@
         <td>{{ order.visitor_name|get_user_full_name }}</td>
         <td><span class="order-status status-waiting_for_customer_shipment">در انتظار ارسال به مشتری</span></td>
         <td>
-          <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ order.id }}';" class="action-button print-order-button" title="چاپ">
+          <a href="{% url 'products:order_confirmation' %}?order_id={{ order.id }}" class="action-button print-order-button" title="چاپ">
             <i class="bi bi-printer-fill"></i>
-          </button>
+          </a>
           <button class="action-button details-button" onclick="toggleDetails('details-row-ready-{{ order.id }}')" title="جزئیات">
             <i class="bi bi-eye-fill"></i>
           </button>
@@ -1239,13 +1298,19 @@
                     <tr>
                       <td>{{ sub_order.order_number }}</td>
                       <td>{{ sub_order.items.first.warehouse.name }}</td>
-                      <td><span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span></td>
+                      <td>
+                        {% if sub_order.status == 'shipped' or sub_order.status == 'delivered' %}
+                          <span class="order-status status-shipped">شماره ارسال: {{ sub_order|shipment_number_for_order }}</span>
+                        {% else %}
+                          <span class="order-status status-{{ sub_order.status }}">{{ sub_order.get_status_display }}</span>
+                        {% endif %}
+                      </td>
                       <td>{{ sub_order.document_number|default:"-" }}</td>
                       <td>{{ sub_order.package_count|default:"0" }}</td>
                       <td>
-                        <button onclick="window.location.href='{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}';" class="action-button print-order-button" title="چاپ">
+                        <a href="{% url 'products:order_confirmation' %}?order_id={{ sub_order.id }}" class="action-button print-order-button" title="چاپ">
                             <i class="bi bi-printer-fill"></i>
-                        </button>
+                        </a>
                         <button class="action-button details-button" onclick="toggleDetails('sub-details-ready-{{ sub_order.id }}')" title="جزئیات">
                           <i class="bi bi-eye-fill"></i>
                         </button>
@@ -1611,7 +1676,7 @@
               <td>{{ shipment.courier|default:'-' }}</td>
               <td>
                   <button class="action-button details-button" onclick="toggleDetails('details-row-shipped-{{ shipment.id }}')" title="مشاهده جزئیات فاکتور">
-                    <i class="bi bi-receipt-cutoff"></i>
+                    <i class="bi bi-eye-fill"></i>
                   </button>
               </td>
           </tr>
@@ -1655,7 +1720,7 @@
                     <i class="bi bi-receipt"></i>
                 </a>
                 <button class="action-button details-button" onclick="toggleDetails('details-row-delivered-{{ shipment.id }}')" title="مشاهده جزئیات فاکتور">
-                    <i class="bi bi-receipt-cutoff"></i>
+                    <i class="bi bi-eye-fill"></i>
                 </button>
               </td>
           </tr>
@@ -2213,7 +2278,22 @@ function updateItemTotal(itemId, unitPrice) {
   
   if (deliveredQtyInput && totalCell) {
     const deliveredQty = parseInt(deliveredQtyInput.value) || 0;
-    const total = deliveredQty * unitPrice;
+    const maxQty = parseInt(deliveredQtyInput.max) || 0;
+    
+    // Validate delivered quantity against allocated quantity
+    if (deliveredQty > maxQty) {
+      deliveredQtyInput.value = maxQty;
+      alert(`تعداد تحویلی نمی‌تواند بیشتر از تعداد تخصیص یافته (${maxQty}) باشد.`);
+      deliveredQtyInput.style.border = '2px solid red';
+      setTimeout(() => {
+        deliveredQtyInput.style.border = '';
+      }, 2000);
+    } else {
+      deliveredQtyInput.style.border = '';
+    }
+    
+    const finalQty = Math.min(deliveredQty, maxQty);
+    const total = finalQty * unitPrice;
     totalCell.textContent = total.toLocaleString() + ' ریال';
   }
 }

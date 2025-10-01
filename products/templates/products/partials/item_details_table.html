@@ -1,5 +1,25 @@
 {% load custom_filters %}
 
+<style>
+/* Responsive column widths for item details table */
+.items-table th:nth-child(1), .items-table td:nth-child(1) { width: 15%; min-width: 80px; } /* کد کالا */
+.items-table th:nth-child(2), .items-table td:nth-child(2) { width: 25%; min-width: 120px; } /* نام محصول */
+.items-table th:nth-child(3), .items-table td:nth-child(3) { width: 12%; min-width: 80px; } /* تعداد درخواستی */
+.items-table th:nth-child(4), .items-table td:nth-child(4) { width: 12%; min-width: 80px; } /* تعداد تخصیص یافته */
+.items-table th:nth-child(5), .items-table td:nth-child(5) { width: 18%; min-width: 100px; } /* قیمت واحد */
+.items-table th:nth-child(6), .items-table td:nth-child(6) { width: 18%; min-width: 100px; } /* جمع کل */
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .items-table th:nth-child(1), .items-table td:nth-child(1) { width: 18%; min-width: 60px; }
+  .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 30%; min-width: 100px; }
+  .items-table th:nth-child(3), .items-table td:nth-child(3) { width: 15%; min-width: 60px; }
+  .items-table th:nth-child(4), .items-table td:nth-child(4) { width: 15%; min-width: 60px; }
+  .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 22%; min-width: 80px; }
+  .items-table th:nth-child(6), .items-table td:nth-child(6) { width: 22%; min-width: 80px; }
+}
+</style>
+
 <table class="items-table">
   <thead>
     <tr>

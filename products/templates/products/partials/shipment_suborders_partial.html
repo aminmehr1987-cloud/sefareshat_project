@@ -5,6 +5,30 @@ It expects a `shipment` object.
 {% load custom_filters %}
 {% load shipment_extras %}
 
+<style>
+/* Responsive column widths for shipment details table */
+.items-table th:nth-child(1), .items-table td:nth-child(1) { width: 10%; min-width: 80px; } /* کد کالا */
+.items-table th:nth-child(2), .items-table td:nth-child(2) { width: 15%; min-width: 100px; } /* نام محصول */
+.items-table th:nth-child(3), .items-table td:nth-child(3) { width: 8%; min-width: 70px; } /* تعداد درخواستی */
+.items-table th:nth-child(4), .items-table td:nth-child(4) { width: 8%; min-width: 70px; } /* تعداد تخصیص یافته */
+.items-table th:nth-child(5), .items-table td:nth-child(5) { width: 10%; min-width: 80px; } /* تعداد تحویلی */
+.items-table th:nth-child(6), .items-table td:nth-child(6) { width: 12%; min-width: 90px; } /* قیمت واحد */
+.items-table th:nth-child(7), .items-table td:nth-child(7) { width: 20%; min-width: 120px; } /* جمع کل */
+.items-table th:nth-child(8), .items-table td:nth-child(8) { width: 7%; min-width: 60px; } /* تسویه */
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .items-table th:nth-child(1), .items-table td:nth-child(1) { width: 12%; min-width: 60px; }
+  .items-table th:nth-child(2), .items-table td:nth-child(2) { width: 18%; min-width: 80px; }
+  .items-table th:nth-child(3), .items-table td:nth-child(3) { width: 10%; min-width: 50px; }
+  .items-table th:nth-child(4), .items-table td:nth-child(4) { width: 10%; min-width: 50px; }
+  .items-table th:nth-child(5), .items-table td:nth-child(5) { width: 12%; min-width: 60px; }
+  .items-table th:nth-child(6), .items-table td:nth-child(6) { width: 14%; min-width: 70px; }
+  .items-table th:nth-child(7), .items-table td:nth-child(7) { width: 24%; min-width: 100px; }
+  .items-table th:nth-child(8), .items-table td:nth-child(8) { width: 8%; min-width: 50px; }
+}
+</style>
+
 <div class="table-wrapper">
   <h4>فاکتورهای ارسال شده:</h4>
   <table class="items-table">
@@ -47,7 +71,7 @@ It expects a `shipment` object.
         <td>{{ sub_order.package_count|default:"-" }}</td>
         <td>
           <button class="action-button details-button" onclick="toggleDetails('shipment-sub-details-{{ sub_order.id }}')" title="مشاهده جزئیات فاکتور">
-            <i class="bi bi-receipt-cutoff"></i>
+            <i class="bi bi-eye-fill"></i>
           </button>
         </td>
       </tr>
