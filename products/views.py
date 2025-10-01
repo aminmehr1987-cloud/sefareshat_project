@@ -1684,12 +1684,13 @@ def update_order_status(request):
                             # Try to find the original user who created the customer or order
                             user = customer.created_by or User.objects.filter(username=shipment.order.visitor_name).first() or User.objects.filter(is_superuser=True).first()
                             if user:
+                                import jdatetime as jdt
                                 FinancialOperation.objects.create(
                                     operation_type='SALES_INVOICE',
                                     customer=customer,
                                     amount=total_price,
                                     payment_method='credit_sale',
-                                    date=timezone.now().date(),
+                                    date=jdt.date.today(),
                                     description=description,
                                     created_by=user,
                                     status='CONFIRMED',
@@ -8667,6 +8668,117 @@ def finalize_entire_shipment(request):
             shipment.status = 'delivered'
             shipment.delivery_date = timezone.now()
             shipment.save()
+            
+            # ایجاد عملیات مالی فاکتور فروش برای این ارسال (در صورت عدم ایجاد قبلی)
+            try:
+                customer = None
+                description = ""
+                sub_orders_in_shipment = shipment.sub_orders.all()
+                if sub_orders_in_shipment.exists():
+                    customer = sub_orders_in_shipment.first().customer
+                    sub_order_numbers = ", ".join([so.order_number for so in sub_orders_in_shipment])
+                    description = f"فاکتور فروش بابت سفارشات: {sub_order_numbers}"
+                elif getattr(shipment, 'is_backorder', False) and shipment.order:
+                    customer = shipment.order.customer
+                    description = f"فاکتور فروش بابت بک اوردر: {shipment.order.order_number}"
+
+                if customer and description:
+                    from .models import FinancialOperation, User
+                    # بررسی عدم ثبت تکراری
+                    exists = FinancialOperation.objects.filter(
+                        operation_type='SALES_INVOICE',
+                        customer=customer,
+                        description=description
+                    ).exists()
+                    if not exists:
+                        total_price = 0
+                        for shipment_item in shipment.shipmentitem_set.all():
+                            if shipment_item.order_item and shipment_item.order_item.price is not None:
+                                total_price += shipment_item.order_item.price * shipment_item.quantity_shipped
+                        if total_price > 0:
+                            # تعیین کاربر ایجادکننده
+                            user = getattr(customer, 'created_by', None) or getattr(shipment.order, 'created_by', None) or request.user
+                            FinancialOperation.objects.create(
+                                operation_type='SALES_INVOICE',
+                                customer=customer,
+                                amount=total_price,
+                                payment_method='credit_sale',
+                                date=timezone.now().date(),
+                                description=description,
+                                created_by=user,
+                                status='CONFIRMED',
+                                confirmed_by=user,
+                                confirmed_at=timezone.now()
+                            )
+                
+                # ایجاد رکورد فاکتور فروش و آیتم‌ها برای گزارشات پنل حسابداری
+                try:
+                    from .models import SalesInvoice, SalesInvoiceItem
+                    import jdatetime as jdt
+                    
+                    def _generate_sales_invoice_number():
+                        # الگوی SIYYYYMMDDNNN
+                        today = timezone.now()
+                        shamsi = jdt.datetime.fromgregorian(datetime=today).strftime('%Y%m%d')
+                        prefix = f"SI{shamsi}"
+                        last = SalesInvoice.objects.filter(invoice_number__startswith=prefix).order_by('-invoice_number').first()
+                        if last:
+                            try:
+                                last_seq = int(last.invoice_number[-3:])
+                                seq = last_seq + 1
+                            except Exception:
+                                seq = 1
+                        else:
+                            seq = 1
+                        return f"{prefix}{seq:03d}"
+                    
+                    if customer and description:
+                        # عدم ایجاد تکراری بر اساس شرح و مشتری و تاریخ
+                        exists_invoice = SalesInvoice.objects.filter(
+                            customer=customer,
+                            description=description,
+                            invoice_date=jdt.date.today()
+                        ).exists()
+                        if not exists_invoice:
+                            invoice_total = 0
+                            items_to_create = []
+                            for shipment_item in shipment.shipmentitem_set.all():
+                                if shipment_item.order_item and shipment_item.order_item.price is not None and shipment_item.quantity_shipped > 0:
+                                    line_total = shipment_item.order_item.price * shipment_item.quantity_shipped
+                                    invoice_total += line_total
+                                    items_to_create.append({
+                                        'product': shipment_item.order_item.product,
+                                        'quantity': shipment_item.quantity_shipped,
+                                        'price': shipment_item.order_item.price,
+                                        'total': line_total,
+                                        'description': ''
+                                    })
+                            if invoice_total > 0:
+                                inv_number = _generate_sales_invoice_number()
+                                creator = getattr(customer, 'created_by', None) or getattr(shipment.order, 'created_by', None) or request.user
+                                sales_invoice = SalesInvoice.objects.create(
+                                    invoice_number=inv_number,
+                                    invoice_date=jdt.date.today(),
+                                    customer=customer,
+                                    created_by=creator,
+                                    total_amount=invoice_total,
+                                    description=description,
+                                    status='confirmed'
+                                )
+                                for it in items_to_create:
+                                    SalesInvoiceItem.objects.create(
+                                        invoice=sales_invoice,
+                                        product=it['product'],
+                                        quantity=it['quantity'],
+                                        price=it['price'],
+                                        total=it['total'],
+                                        description=it['description']
+                                    )
+                except Exception as e:
+                    logger.error(f"Failed to create SalesInvoice for shipment {shipment.id}: {e}")
+            except Exception as e:
+                # در صورت بروز خطا در ایجاد عملیات مالی، عملیات اصلی را مختل نکن
+                logger.error(f"Failed to create SALES_INVOICE operation for shipment {shipment.id}: {e}")
         
         return JsonResponse({'success': True, 'message': 'کل ارسال با موفقیت نهایی شد'})
         
