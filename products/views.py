@@ -1018,63 +1018,93 @@ def edit_order(request, order_id):
 
     # بررسی اینکه فقط مدیر (is_staff) اجازه دسترسی دارد
     if not request.user.is_authenticated or not request.user.is_staff:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'message': 'شما دسترسی به این صفحه ندارید'
+            })
         messages.error(request, "شما دسترسی به این صفحه ندارید.")
         return redirect('products:product_list')  # یا هر آدرس مناسب دیگر
 
     if order.status != 'pending':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': False,
+                'message': 'تنها سفارشات در انتظار تأیید قابل ویرایش هستند'
+            })
         messages.error(request, "تنها سفارشات در انتظار تأیید قابل ویرایش هستند.")
         return redirect('products:manager_order_list')
 
     if request.method == 'POST':
-        # بروزرسانی آیتم‌های فعلی
-        for item in order.items.all():
-            if request.POST.get(f'delete_{item.id}') == 'true':
-                item.delete()
-                continue
+        try:
+            # بروزرسانی آیتم‌های فعلی
+            for item in order.items.all():
+                if request.POST.get(f'delete_{item.id}') == 'true':
+                    item.delete()
+                    continue
 
-            qty = request.POST.get(f'quantity_{item.id}')
-            price = request.POST.get(f'price_{item.id}')
-            term = request.POST.get(f'payment_term_{item.id}')
+                qty = request.POST.get(f'quantity_{item.id}')
+                price = request.POST.get(f'price_{item.id}')
+                term = request.POST.get(f'payment_term_{item.id}')
 
-            if qty and qty.isdigit():
-                item.requested_quantity = int(qty)
+                if qty and qty.isdigit():
+                    item.requested_quantity = int(qty)
 
-            if price and price.isdigit():
-                item.price = int(price)
+                if price and price.isdigit():
+                    item.price = int(price)
 
-            if term:
-                item.payment_term = term
+                if term:
+                    item.payment_term = term
 
-            item.save()
+                item.save()
 
-        # افزودن کالای جدید در صورت وجود
-        product_id = request.POST.get('new_product_id')
-        quantity = request.POST.get('new_quantity')
-        new_price = request.POST.get('new_price')
-        new_term = request.POST.get('new_payment_term')
+            # افزودن کالای جدید در صورت وجود
+            product_id = request.POST.get('new_product_id')
+            quantity = request.POST.get('new_quantity')
+            new_price = request.POST.get('new_price')
+            new_term = request.POST.get('new_payment_term')
 
-        if product_id and quantity and quantity.isdigit():
-            product = get_object_or_404(Product, id=product_id)
-            quantity = int(quantity)
-            price = int(new_price) if new_price and new_price.isdigit() else product.price
-            payment_term = new_term or 'cash'
+            if product_id and quantity and quantity.isdigit():
+                product = get_object_or_404(Product, id=product_id)
+                quantity = int(quantity)
+                price = int(new_price) if new_price and new_price.isdigit() else product.price
+                payment_term = new_term or 'cash'
 
-            existing = order.items.filter(product=product).first()
-            if existing:
-                existing.requested_quantity += quantity
-                existing.save()
+                existing = order.items.filter(product=product).first()
+                if existing:
+                    existing.requested_quantity += quantity
+                    existing.save()
+                else:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=product,
+                        requested_quantity=quantity,
+                        price=price,
+                        payment_term=payment_term,
+                        warehouse=product.warehouse
+                    )
+
+            # Check if this is an AJAX request
+            if request.headers.get('Content-Type') == 'application/json' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': True,
+                    'message': 'تغییرات سفارش با موفقیت ذخیره شد'
+                })
             else:
-                OrderItem.objects.create(
-                    order=order,
-                    product=product,
-                    requested_quantity=quantity,
-                    price=price,
-                    payment_term=payment_term,
-                    warehouse=product.warehouse
-                )
-
-        messages.success(request, "تغییرات سفارش با موفقیت ذخیره شد.")
-        return redirect('products:manager_order_list')
+                messages.success(request, "تغییرات سفارش با موفقیت ذخیره شد.")
+                return redirect('products:manager_order_list')
+                
+        except Exception as e:
+            # Handle any errors that occur during processing
+            error_message = f'خطا در ذخیره تغییرات: {str(e)}'
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'message': error_message
+                })
+            else:
+                messages.error(request, error_message)
+                return redirect('products:manager_order_list')
 
     # حالت GET: نمایش فرم
     products = Product.objects.all()
@@ -2203,10 +2233,42 @@ def manager_order_list(request):
 
 @login_required
 def read_notification(request, notification_id):
-    notification = get_object_or_404(Notification, id=notification_id, target_user=request.user)
-    if request.method == 'POST':
-        notification.read = True
-        notification.save()
+    if notification_id == 0:
+        # Return all unread notifications as JSON
+        if request.method == 'GET':
+            unread_notifications = Notification.objects.filter(
+                target_user=request.user, 
+                read=False
+            ).order_by('-created_at')
+            
+            notifications_data = []
+            for notification in unread_notifications:
+                notifications_data.append({
+                    'id': notification.id,
+                    'title': notification.title,
+                    'message': notification.message,
+                    'product_title': notification.product_title or '',
+                    'order_number': notification.order_number or '',
+                    'customer_name': notification.customer_name or '',
+                    'created_at': notification.created_at.strftime('%H:%M - %Y/%m/%d')
+                })
+            
+            return JsonResponse({
+                'notifications': notifications_data,
+                'count': len(notifications_data)
+            })
+    else:
+        # Mark specific notification as read
+        notification = get_object_or_404(Notification, id=notification_id, target_user=request.user)
+        if request.method == 'POST':
+            notification.read = True
+            notification.save()
+            
+            if request.headers.get('Content-Type') == 'application/json':
+                return JsonResponse({'success': True})
+            else:
+                return redirect('products:manager_order_list')
+    
     return redirect('products:manager_order_list')
 
 @login_required

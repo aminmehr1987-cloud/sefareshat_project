@@ -490,7 +490,7 @@
     <div id="grandTotal">مجموع کل: 0</div>
 
     <div class="form-actions">
-      <button type="submit">ذخیره تغییرات</button>
+      <button type="submit" id="saveChangesBtn">ذخیره تغییرات</button>
     </div>
   </form>
 </div>
@@ -551,12 +551,76 @@
     });
   }
 
+  // AJAX form submission
+  function submitFormWithAjax(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+    const saveBtn = document.getElementById('saveChangesBtn');
+    
+    // Disable button and show loading state
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'در حال ذخیره...';
+    
+    fetch(form.action || window.location.href, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success notification
+        if (typeof showNotification === 'function') {
+          showNotification(data.message, 'success', 4000);
+        } else {
+          alert(data.message);
+        }
+        
+        // Optionally redirect after a delay
+        setTimeout(() => {
+          window.location.href = '/manager/orders/';
+        }, 2000);
+      } else {
+        // Show error notification
+        if (typeof showNotification === 'function') {
+          showNotification(data.message || 'خطا در ذخیره تغییرات', 'error', 5000);
+        } else {
+          alert(data.message || 'خطا در ذخیره تغییرات');
+        }
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      if (typeof showNotification === 'function') {
+        showNotification('خطا در ارتباط با سرور', 'error', 5000);
+      } else {
+        alert('خطا در ارتباط با سرور');
+      }
+    })
+    .finally(() => {
+      // Re-enable button
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'ذخیره تغییرات';
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     fetchFilteredProducts();
     updateGrandTotal();
     document.querySelectorAll('.quantity-input, .price-input').forEach(input => {
       input.addEventListener('input', () => updateRowTotal(input.closest('tr')));
     });
+    
+    // Add AJAX form submission
+    const form = document.querySelector('form');
+    if (form) {
+      form.addEventListener('submit', submitFormWithAjax);
+    }
   });
 
   document.getElementById('brandFilter').addEventListener('change', fetchFilteredProducts);
@@ -602,7 +666,11 @@
     const maxTerm = selected.dataset.maxterm;
 
     if (!productId || !quantity || !price || !paymentTerm) {
-      alert("لطفاً همه فیلدها را کامل کنید.");
+      if (typeof showNotification === 'function') {
+        showNotification("لطفاً همه فیلدها را کامل کنید", 'warning', 4000);
+      } else {
+        alert("لطفاً همه فیلدها را کامل کنید.");
+      }
       return;
     }
 

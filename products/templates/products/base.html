@@ -986,23 +986,9 @@
     }
 }
 
-    #notification-popup {
-    display: none;
-    position: absolute;
-    min-width: 320px; /* هماهنگ با پروفایل */
-    background: #fff; /* هماهنگ با پروفایل */
-    border-radius: 16px; /* هماهنگ با پروفایل */
-    box-shadow: 0 8px 32px #0002; /* هماهنگ با پروفایل */
-    z-index: 1102; /* z-index اصلی زنگوله حفظ شده */
-    max-height: 400px; /* قابلیت اسکرول حفظ شده */
-    overflow-y: auto; /* قابلیت اسکرول حفظ شده */
-    top: 60px; /* هماهنگ با پروفایل */
-    right: 0; /* هماهنگ با پروفایل */
-    border: 1px solid black; /* هماهنگ با پروفایل */
-}
 
 @media (max-width: 900px) {
-    #profile-popup, #notification-popup {
+    #profile-popup {
         position: fixed !important;
         top: 60px !important;
         left: 50% !important;
@@ -1020,7 +1006,7 @@
 
 
 @media (min-width: 901px) {
-    #profile-popup, #cart-popup, #notification-popup {
+    #profile-popup, #cart-popup {
         position: absolute;
         top: calc(100% + 15px);
         right: auto;
@@ -1194,22 +1180,6 @@
                     <span class="dk-header-cart-badge" style="top: -5px; left: -10px; background-color: #e53935;">{{ unread_notifications|length }}</span>
                 {% endif %}
             </button>
-            <div id="notification-popup"> {# استایل inline حذف شده است #}
-                <div style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">اعلان‌ها</div>
-                {% for notification in unread_notifications %}
-                    <div style="padding: 10px; border-bottom: 1px solid #f5f5f5;">
-                        <strong>{{ notification.title }}</strong><br>
-                        کالای {{ notification.product_title }} از شماره سفارش {{ notification.order_number }} مربوط به مشتری {{ notification.customer_name }} که بک اوردر بوده تامین موجودی شده<br>
-                        <small>{{ notification.created_at|jformat:"%H:%M - %Y/%m/%d" }}</small>
-                        <form method="post" action="{% url 'products:read_notification' notification.id %}" style="margin-top: 5px;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-sm btn-success" style="font-size: 10px; padding: 2px 5px;">خواندم</button>
-                        </form>
-                    </div>
-                {% empty %}
-                    <div style="padding: 10px; text-align: center; color: #888;">هیچ اعلان جدیدی وجود ندارد.</div>
-                {% endfor %}
-            </div>
         </div>
             {% endif %}
             {% endblock header_icons %}
@@ -1362,12 +1332,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (cartPopup && !cartPopup.contains(e.target) && e.target !== cartBtn) {
             cartPopup.style.display = 'none';
         }
-        // Close notification popup when clicking outside
-        const notificationPopup = document.getElementById('notification-popup');
-        const notificationBtn = document.getElementById('notification-icon-btn');
-        if (notificationPopup && !notificationPopup.contains(e.target) && e.target !== notificationBtn && !notificationBtn.contains(e.target)) {
-            notificationPopup.style.display = 'none';
-        }
     });
 
     // --- User info and order history population logic (unchanged from original) ---
@@ -1404,11 +1368,10 @@ if (cartTotalElement) {
     cartTotalElement.innerText = '۱۲,۰۰۰,۰۰۰ ریال';
 }
 
-// Notification popup toggle
+// Notification bell click handler - now shows all notifications as sliding notifications
 const notificationBtn = document.getElementById('notification-icon-btn');
-const notificationPopup = document.getElementById('notification-popup');
 
-if (notificationBtn && notificationPopup) {
+if (notificationBtn) {
     notificationBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         // Close other popups
@@ -1417,9 +1380,76 @@ if (notificationBtn && notificationPopup) {
         if (profilePopup) profilePopup.style.display = 'none';
         if (cartPopup) cartPopup.style.display = 'none';
         
-        notificationPopup.style.display = notificationPopup.style.display === 'block' ? 'none' : 'block';
+        // Display all unread notifications as sliding notifications
+        displayUnreadNotifications();
     });
-    // The general document click listener handles closing when clicking outside
+}
+
+// Function to display unread notifications
+function displayUnreadNotifications() {
+    // Get unread notifications from server
+    fetch('/read_notification/0/', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.notifications && data.notifications.length > 0) {
+            data.notifications.forEach((notification, index) => {
+                setTimeout(() => {
+                    showNotification(
+                        `${notification.title}: کالای ${notification.product_title} از شماره سفارش ${notification.order_number} مربوط به مشتری ${notification.customer_name} که بک اوردر بوده تامین موجودی شده`,
+                        'info',
+                        8000
+                    );
+                    // Auto-mark as read after showing
+                    markNotificationAsRead(notification.id);
+                }, index * 1000); // Stagger notifications by 1 second
+            });
+        } else {
+            showNotification('هیچ اعلان جدیدی وجود ندارد', 'info', 3000);
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching notifications:', error);
+        showNotification('خطا در دریافت اعلان‌ها', 'error', 3000);
+    });
+}
+
+// Function to mark notification as read
+function markNotificationAsRead(notificationId) {
+    fetch(`/read_notification/${notificationId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => {
+        if (response.ok) {
+            // Update notification badge count
+            updateNotificationBadge();
+        }
+    })
+    .catch(error => {
+        console.error('Error marking notification as read:', error);
+    });
+}
+
+// Function to update notification badge count
+function updateNotificationBadge() {
+    const badge = document.querySelector('#notification-icon-container .dk-header-cart-badge');
+    if (badge) {
+        const currentCount = parseInt(badge.textContent) || 0;
+        const newCount = Math.max(0, currentCount - 1);
+        if (newCount === 0) {
+            badge.style.display = 'none';
+        } else {
+            badge.textContent = newCount;
+        }
+    }
 }
 
 // سیستم نوتیفیکیشن
@@ -1585,6 +1615,23 @@ document.addEventListener('DOMContentLoaded', function() {
             container.remove();
         }
     });
+
+    // Auto-display unread notifications for managers on page load
+    {% if user.groups.all.0.name == 'مدیر' and unread_notifications %}
+    setTimeout(function() {
+        {% for notification in unread_notifications %}
+        setTimeout(function() {
+            showNotification(
+                '{{ notification.title }}: کالای {{ notification.product_title }} از شماره سفارش {{ notification.order_number }} مربوط به مشتری {{ notification.customer_name }} که بک اوردر بوده تامین موجودی شده',
+                'info',
+                8000
+            );
+            // Auto-mark as read after showing
+            markNotificationAsRead({{ notification.id }});
+        }, {{ forloop.counter0 }} * 1500); // Stagger notifications by 1.5 seconds
+        {% endfor %}
+    }, 2000); // Wait 2 seconds after page load
+    {% endif %}
 });
 </script>
 </body>

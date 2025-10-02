@@ -1825,7 +1825,7 @@
     if (currentStatus === 'waiting_for_customer_shipment') {
         const courierSelect = document.getElementById(`courier-${orderId}`);
         if (!courierSelect || !courierSelect.value) {
-            alert('لطفاً یک پیک را انتخاب کنید.');
+            showNotification('لطفاً یک پیک را انتخاب کنید', 'warning', 4000);
             return;
         }
         requestData.courier_id = courierSelect.value;
@@ -1842,7 +1842,7 @@
             const deliveredQty = parseInt(deliveredQtyInput.value, 10);
 
             if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > allocatedQty) {
-                alert(`مقدار تحویلی برای کالای ${row.cells[1].innerText} نامعتبر است. باید بین 0 و ${allocatedQty} باشد.`);
+                showNotification(`مقدار تحویلی برای کالای ${row.cells[1].innerText} نامعتبر است. باید بین 0 و ${allocatedQty} باشد.`, 'error', 5000);
                 allQuantitiesValid = false;
             }
             items.push({ id: itemId, delivered_quantity: deliveredQty });
@@ -1871,15 +1871,15 @@
     })
     .then(data => {
       if (data.success) {
-        alert('عملیات با موفقیت انجام شد');
-        location.reload();
+        showNotification('عملیات با موفقیت انجام شد', 'success', 4000);
+        setTimeout(() => location.reload(), 1000);
       } else {
-        alert('خطا: ' + (data.message || 'خطای نامشخص'));
+        showNotification('خطا: ' + (data.message || 'خطای نامشخص'), 'error', 5000);
       }
     })
     .catch(error => {
       console.error('Error:', error);
-      alert('خطا: ' + error.message);
+      showNotification('خطا: ' + error.message, 'error', 5000);
     });
   }
 
@@ -1899,7 +1899,7 @@
           const deliveredQty = parseInt(input.value, 10);
 
           if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > allocatedQty) {
-              alert(`مقدار وارد شده برای یکی از کالاها نامعتبر است. لطفاً عددی بین 0 و ${allocatedQty} وارد کنید.`);
+              showNotification(`مقدار وارد شده برای یکی از کالاها نامعتبر است. لطفاً عددی بین 0 و ${allocatedQty} وارد کنید.`, 'error', 5000);
               input.style.border = '2px solid red';
               isValid = false;
           } else {
@@ -1930,15 +1930,15 @@
       .then(response => response.json())
       .then(data => {
           if (data.success) {
-              alert('ارسال با موفقیت نهایی شد.');
-              location.reload();
+              showNotification('ارسال با موفقیت نهایی شد', 'success', 4000);
+              setTimeout(() => location.reload(), 1000);
           } else {
-              alert('خطا در نهایی‌سازی: ' + (data.message || 'خطای نامشخص'));
+              showNotification('خطا در نهایی‌سازی: ' + (data.message || 'خطای نامشخص'), 'error', 5000);
           }
       })
       .catch(error => {
           console.error('Error:', error);
-          alert('خطای ارتباط با سرور.');
+          showNotification('خطای ارتباط با سرور', 'error', 5000);
       });
   }
 
@@ -2021,12 +2021,12 @@
     const packageCount = document.getElementById(`package_count_${orderId}`).value;
     
     if (!docNumber) {
-        alert('لطفاً شماره سند را وارد کنید');
+        showNotification('لطفاً شماره سند را وارد کنید', 'warning', 4000);
         return;
     }
     
     if (!packageCount || packageCount < 1) {
-        alert('لطفاً تعداد بسته را وارد کنید');
+        showNotification('لطفاً تعداد بسته را وارد کنید', 'warning', 4000);
         return;
     }
 
@@ -2039,7 +2039,7 @@
         const maxQuantity = parseInt(input.getAttribute('max')) || 0;
         
         if (quantity > maxQuantity) {
-            alert(`تعداد تخصیص نمی‌تواند از تعداد مورد نیاز (${maxQuantity}) بیشتر باشد.`);
+            showNotification(`تعداد تخصیص نمی‌تواند از تعداد مورد نیاز (${maxQuantity}) بیشتر باشد.`, 'error', 5000);
             return;
         }
         
@@ -2057,12 +2057,12 @@
     });
 
     if (items.length === 0) {
-        alert('لطفاً حداقل یک مقدار تخصیص وارد کنید.');
+        showNotification('لطفاً حداقل یک مقدار تخصیص وارد کنید', 'warning', 4000);
         return;
     }
 
     if (totalAllocated === 0) {
-        alert('مجموع تخصیص‌ها نمی‌تواند صفر باشد.');
+        showNotification('مجموع تخصیص‌ها نمی‌تواند صفر باشد', 'warning', 4000);
         return;
     }
 
@@ -2082,15 +2082,15 @@
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            alert('تخصیص با موفقیت انجام شد.');
-            location.reload();
+            showNotification('تخصیص با موفقیت انجام شد', 'success', 4000);
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert(result.message || 'خطا در ثبت تخصیص');
+            showNotification(result.message || 'خطا در ثبت تخصیص', 'error', 5000);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('خطا در ارسال اطلاعات تخصیص.');
+        showNotification('خطا در ارسال اطلاعات تخصیص', 'error', 5000);
     });
   }
    
@@ -2103,7 +2103,7 @@
   function sendAllSubOrders(orderId) {
     const courierName = document.getElementById(`courier-${orderId}`).value.trim();
     if (!courierName) {
-      alert("نام پیک را وارد کنید.");
+      showNotification("نام پیک را وارد کنید", 'warning', 4000);
       return;
     }
   
@@ -2122,15 +2122,15 @@
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        alert("همه زیرسفارش‌ها با موفقیت ارسال شدند.");
-        location.reload();
+        showNotification("همه زیرسفارش‌ها با موفقیت ارسال شدند", 'success', 4000);
+        setTimeout(() => location.reload(), 1000);
       } else {
-        alert("خطا در ارسال سفارش‌ها: " + (data.message || "نامشخص"));
+        showNotification("خطا در ارسال سفارش‌ها: " + (data.message || "نامشخص"), 'error', 5000);
       }
     })
     .catch(error => {
       console.error("Error:", error);
-      alert("خطا در ارتباط با سرور.");
+      showNotification("خطا در ارتباط با سرور", 'error', 5000);
     });
   }
 
@@ -2144,7 +2144,7 @@
     var quantity = qtyInput ? parseInt(qtyInput.value, 10) : 0;
 
     if (!quantity || quantity <= 0) {
-      alert('لطفاً یک تعداد معتبر (بزرگتر از صفر) وارد کنید.');
+      showNotification('لطفاً یک تعداد معتبر (بزرگتر از صفر) وارد کنید', 'warning', 4000);
       if (qtyInput) qtyInput.focus();
       return;
     }
@@ -2170,7 +2170,7 @@
     })
     .then(data => {
       if (data.success) {
-        alert('کالا با موفقیت به انبار ارسال شد.');
+        showNotification('کالا با موفقیت به انبار ارسال شد', 'success', 4000);
         
         // حذف ردیف آیتم از جدول
         const itemRow = document.querySelector(`tr[data-item-id="${data.item_id}"]`);
@@ -2188,12 +2188,12 @@
           if (detailsRow) detailsRow.remove();
         }
       } else {
-        alert('خطا: ' + (data.message || 'خطای نامشخص'));
+        showNotification('خطا: ' + (data.message || 'خطای نامشخص'), 'error', 5000);
       }
     })
     .catch(error => {
       console.error('Error:', error);
-      alert('خطا در ارسال کالا به انبار: ' + error.message);
+      showNotification('خطا در ارسال کالا به انبار: ' + error.message, 'error', 5000);
     });
   }
 
@@ -2230,7 +2230,7 @@
     });
 
     if (selectedItems.length === 0) {
-        alert('لطفاً حداقل یک کالا با تعداد مشخص برای ارسال انتخاب کنید.');
+        showNotification('لطفاً حداقل یک کالا با تعداد مشخص برای ارسال انتخاب کنید', 'warning', 4000);
         return;
     }
 
@@ -2252,15 +2252,15 @@
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            alert(result.message || 'موارد با موفقیت به انبار ارسال شدند.');
-            location.reload();
+            showNotification(result.message || 'موارد با موفقیت به انبار ارسال شدند', 'success', 4000);
+            setTimeout(() => location.reload(), 1000);
         } else {
-            alert(result.message || 'خطا در ارسال موارد به انبار.');
+            showNotification(result.message || 'خطا در ارسال موارد به انبار', 'error', 5000);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('خطا در ارتباط با سرور.');
+        showNotification('خطا در ارتباط با سرور', 'error', 5000);
     });
   }
 
@@ -2278,7 +2278,7 @@ const courierName = courierInput ? courierInput.value.trim() : '';
 
 // فقط اگر می‌خواهی سفارش را Delivered کنی، نام پیک را چک کن
 if (currentStatus === 'waiting_for_customer_shipment' && !courierName) {
-  alert('لطفاً نام پیک را وارد کنید.');
+  showNotification('لطفاً نام پیک را وارد کنید', 'warning', 4000);
   courierInput.focus();
   return;
 }
@@ -2298,14 +2298,14 @@ fetch('/api/update-order-status/', {
 .then(response => response.json())
 .then(data => {
   if (data.success) {
-    alert('سفارش با موفقیت ارسال شد.');
-    location.reload();
+    showNotification('سفارش با موفقیت ارسال شد', 'success', 4000);
+    setTimeout(() => location.reload(), 1000);
   } else {
-    alert('خطا: ' + (data.message || 'خطای نامشخص'));
+    showNotification('خطا: ' + (data.message || 'خطای نامشخص'), 'error', 5000);
   }
 })
 .catch(error => {
-  alert('خطا در ارتباط با سرور.');
+  showNotification('خطا در ارتباط با سرور', 'error', 5000);
 });
 }
 
@@ -2323,7 +2323,7 @@ function updateItemTotal(itemId) {
     // Validate delivered quantity against allocated quantity
     if (deliveredQty > maxQty) {
       deliveredQtyInput.value = maxQty;
-      alert(`تعداد تحویلی نمی‌تواند بیشتر از تعداد تخصیص یافته (${maxQty}) باشد.`);
+      showNotification(`تعداد تحویلی نمی‌تواند بیشتر از تعداد تخصیص یافته (${maxQty}) باشد`, 'warning', 4000);
       deliveredQtyInput.style.border = '2px solid red';
       setTimeout(() => {
         deliveredQtyInput.style.border = '';
@@ -2347,7 +2347,7 @@ function finalizeSubOrder(subOrderId, shipmentId) {
   const items = [];
   const detailsContainer = document.getElementById(`shipment-sub-details-${subOrderId}`);
   if (!detailsContainer) {
-    alert('خطا: جزئیات زیرسفارش یافت نشد.');
+    showNotification('خطا: جزئیات زیرسفارش یافت نشد', 'error', 5000);
     return;
   }
   
@@ -2360,7 +2360,7 @@ function finalizeSubOrder(subOrderId, shipmentId) {
     const maxQty = parseInt(normalizeToEnglishDigits(input.max), 10) || 0;
     
     if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > maxQty) {
-      alert(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`);
+      showNotification(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`, 'error', 5000);
       input.style.border = '2px solid red';
       isValid = false;
       return;
@@ -2392,7 +2392,7 @@ function finalizeSubOrder(subOrderId, shipmentId) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      alert('فاکتور با موفقیت نهایی شد.');
+      showNotification('فاکتور با موفقیت نهایی شد', 'success', 4000);
       // به‌جای رفرش، وضعیت زیرسفارش را در DOM به delivered تغییر می‌دهیم
       const statusSpan = document.getElementById(`suborder-status-${subOrderId}`);
       if (statusSpan) {
@@ -2403,12 +2403,12 @@ function finalizeSubOrder(subOrderId, shipmentId) {
       // دکمه نهایی‌سازی ارسال را ارزیابی و در صورت لزوم فعال کنیم
       updateFinalizeShipmentButton(shipmentId);
     } else {
-      alert('خطا در نهایی‌سازی فاکتور: ' + (data.message || 'خطای نامشخص'));
+      showNotification('خطا در نهایی‌سازی فاکتور: ' + (data.message || 'خطای نامشخص'), 'error', 5000);
     }
   })
   .catch(error => {
     console.error('Error:', error);
-    alert('خطا در ارتباط با سرور.');
+    showNotification('خطا در ارتباط با سرور', 'error', 5000);
   });
 }
 
@@ -2421,7 +2421,7 @@ function finalizeEntireShipment(shipmentId) {
   const allItems = [];
   const shipmentContainer = document.getElementById(`details-row-shipped-${shipmentId}`);
   if (!shipmentContainer) {
-    alert('خطا: جزئیات ارسال یافت نشد.');
+    showNotification('خطا: جزئیات ارسال یافت نشد', 'error', 5000);
     return;
   }
   
@@ -2434,7 +2434,7 @@ function finalizeEntireShipment(shipmentId) {
     const maxQty = parseInt(normalizeToEnglishDigits(input.max), 10) || 0;
     
     if (isNaN(deliveredQty) || deliveredQty < 0 || deliveredQty > maxQty) {
-      alert(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`);
+      showNotification(`تعداد تحویلی برای یکی از کالاها نامعتبر است. باید بین 0 و ${maxQty} باشد.`, 'error', 5000);
       input.style.border = '2px solid red';
       isValid = false;
       return;
@@ -2465,15 +2465,15 @@ function finalizeEntireShipment(shipmentId) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      alert('کل ارسال با موفقیت نهایی شد.');
-      location.reload();
+      showNotification('کل ارسال با موفقیت نهایی شد', 'success', 4000);
+      setTimeout(() => location.reload(), 1000);
     } else {
-      alert('خطا در نهایی‌سازی ارسال: ' + (data.message || 'خطای نامشخص'));
+      showNotification('خطا در نهایی‌سازی ارسال: ' + (data.message || 'خطای نامشخص'), 'error', 5000);
     }
   })
   .catch(error => {
     console.error('Error:', error);
-    alert('خطا در ارتباط با سرور.');
+    showNotification('خطا در ارتباط با سرور', 'error', 5000);
   });
 }
 </script>
