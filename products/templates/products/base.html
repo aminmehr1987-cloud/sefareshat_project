@@ -1394,7 +1394,13 @@ function displayUnreadNotifications() {
             'X-CSRFToken': getCookie('csrftoken')
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            return { notifications: [], count: 0 };
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.notifications && data.notifications.length > 0) {
             data.notifications.forEach((notification, index) => {

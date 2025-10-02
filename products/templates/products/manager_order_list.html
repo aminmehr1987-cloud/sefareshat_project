@@ -2011,9 +2011,17 @@
 
 
   window.onload = function () {
-    console.log('Page loaded, selecting first tab');
-    var firstCard = document.querySelector(".tiles-container .tile-card");
-    if (firstCard) firstCard.click();
+    console.log('Page loaded');
+    try {
+      const savedTab = localStorage.getItem('manager_orders_active_tab');
+      if (!savedTab) {
+        var firstCard = document.querySelector(".tiles-container .tile-card");
+        if (firstCard) firstCard.click();
+      }
+    } catch (e) {
+      var firstCard = document.querySelector(".tiles-container .tile-card");
+      if (firstCard) firstCard.click();
+    }
   };
 
   function submitAllocation(orderId) {

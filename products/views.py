@@ -1091,8 +1091,8 @@ def edit_order(request, order_id):
                     'message': 'تغییرات سفارش با موفقیت ذخیره شد'
                 })
             else:
-                messages.success(request, "تغییرات سفارش با موفقیت ذخیره شد.")
-                return redirect('products:manager_order_list')
+                # Redirect back to edit page with a saved flag to trigger in-page notification
+                return redirect(f'/edit-order/{order.id}/?saved=1')
                 
         except Exception as e:
             # Handle any errors that occur during processing
@@ -2100,10 +2100,16 @@ def user_login(request):
 @require_POST
 def logout_view(request):
     logout(request)
+    # Return JSON for AJAX callers to avoid redirect HTML in XHR
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1:
+        return JsonResponse({'success': True, 'redirect': reverse('products:login')})
     return redirect('products:login')
 
 def user_logout(request):
     logout(request)
+    # If AJAX logout, respond with JSON instead of redirect
+    if request.method == 'POST' and (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.headers.get('Accept', '').find('application/json') != -1):
+        return JsonResponse({'success': True, 'redirect': reverse('products:login')})
     return redirect('products:login')
 
 @login_required
@@ -2231,8 +2237,13 @@ def manager_order_list(request):
     }
     return render(request, 'products/manager_order_list.html', context)
 
-@login_required
 def read_notification(request, notification_id):
+    # If user is not authenticated, avoid redirecting HTML to JSON callers
+    if not request.user.is_authenticated:
+        if request.method == 'GET' and notification_id == 0:
+            return JsonResponse({'notifications': [], 'count': 0})
+        # For mark-as-read attempts from anonymous, just return 401 JSON
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
     if notification_id == 0:
         # Return all unread notifications as JSON
         if request.method == 'GET':

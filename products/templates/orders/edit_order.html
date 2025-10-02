@@ -491,6 +491,7 @@
 
     <div class="form-actions">
       <button type="submit" id="saveChangesBtn">ذخیره تغییرات</button>
+      <a href="{% url 'products:manager_order_list' %}" style="display:inline-block; margin-right: 10px; padding: 12px 25px; background-color: #6c757d; border: 1px solid #000000; border-radius: 8px; color: white; text-decoration: none; font-size: 16px;">برگشت به سفارشات</a>
     </div>
   </form>
 </div>
@@ -574,17 +575,11 @@
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        // Show success notification
         if (typeof showNotification === 'function') {
-          showNotification(data.message, 'success', 4000);
+          showNotification(data.message || 'تغییرات سفارش با موفقیت ذخیره شد', 'success', 4000);
         } else {
-          alert(data.message);
+          alert(data.message || 'تغییرات سفارش با موفقیت ذخیره شد');
         }
-        
-        // Optionally redirect after a delay
-        setTimeout(() => {
-          window.location.href = '/manager/orders/';
-        }, 2000);
       } else {
         // Show error notification
         if (typeof showNotification === 'function') {
@@ -621,6 +616,16 @@
     if (form) {
       form.addEventListener('submit', submitFormWithAjax);
     }
+
+    // If redirected after non-AJAX save, show in-page notification
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('saved') === '1' && typeof showNotification === 'function') {
+        showNotification('تغییرات سفارش با موفقیت ذخیره شد', 'success', 4000);
+        url.searchParams.delete('saved');
+        window.history.replaceState({}, document.title, url.pathname + url.search);
+      }
+    } catch (e) {}
   });
 
   document.getElementById('brandFilter').addEventListener('change', fetchFilteredProducts);
