@@ -4471,6 +4471,14 @@ def payment_to_cash_view(request):
     """
     return render(request, 'financial_operations/payment_to_cash.html')
 
+@login_required
+@group_required('حسابداری')
+def invoice_settlement_view(request):
+    """
+    تسویه فاکتورها
+    """
+    return render(request, 'financial_operations/invoice_settlement.html')
+
 # Financial Operations Views
 @login_required
 @group_required('حسابداری')
@@ -6346,27 +6354,19 @@ def financial_dashboard_view(request):
     today_income = sum(op.amount for op in today_cash_operations if op.operation_type in CASH_INCOME_OPS)
     today_expense = sum(op.amount for op in today_cash_operations if op.operation_type in CASH_EXPENSE_OPS)
     
-    # آمار مشتریان - محاسبه از عملیات‌های واقعی
-    all_customer_operations = FinancialOperation.objects.filter(
-        customer__isnull=False,
-        status='CONFIRMED',
-        is_deleted=False
-    )
+    # آمار مشتریان - محاسبه از موجودی واقعی مشتریان
+    customer_balances = CustomerBalance.objects.all()
     
-    # عملیات‌هایی که مشتری بدهکار می‌شود (ما به آنها پرداخت کردیم)
-    debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE']
-    total_paid = all_customer_operations.filter(
-        operation_type__in=debit_ops
-    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    # به‌روزرسانی موجودی همه مشتریان
+    for cb in customer_balances:
+        cb.update_balance()
     
-    # عملیات‌هایی که مشتری بستانکار می‌شود (آنها به ما پرداخت کردند یا چک ما برگشت خورد)
-    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
-    total_received = all_customer_operations.filter(
-        operation_type__in=credit_ops
-    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    # محاسبه مجموع مطلق بدهکاری و بستانکاری با استفاده از aggregate
+    total_debt = customer_balances.aggregate(total=Sum('total_paid'))['total'] or 0  # مجموع بدهکاری‌ها
+    total_credit = customer_balances.aggregate(total=Sum('total_received'))['total'] or 0  # مجموع بستانکاری‌ها
     
-    # کل موجودی = بدهکاری - بستانکاری
-    total_customer_balance = total_paid - total_received
+    # کل موجودی = بدهکاری + بستانکاری (جمع مطلق)
+    total_customer_balance = total_debt + total_credit
     
     # شمارش بدهکاران و بستانکاران
     customer_balances = CustomerBalance.objects.all()

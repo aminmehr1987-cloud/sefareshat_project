@@ -1,0 +1,2904 @@
+{% extends "products/base.html" %}
+
+{% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
+{% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
+
+{% block cart_elements %}{% endblock %}
+
+{% block title %}تسویه فاکتورها{% endblock %}
+
+{% block content %}
+<!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
+<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://unpkg.com/moment/min/moment.min.js"></script>
+<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
+
+<div class="financial-operation-container">
+    <!-- نمایش پیام‌های سیستم -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div class="operation-header">
+        <h2><i class="bi bi-file-earmark-check"></i> تسویه فاکتورها</h2>
+    </div>
+    
+    <!-- باکس سه قسمتی -->
+    <div class="settlement-container">
+        <!-- قسمت بالایی - یک تکه -->
+        <div class="settlement-section top-section">
+            <div class="section-header">
+                <h3><i class="bi bi-cash-stack"></i> مدیریت دریافتی‌ها</h3>
+            </div>
+            <div class="section-content">
+                
+                <div class="payment-input-row">
+                    <div class="payment-type-field">
+                        <label for="payment_type"><i class="bi bi-credit-card"></i> نوع دریافتی:</label>
+                        <select id="payment_type" class="form-control payment-type-select" onchange="handlePaymentTypeChange()">
+                            <option value="">انتخاب نوع دریافتی</option>
+                            <option value="cash">نقدی</option>
+                            <option value="cheque">چک</option>
+                            <option value="pos">دستگاه کارتخوان</option>
+                            <option value="bank_transfer">حواله بانکی</option>
+                        </select>
+                    </div>
+                    
+                    <div class="payment-amount-field" style="display: none;">
+                        <label for="payment_amount"><i class="bi bi-currency-dollar"></i> مبلغ دریافتی:</label>
+                        <input type="text" id="payment_amount" class="form-control amount-input" placeholder="مبلغ دریافتی" oninput="formatAmountInput(this)">
+                    </div>
+                    
+                    <div class="payment-date-field" style="display: none;">
+                        <label for="payment_date"><i class="bi bi-calendar"></i> تاریخ دریافت:</label>
+                        <input type="text" id="payment_date" class="form-control persian-datepicker" placeholder="تاریخ دریافت">
+                    </div>
+                    
+                    <div class="payment-description-field" style="display: none;">
+                        <label for="payment_description"><i class="bi bi-text-paragraph"></i> توضیحات:</label>
+                        <input type="text" id="payment_description" class="form-control" placeholder="توضیحات">
+                    </div>
+                    
+                    <!-- فیلدهای اضافی برای انواع پرداخت -->
+                    <div class="payment-bank-account-field" style="display: none;">
+                        <label for="payment_bank_account"><i class="bi bi-bank"></i> حساب بانکی:</label>
+                        <select id="payment_bank_account" class="form-control">
+                            <option value="">انتخاب حساب بانکی</option>
+                            <option value="bank1">بانک ملی</option>
+                            <option value="bank2">بانک صادرات</option>
+                            <option value="bank3">بانک ملت</option>
+                        </select>
+                    </div>
+                    
+                    <div class="payment-card-reader-field" style="display: none;">
+                        <label for="payment_card_reader"><i class="bi bi-credit-card-2-front"></i> دستگاه کارتخوان:</label>
+                        <select id="payment_card_reader" class="form-control">
+                            <option value="">انتخاب دستگاه کارتخوان</option>
+                            <option value="device1">دستگاه کارتخوان 1</option>
+                            <option value="device2">دستگاه کارتخوان 2</option>
+                            <option value="device3">دستگاه کارتخوان 3</option>
+                        </select>
+                    </div>
+                    
+                    
+                    <div class="payment-actions" style="display: none;">
+                        <button type="button" class="btn btn-success" onclick="addPaymentFromInputs()">
+                            <i class="bi bi-plus-circle"></i> افزودن
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- عناوین جدول ردیف‌های دریافتی -->
+                <div class="payment-table-headers" style="display: none;">
+                    <div class="table-header-field" style="flex: 0 0 10.8%;">نوع دریافتی</div>
+                    <div class="table-header-field" style="flex: 0 0 10.8%;">مبلغ دریافتی</div>
+                    <div class="table-header-field" style="flex: 0 0 10.8%;">تاریخ دریافت</div>
+                    <div class="table-header-field" id="table-additional-header-1" style="display: none; flex: 0 0 10.8%;">حساب بانکی</div>
+                    <div class="table-header-field" id="table-additional-header-2" style="display: none; flex: 0 0 10.8%;">دستگاه کارتخوان</div>
+                    <div class="table-header-field" id="table-cheque-header-1" style="display: none; flex: 0 0 10.8%;">تاریخ سررسید</div>
+                    <div class="table-header-field" id="table-cheque-header-2" style="display: none; flex: 0 0 10.8%;">نام بانک</div>
+                    <div class="table-header-field" id="table-cheque-header-3" style="display: none; flex: 0 0 10.8%;">سریال چک</div>
+                    <div class="table-header-field" id="table-cheque-header-4" style="display: none; flex: 0 0 10.8%;">شماره حساب</div>
+                    <div class="table-header-field" style="flex: 0 0 10.8%;">توضیحات</div>
+                    <div class="table-header-field" style="flex: 0 0 8%;">عملیات</div>
+                </div>
+                
+                <div id="payment_rows_container" class="payment-rows-container" style="display: none;">
+                    <!-- ردیف‌های دریافتی اینجا اضافه خواهند شد -->
+                </div>
+            </div>
+        </div>
+
+        <!-- قسمت پایینی - دو قسمت -->
+        <div class="settlement-bottom-row">
+            <!-- قسمت پایینی چپ - مشتریان و مبالغ دریافتی -->
+            <div class="settlement-section bottom-section">
+                <div class="section-header">
+                    <h3><i class="bi bi-people"></i> مشتریان و مبالغ دریافتی</h3>
+                </div>
+                <div class="section-content">
+                    <div class="customer-payments-table">
+                        <table class="table" id="customer_payments_table">
+                            <thead>
+                                <tr>
+                                    <th>نام مشتری</th>
+                                    <th>مبلغ دریافتی</th>
+                                    <th>عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customer_payments_tbody">
+                                <tr class="no-data-row">
+                                    <td colspan="3" class="text-center text-muted">
+                                        ابتدا نوع دریافتی را انتخاب کنید
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <div class="add-customer-row" style="display: none;">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="openCustomerSelectionModal()">
+                                <i class="bi bi-plus-circle"></i> افزودن مشتری
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قسمت پایینی راست - تسویه فاکتورها -->
+            <div class="settlement-section bottom-section">
+                <div class="section-header">
+                    <h3><i class="bi bi-file-earmark-check"></i> تسویه فاکتورها</h3>
+                </div>
+                <div class="section-content">
+                    <div class="invoice-settlement-table">
+                        <table class="table" id="invoice_settlement_table">
+                            <thead>
+                                <tr>
+                                    <th>شماره فاکتور</th>
+                                    <th>مبلغ تسویه</th>
+                                    <th>عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoice_settlement_tbody">
+                                <tr class="no-data-row">
+                                    <td colspan="3" class="text-center text-muted">
+                                        ابتدا مشتری را انتخاب کنید
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <div class="add-invoice-row" style="display: none;">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="openInvoiceSelectionModal()">
+                                <i class="bi bi-plus-circle"></i> انتخاب فاکتور
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Selection Modal -->
+<div id="customerModal" class="customer-modal">
+    <div class="customer-modal-content">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">انتخاب مشتری</span>
+            <span class="close-modal" onclick="closeCustomerModal()">×</span>
+        </div>
+        <input type="text" id="customerSearch" class="customer-search-box" placeholder="جستجوی مشتری بر اساس نام..." onkeyup="searchCustomers()">
+        <div class="customers-table-wrapper">
+            <table class="customers-table">
+                <thead>
+                    <tr>
+                        <th>نام</th>
+                        <th>نام خانوادگی</th>
+                        <th>فروشگاه</th>
+                        <th>موبایل</th>
+                        <th>تلفن</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="customerList">
+                    <!-- Customer rows will be populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Invoice Selection Modal -->
+<div id="invoiceModal" class="customer-modal">
+    <div class="customer-modal-content">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">انتخاب فاکتور</span>
+            <span class="close-modal" onclick="closeInvoiceModal()">×</span>
+        </div>
+        <div class="invoice-modal-content">
+            <div class="customer-info">
+                <h4 id="selected_customer_name">مشتری انتخاب شده</h4>
+            </div>
+            <div class="invoices-table-wrapper">
+                <table class="invoices-table">
+                    <thead>
+                        <tr>
+                            <th>شماره فاکتور</th>
+                            <th>تاریخ</th>
+                            <th>مبلغ کل</th>
+                            <th>مبلغ تسویه شده</th>
+                            <th>مبلغ باقی‌مانده</th>
+                            <th>انتخاب</th>
+                        </tr>
+                    </thead>
+                    <tbody id="invoicesList">
+                        <!-- Invoice rows will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cheque Details Modal -->
+<div id="chequeModal" class="customer-modal">
+    <div class="customer-modal-content" style="max-width: 1050px; width: 100%; overflow-x: hidden;">
+        <div class="customer-modal-header">
+            <span class="customer-modal-title">مشخصات چک‌های دریافتی</span>
+            <span class="close-modal" onclick="closeChequeModal()">×</span>
+        </div>
+        <div id="cheque-form-container">
+            <table class="cheque-table">
+                <thead>
+                    <tr>
+                        <th style="width: 65px;">پشت نمره</th>
+                        <th style="width: 95px;">تاریخ سررسید</th>
+                        <th style="width: 100px;">نام بانک</th>
+                        <th style="width: 95px;">نام شعبه</th>
+                        <th style="width: 65px;">سری چک</th>
+                        <th style="width: 85px;">سریال چک</th>
+                        <th style="width: 125px;">شناسه صیادی</th>
+                        <th style="width: 100px;">مبلغ</th>
+                        <th style="width: 110px;">صاحب حساب</th>
+                        <th style="width: 85px;">کدملی</th>
+                        <th style="width: 110px;">شماره حساب</th>
+                        <th style="width: 45px;">حذف</th>
+                    </tr>
+                </thead>
+                <tbody id="cheque-list-body">
+                    <!-- Rows will be added here dynamically by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div class="cheque-summary">
+            <div class="summary-box">
+                <label>راس چک:</label>
+                <input type="text" id="averageDueDateBox" class="form-control" readonly>
+            </div>
+            <div class="summary-box">
+                <label>مجموع کل چک‌ها</label>
+                <input type="text" id="totalChequeAmountBox" class="form-control" readonly>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn btn-primary" onclick="saveAllCheques()">ثبت اطلاعات چک‌ها</button>
+            <button type="button" class="btn btn-secondary" onclick="closeChequeModal()">بستن</button>
+        </div>
+    </div>
+</div>
+
+<style>
+@font-face {
+    font-family: 'BHoma';
+    src: url('/static/fonts/BHoma.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: 'Vazirmatn Local';
+    src: url('/static/fonts/Vazir.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+.financial-operation-container {
+    width: 99%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: 'BHoma', sans-serif;
+}
+
+.operation-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.operation-header h2 {
+    color: #2c3e50;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.operation-header h2 i {
+    color: #fd7e14;
+}
+
+/* باکس سه قسمتی */
+.settlement-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.settlement-section {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+}
+
+.top-section {
+    width: 100%;
+}
+
+.section-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.6rem 0.8rem;
+    border-radius: 15px 15px 0 0;
+    margin-bottom: 0;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.section-content {
+    padding: 0.8rem;
+    background: white;
+    border-radius: 0 0 15px 15px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.settlement-bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+.bottom-section {
+    width: 100%;
+}
+
+.section-header {
+    background: linear-gradient(135deg, #fd7e14, #e55a00);
+    color: white;
+    padding: 1rem 1.5rem;
+    margin: 0;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.section-content {
+    padding: 1.5rem;
+}
+
+.invoices-list {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.no-customer-selected {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem;
+}
+
+.no-customer-selected i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #d1d5db;
+}
+
+.no-customer-selected p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.loading-invoices {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem;
+}
+
+.loading-invoices i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #fd7e14;
+    animation: spin 1s linear infinite;
+}
+
+.loading-invoices p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.invoices-table {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.invoices-table .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.invoices-table .table th,
+.invoices-table .table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.invoices-table .table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #374151;
+}
+
+.invoices-table .table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.375rem;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 0.25rem;
+}
+
+/* استایل‌های جدید برای سیستم تسویه */
+.payment-input-row {
+    display: flex;
+    gap: 0.3rem;
+    align-items: end;
+    margin-bottom: 0.4rem;
+    flex-wrap: nowrap;
+    width: 100%;
+}
+
+.payment-type-field {
+    flex: 0 0 120px;
+    min-width: 120px;
+}
+
+.payment-amount-field,
+.payment-date-field,
+.payment-description-field,
+.payment-bank-account-field,
+.payment-card-reader-field {
+    flex: 0 0 140px;
+    min-width: 140px;
+}
+
+.payment-actions {
+    flex: 0 0 auto;
+}
+
+.payment-actions .btn {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.8rem;
+}
+
+.payment-input-row label {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.75rem;
+}
+
+.payment-amount-field label,
+.payment-date-field label,
+.payment-description-field label,
+.payment-bank-account-field label,
+.payment-card-reader-field label {
+    font-size: 0.55rem;
+    margin-bottom: 0.05rem;
+}
+
+.payment-amount-field input,
+.payment-date-field input,
+.payment-description-field input,
+.payment-bank-account-field select,
+.payment-card-reader-field select {
+    padding: 0.15rem 0.2rem;
+    font-size: 0.65rem;
+}
+
+.payment-type-select {
+    width: 100%;
+    min-width: 80px;
+}
+
+/* استایل دکمه‌های آیکن */
+.icon-btn {
+    padding: 0.08rem 0.12rem !important;
+    min-width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+    font-size: 0.75rem;
+}
+
+.icon-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.icon-btn i {
+    font-size: 0.7rem;
+    margin: 0;
+}
+
+.icon-btn.btn-success {
+    background-color: #10b981;
+    border-color: #10b981;
+}
+
+.icon-btn.btn-success:hover {
+    background-color: #059669;
+    border-color: #059669;
+}
+
+.icon-btn.btn-danger {
+    background-color: #ef4444;
+    border-color: #ef4444;
+}
+
+.icon-btn.btn-danger:hover {
+    background-color: #dc2626;
+    border-color: #dc2626;
+}
+
+.icon-btn.btn-primary {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+}
+
+.icon-btn.btn-primary:hover {
+    background-color: #2563eb;
+    border-color: #2563eb;
+}
+
+.payment-rows-container {
+    margin-bottom: 1rem;
+    overflow-y: auto;
+    overflow-x: visible;
+    width: 98%;
+    max-height: 150px;
+    padding: 0 0.2rem 0 0.2rem;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+}
+
+/* استایل‌های قدیمی حذف شدند */
+
+.payment-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.payment-row-title {
+    font-weight: 600;
+    color: #374151;
+}
+
+.payment-row-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+/* استایل‌های قدیمی حذف شدند */
+
+.payment-row-actions {
+    position: absolute;
+    right: 0.1rem;
+    top: 100%;
+    transform: translateY(0.2rem);
+    display: flex;
+    gap: 0.1rem;
+    align-items: center;
+    z-index: 15;
+}
+
+/* استایل‌های قدیمی حذف شدند */
+
+/* استایل‌های قدیمی حذف شدند */
+
+
+/* استایل‌های عناوین جدول */
+.payment-table-headers {
+    display: flex;
+    gap: 0.08rem;
+    margin-bottom: 0.3rem;
+    padding: 0.15rem;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #e9ecef;
+}
+
+.table-header-field {
+    font-size: 0.6rem;
+    font-weight: bold;
+    color: #495057;
+    text-align: center;
+    padding: 0.15rem 0.1rem;
+    background-color: #e9ecef;
+    border-radius: 3px;
+    border: 1px solid #dee2e6;
+    box-sizing: border-box;
+}
+
+/* استایل‌های عناوین چک در جدول */
+.table-cheque-header-row {
+    display: flex;
+    gap: 0.05rem;
+}
+
+.table-cheque-header-field {
+    flex: 1;
+    font-size: 0.5rem;
+    font-weight: bold;
+    color: #495057;
+    text-align: center;
+    padding: 0.1rem 0.05rem;
+    background-color: #e9ecef;
+    border-radius: 2px;
+    border: 1px solid #dee2e6;
+    box-sizing: border-box;
+}
+
+
+
+
+.payment-row .form-group input {
+    padding: 0.03rem 0.05rem;
+    font-size: 0.65rem;
+    border: 1px solid #d1d5db;
+    border-radius: 2px;
+    height: 18px;
+    width: 65px;
+    max-width: 65px;
+    box-sizing: border-box;
+}
+
+/* استایل‌های متن بدون باکس */
+.payment-value {
+    display: block;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.7rem;
+    color: #374151;
+    text-align: center;
+    background-color: transparent;
+    border: none;
+    min-height: 20px;
+    line-height: 1.3;
+    font-weight: 500;
+}
+
+/* استایل‌های جدول ساده */
+.payment-rows-container {
+    background: transparent;
+    border: none;
+    overflow: visible;
+}
+
+.payment-row {
+    border: none;
+    transition: background-color 0.2s ease;
+    background: transparent;
+    width: 100%;
+    position: relative;
+    overflow: visible;
+    margin-bottom: 2rem;
+}
+
+.payment-row:last-child {
+    border: none;
+}
+
+.payment-row:hover {
+    background-color: #f9fafb;
+}
+
+.payment-row.active {
+    background-color: #eff6ff;
+    border-left: 3px solid #3b82f6;
+}
+
+.payment-row-content {
+    display: flex;
+    align-items: center;
+    padding: 0.2rem 0;
+    gap: 0;
+    position: relative;
+    width: 100%;
+}
+
+.payment-row .form-group {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    flex: 0 0 100px;
+    margin: 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+/* تنظیم عرض فیلدها برای مجموع 98% باکس اصلی */
+.payment-row .form-group:nth-child(1) {
+    flex: 0 0 10.8%; /* نوع دریافتی */
+}
+
+.payment-row .form-group:nth-child(2) {
+    flex: 0 0 10.8%; /* مبلغ دریافتی */
+}
+
+.payment-row .form-group:nth-child(3) {
+    flex: 0 0 10.8%; /* تاریخ دریافت */
+}
+
+.payment-row .form-group:nth-child(4) {
+    flex: 0 0 10.8%; /* حساب بانکی */
+}
+
+.payment-row .form-group:nth-child(5) {
+    flex: 0 0 10.8%; /* دستگاه کارتخوان */
+}
+
+.payment-row .form-group:nth-child(6) {
+    flex: 0 0 10.8%; /* تاریخ سررسید */
+}
+
+.payment-row .form-group:nth-child(7) {
+    flex: 0 0 10.8%; /* نام بانک */
+}
+
+.payment-row .form-group:nth-child(8) {
+    flex: 0 0 10.8%; /* سریال چک */
+}
+
+.payment-row .form-group:nth-child(9) {
+    flex: 0 0 10.8%; /* شماره حساب */
+}
+
+.payment-row .form-group:nth-child(10) {
+    flex: 0 0 10.8%; /* توضیحات */
+}
+
+.payment-row .form-group:nth-child(11) {
+    flex: 0 0 8%; /* عملیات */
+}
+
+/* استایل‌های عناوین جدول ساده */
+.payment-table-headers {
+    background: transparent;
+    color: #374151;
+    border: none;
+    padding: 0.2rem 0.2rem 0.2rem 0.2rem;
+    margin-bottom: 0;
+    width: 98%;
+}
+
+.table-header-field {
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-align: center;
+    padding: 0.2rem 0.3rem;
+    background: transparent;
+    color: #374151;
+}
+
+/* استایل‌های حذف شدند - فیلدهای چک جداگانه شدند */
+
+.payment-row.finalized {
+    background: #d1fae5;
+    border-color: #10b981;
+}
+
+.payment-row.finalized .payment-row-title::after {
+    content: " ✓ نهایی شده";
+    color: #10b981;
+    font-weight: 600;
+}
+
+.payment-row.active {
+    background: #dbeafe;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.payment-row.active::before {
+    content: "●";
+    color: #3b82f6;
+    font-weight: bold;
+    position: absolute;
+    right: 0.1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.8rem;
+    z-index: 5;
+}
+
+.invoice-settlement-table,
+.customer-payments-table {
+    width: 100%;
+}
+
+.invoice-settlement-table .table,
+.customer-payments-table .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.invoice-settlement-table .table th,
+.invoice-settlement-table .table td,
+.customer-payments-table .table th,
+.customer-payments-table .table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.invoice-settlement-table .table th,
+.customer-payments-table .table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #374151;
+}
+
+.invoice-settlement-table .table tbody tr:hover,
+.customer-payments-table .table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.no-data-row td {
+    padding: 2rem !important;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.add-invoice-row,
+.add-customer-row {
+    margin-top: 1rem;
+    text-align: center;
+}
+
+.customer-info {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.customer-info h4 {
+    margin: 0;
+    color: #374151;
+    font-weight: 600;
+}
+
+.invoices-table-wrapper {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.invoices-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.invoices-table th,
+.invoices-table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.invoices-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #374151;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.invoices-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.invoice-row.selected {
+    background-color: #dbeafe;
+}
+
+.amount-input {
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.amount-input:focus {
+    outline: none;
+    border-color: #fd7e14;
+    box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.1);
+}
+
+.validation-summary {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+}
+
+.validation-summary.show {
+    display: block;
+}
+
+.validation-summary.error {
+    background: #fef2f2;
+    border-color: #ef4444;
+}
+
+.validation-summary.success {
+    background: #f0fdf4;
+    border-color: #10b981;
+}
+
+.validation-summary h5 {
+    margin: 0 0 0.5rem 0;
+    font-weight: 600;
+}
+
+.validation-summary.error h5 {
+    color: #dc2626;
+}
+
+.validation-summary.success h5 {
+    color: #059669;
+}
+
+.validation-summary p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* استایل‌های جدول چک */
+.cheque-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    table-layout: auto;
+}
+
+.cheque-table th, 
+.cheque-table td {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.cheque-table th {
+    background-color: #f8f9fa;
+}
+
+.cheque-table .form-control {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.375rem;
+    text-overflow: ellipsis;
+    min-height: 32px;
+}
+
+.cheque-summary {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.summary-box {
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+}
+
+.summary-box label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+
+.summary-box input {
+    font-weight: bold;
+    color: #1d4ed8;
+}
+
+/* Responsive styles for payment row content */
+@media (max-width: 768px) {
+    .payment-input-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .payment-type-field,
+    .payment-amount-field,
+    .payment-date-field,
+    .payment-description-field {
+        flex: none;
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .payment-input-row {
+        gap: 0.1rem;
+    }
+    
+    .payment-rows-container {
+        max-height: 120px;
+        width: 100%;
+        padding: 0;
+    }
+    
+    .payment-table-headers {
+        width: 100%;
+        padding: 0.2rem 0;
+    }
+    
+    .payment-amount-field,
+    .payment-date-field,
+    .payment-description-field {
+        flex: none;
+        min-width: auto;
+    }
+    
+    .payment-row-content {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+    
+    .payment-row-content .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .payment-row-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .payment-row-actions {
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .payment-row {
+        padding: 0.03rem;
+    }
+    
+    .payment-row-content {
+        flex-direction: column;
+        gap: 0.3rem;
+        align-items: stretch;
+    }
+    
+    .payment-row .form-group {
+        flex: none;
+        width: 100%;
+        margin-right: 0 !important;
+    }
+    
+    .payment-row .form-group:nth-child(11) {
+        flex: none;
+        width: 100%;
+        margin-right: 0 !important;
+    }
+    
+    .payment-row .form-group input {
+        width: 100%;
+        max-width: none;
+    }
+    
+    .payment-row-actions {
+        position: absolute;
+        right: 0.1rem;
+        top: 100%;
+        transform: translateY(0.2rem);
+        justify-content: center;
+        margin-top: 0;
+        margin-left: 0;
+        z-index: 15;
+    }
+    
+    .payment-row.active::before {
+        display: none;
+    }
+    
+    .icon-btn {
+        min-width: 18px;
+        height: 18px;
+        padding: 0.06rem !important;
+    }
+    
+    .icon-btn i {
+        font-size: 0.65rem;
+    }
+}
+
+.operation-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+}
+
+.form-group label i {
+    color: #fd7e14;
+}
+
+.form-control {
+    padding: 0.375rem 1rem;
+    line-height: 1.5;
+    font-size: 1rem;
+    height: 38px !important;
+    box-sizing: border-box;
+    font-family: 'BHoma', sans-serif;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    width: 100%;
+    vertical-align: middle;
+    background-color: #f9fafb;
+    transition: all 0.3s ease;
+}
+
+.form-control[readonly] {
+    background-color: #ffffff;
+    cursor: pointer;
+    height: 38px !important;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #fd7e14;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(253, 126, 20, 0.1);
+}
+
+.form-control::placeholder {
+    color: #9ca3af;
+}
+
+textarea.form-control {
+    height: auto !important;
+    resize: vertical;
+}
+
+.customer-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.customer-input-group .form-control {
+    flex: 1;
+}
+
+.customer-select-btn {
+    padding: 0.375rem 0.75rem;
+    height: 38px;
+    border: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    color: #6b7280;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.customer-select-btn:hover {
+    background-color: #fd7e14;
+    color: white;
+    border-color: #fd7e14;
+}
+
+/* Customer Modal Styles */
+.customer-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.customer-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 800px;
+    border-radius: 15px;
+    position: relative;
+    direction: rtl;
+}
+
+.customer-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.customer-modal-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.close-modal {
+    color: #aaa;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-modal:hover {
+    color: #000;
+}
+
+.customer-search-box {
+    width: 80%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-right: 20px;
+    float: right;
+}
+
+.customers-table-wrapper {
+    max-height: calc(56px * 5);
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid #eee;
+    border-radius: 10px;
+}
+
+.customers-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.customers-table th,
+.customers-table td {
+    padding: 12px;
+    text-align: right;
+    border-bottom: 1px solid #ddd;
+}
+
+.customers-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+.customers-table tr:hover {
+    background-color: #f9f9f9;
+    cursor: pointer;
+}
+
+.select-customer-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #fd7e14, #e55a00);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #e55a00, #cc4a00);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(253, 126, 20, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #4b5563, #374151);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(107, 114, 128, 0.4);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .financial-operation-container {
+        padding: 1rem;
+        width: 100%;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .settlement-bottom-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .section-content {
+        padding: 1rem;
+    }
+    
+    .section-header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .section-header h3 {
+        font-size: 1rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .customer-modal-content {
+        width: 95%;
+        margin: 10% auto;
+        padding: 15px;
+    }
+    
+    .customer-search-box {
+        width: 100%;
+        margin-right: 0;
+        float: none;
+    }
+    
+    .customers-table-wrapper {
+        max-height: calc(56px * 4);
+    }
+    
+    .customers-table th,
+    .customers-table td {
+        padding: 8px 6px;
+        font-size: 0.9rem;
+    }
+    
+    .invoices-list {
+        min-height: 150px;
+    }
+    
+    .no-customer-selected {
+        padding: 1rem;
+    }
+    
+    .no-customer-selected i {
+        font-size: 2rem;
+    }
+    
+    .no-customer-selected p {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .financial-operation-container {
+        padding: 0.5rem;
+    }
+    
+    .operation-header h2 {
+        font-size: 1.3rem;
+    }
+    
+    .section-content {
+        padding: 0.75rem;
+    }
+    
+    .section-header {
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .section-header h3 {
+        font-size: 0.9rem;
+    }
+    
+    .form-control {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .customer-modal-content {
+        width: 98%;
+        margin: 5% auto;
+        padding: 10px;
+    }
+    
+    .customers-table-wrapper {
+        max-height: calc(56px * 3);
+    }
+    
+    .customers-table th,
+    .customers-table td {
+        padding: 6px 4px;
+        font-size: 0.8rem;
+    }
+    
+    .customer-search-box {
+        font-size: 0.9rem;
+        padding: 8px;
+    }
+    
+    .invoices-list {
+        min-height: 120px;
+    }
+    
+    .no-customer-selected {
+        padding: 0.75rem;
+    }
+    
+    .no-customer-selected i {
+        font-size: 1.5rem;
+    }
+    
+    .no-customer-selected p {
+        font-size: 0.8rem;
+    }
+}
+</style>
+
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<!-- Persian Datepicker Script -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
+<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Persian Datepicker initialization
+    $(".persian-datepicker").pDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValueType: 'persian',
+        autoClose: true,
+        persianDigit: true,
+        observer: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        onSelect: function(unix) {
+            var m = moment(unix);
+            var shamsiDate = m.format('jYYYY/jMM/jDD');
+            
+            $(this).val(shamsiDate);
+        },
+        toolbox: {
+            calendarSwitch: {
+                enabled: false
+            }
+        },
+        initialValue: true,
+        altField: '#date-alt',
+        altFormat: 'YYYY-MM-DD'
+    });
+    
+    // Initialize customer modal functionality
+    initializeCustomerModal();
+
+    // Check customer selection on page load to enable/disable submit button
+    checkCustomerSelection();
+
+    // Amount Field Formatting
+    const amountInput = $('#id_amount');
+    
+    amountInput.attr('type', 'text');
+    amountInput.attr('inputmode', 'numeric');
+
+    if (amountInput.val()) {
+        formatAmountInput(amountInput.get(0));
+    }
+
+    amountInput.on('input', function() {
+        formatAmountInput(this);
+    });
+});
+
+function checkCustomerSelection() {
+    const customerId = document.getElementById('id_customer').value;
+    const submitBtn = document.getElementById('submit-operation-btn');
+    if (customerId) {
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.disabled = true;
+    }
+}
+
+// متغیرهای global
+let customers = [];
+let selectedCustomer = null;
+let currentPaymentType = '';
+let paymentRows = [];
+let customerPayments = [];
+let invoiceSettlements = [];
+let currentCustomerForInvoice = null;
+let activePaymentRowId = null;
+
+// تابع تغییر نوع دریافتی
+function handlePaymentTypeChange() {
+    const paymentType = document.getElementById('payment_type').value;
+    currentPaymentType = paymentType;
+    
+    const paymentAmountField = document.querySelector('.payment-amount-field');
+    const paymentDateField = document.querySelector('.payment-date-field');
+    const paymentDescriptionField = document.querySelector('.payment-description-field');
+    const paymentBankAccountField = document.querySelector('.payment-bank-account-field');
+    const paymentCardReaderField = document.querySelector('.payment-card-reader-field');
+    const paymentActions = document.querySelector('.payment-actions');
+    const paymentRowsContainer = document.getElementById('payment_rows_container');
+    const addCustomerRow = document.querySelector('.add-customer-row');
+    const addInvoiceRow = document.querySelector('.add-invoice-row');
+    
+    if (paymentType) {
+        // نمایش فیلدهای اصلی
+        paymentAmountField.style.display = 'block';
+        paymentDateField.style.display = 'block';
+        paymentDescriptionField.style.display = 'block';
+        paymentActions.style.display = 'block';
+        
+        // مخفی کردن فیلدهای اضافی
+        paymentBankAccountField.style.display = 'none';
+        paymentCardReaderField.style.display = 'none';
+        
+        // نمایش فیلدهای خاص بر اساس نوع پرداخت
+        if (paymentType === 'bank_transfer') {
+            paymentBankAccountField.style.display = 'block';
+        } else if (paymentType === 'pos') {
+            paymentCardReaderField.style.display = 'block';
+        }
+        
+        // نمایش عناوین جدول
+        const paymentTableHeaders = document.querySelector('.payment-table-headers');
+        paymentTableHeaders.style.display = 'flex';
+        
+        // مخفی کردن عناوین اضافی جدول
+        document.getElementById('table-additional-header-1').style.display = 'none';
+        document.getElementById('table-additional-header-2').style.display = 'none';
+        document.getElementById('table-cheque-header-1').style.display = 'none';
+        document.getElementById('table-cheque-header-2').style.display = 'none';
+        document.getElementById('table-cheque-header-3').style.display = 'none';
+        document.getElementById('table-cheque-header-4').style.display = 'none';
+        
+        // نمایش عناوین خاص بر اساس نوع پرداخت
+        if (paymentType === 'bank_transfer') {
+            document.getElementById('table-additional-header-1').style.display = 'block';
+        } else if (paymentType === 'pos') {
+            document.getElementById('table-additional-header-2').style.display = 'block';
+        } else if (paymentType === 'cheque') {
+            document.getElementById('table-cheque-header-1').style.display = 'block';
+            document.getElementById('table-cheque-header-2').style.display = 'block';
+            document.getElementById('table-cheque-header-3').style.display = 'block';
+            document.getElementById('table-cheque-header-4').style.display = 'block';
+        } else if (paymentType === 'cash') {
+            // برای نقدی، عناوین چک را نمایش می‌دهیم اما خالی
+            document.getElementById('table-cheque-header-1').style.display = 'block';
+            document.getElementById('table-cheque-header-2').style.display = 'block';
+            document.getElementById('table-cheque-header-3').style.display = 'block';
+            document.getElementById('table-cheque-header-4').style.display = 'block';
+        }
+        
+        // نمایش جداول
+        paymentRowsContainer.style.display = 'block';
+        addCustomerRow.style.display = 'block';
+        
+        // پاک کردن داده‌های قبلی
+        paymentRows = [];
+        customerPayments = [];
+        invoiceSettlements = [];
+        
+        // پاک کردن جداول
+        clearTables();
+        
+        // Initialize datepicker
+        $('#payment_date').pDatepicker({
+            format: 'YYYY/MM/DD',
+            initialValueType: 'persian',
+            autoClose: true,
+            persianDigit: true,
+            observer: true,
+            calendar: {
+                persian: {
+                    locale: 'fa'
+                }
+            },
+            onSelect: function(unix) {
+                var m = moment(unix);
+                var shamsiDate = m.format('jYYYY/jMM/jDD');
+                $(this).val(shamsiDate);
+            },
+            toolbox: {
+                calendarSwitch: {
+                    enabled: false
+                }
+            },
+            initialValue: true
+        });
+    } else {
+        // مخفی کردن عناوین جدول
+        const paymentTableHeaders = document.querySelector('.payment-table-headers');
+        paymentTableHeaders.style.display = 'none';
+        
+        // مخفی کردن تمام فیلدهای ورودی
+        paymentAmountField.style.display = 'none';
+        paymentDateField.style.display = 'none';
+        paymentDescriptionField.style.display = 'none';
+        paymentBankAccountField.style.display = 'none';
+        paymentCardReaderField.style.display = 'none';
+        paymentActions.style.display = 'none';
+        
+        // مخفی کردن جداول
+        paymentRowsContainer.style.display = 'none';
+        addCustomerRow.style.display = 'none';
+        addInvoiceRow.style.display = 'none';
+        clearTables();
+    }
+}
+
+// تابع افزودن دریافتی از فیلدهای ورودی
+function addPaymentFromInputs() {
+    const paymentType = document.getElementById('payment_type').value;
+    const amount = document.getElementById('payment_amount').value;
+    const date = document.getElementById('payment_date').value;
+    const description = document.getElementById('payment_description').value;
+    
+    if (!paymentType) {
+        alert('لطفاً نوع دریافتی را انتخاب کنید');
+        return;
+    }
+    
+    if (!amount || parseAmountFromFormattedString(amount) <= 0) {
+        alert('لطفاً مبلغ معتبر وارد کنید');
+        return;
+    }
+    
+    if (!date) {
+        alert('لطفاً تاریخ دریافت را وارد کنید');
+        return;
+    }
+    
+    // دریافت اطلاعات اضافی بر اساس نوع پرداخت
+    let additionalInfo = '';
+    if (paymentType === 'bank_transfer') {
+        const bankAccount = document.getElementById('payment_bank_account').value;
+        additionalInfo = `
+            <div class="form-group">
+                <span class="payment-value">${bankAccount || ''}</span>
+            </div>
+        `;
+    } else if (paymentType === 'pos') {
+        const cardReader = document.getElementById('payment_card_reader').value;
+        additionalInfo = `
+            <div class="form-group">
+                <span class="payment-value">${cardReader || ''}</span>
+            </div>
+        `;
+    } else if (paymentType === 'cheque') {
+        // برای چک، اطلاعات چک‌ها را از مودال دریافت می‌کنیم
+        const chequeInfo = getChequeInfo();
+        additionalInfo = `
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value"></span>
+            </div>
+            ${chequeInfo}
+        `;
+    } else if (paymentType === 'cash') {
+        // برای نقدی، فیلدهای خالی اضافه می‌کنیم
+        additionalInfo = `
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value"></span>
+            </div>
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value"></span>
+            </div>
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value"></span>
+            </div>
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value"></span>
+            </div>
+        `;
+    }
+    
+    // ایجاد ردیف دریافتی
+    const rowId = 'payment_row_' + Date.now();
+    const paymentRowsContainer = document.getElementById('payment_rows_container');
+    
+    const rowContent = `
+        <div class="payment-row" id="${rowId}" onclick="setActivePaymentRow('${rowId}')">
+            <div class="payment-row-content">
+                <div class="form-group">
+                    <span class="payment-value">${getPaymentTypeName(paymentType)}</span>
+                </div>
+                <div class="form-group">
+                    <span class="payment-value">${amount}</span>
+                </div>
+                <div class="form-group">
+                    <span class="payment-value">${date}</span>
+                </div>
+                ${additionalInfo}
+                <div class="form-group">
+                    <span class="payment-value">${description}</span>
+                </div>
+                <div class="payment-row-actions">
+                    <button type="button" class="btn btn-success btn-sm icon-btn" onclick="finalizePaymentRow('${rowId}')" title="نهایی کردن">
+                        <i class="bi bi-check-circle"></i>
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm icon-btn" onclick="removePaymentRow('${rowId}')" title="حذف">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="validation-summary" id="validation_${rowId}"></div>
+        </div>
+    `;
+    
+    paymentRowsContainer.insertAdjacentHTML('beforeend', rowContent);
+    paymentRows.push({
+        id: rowId,
+        type: paymentType,
+        amount: parseFloat(parseAmountFromFormattedString(amount)),
+        finalized: false
+    });
+    
+    // تنظیم ردیف جدید به عنوان فعال
+    setActivePaymentRow(rowId);
+    
+    // پاک کردن فیلدهای ورودی
+    document.getElementById('payment_amount').value = '';
+    document.getElementById('payment_date').value = '';
+    document.getElementById('payment_description').value = '';
+    
+    updateValidation();
+}
+
+// تابع تنظیم ردیف فعال
+function setActivePaymentRow(rowId) {
+    // حذف کلاس active از تمام ردیف‌ها
+    document.querySelectorAll('.payment-row').forEach(row => {
+        row.classList.remove('active');
+    });
+    
+    // اضافه کردن کلاس active به ردیف انتخاب شده
+    const selectedRow = document.getElementById(rowId);
+    if (selectedRow) {
+        selectedRow.classList.add('active');
+        activePaymentRowId = rowId;
+        
+        // نمایش اطلاعات ردیف فعال در باکس‌های پایینی
+        updateBottomSectionsForActiveRow();
+    }
+}
+
+// تابع به‌روزرسانی باکس‌های پایینی برای ردیف فعال
+function updateBottomSectionsForActiveRow() {
+    if (!activePaymentRowId) {
+        // پاک کردن جداول
+        clearTables();
+        return;
+    }
+    
+    const activeRow = paymentRows.find(row => row.id === activePaymentRowId);
+    if (!activeRow) return;
+    
+    // نمایش دکمه‌های افزودن مشتری و فاکتور
+    document.querySelector('.add-customer-row').style.display = 'block';
+    document.querySelector('.add-invoice-row').style.display = 'block';
+    
+    // به‌روزرسانی جداول بر اساس ردیف فعال
+    updateCustomerPaymentsTable();
+    updateInvoiceSettlementTable();
+}
+
+// تابع به‌روزرسانی جدول مشتریان
+function updateCustomerPaymentsTable() {
+    const tbody = document.getElementById('customer_payments_tbody');
+    
+    if (customerPayments.length === 0) {
+        tbody.innerHTML = `
+            <tr class="no-data-row">
+                <td colspan="3" class="text-center text-muted">
+                    ابتدا مشتری را انتخاب کنید
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// تابع به‌روزرسانی جدول تسویه فاکتورها
+function updateInvoiceSettlementTable() {
+    const tbody = document.getElementById('invoice_settlement_tbody');
+    
+    if (invoiceSettlements.length === 0) {
+        tbody.innerHTML = `
+            <tr class="no-data-row">
+                <td colspan="3" class="text-center text-muted">
+                    ابتدا مشتری را انتخاب کنید
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// تابع اضافه کردن ردیف دریافتی
+function addPaymentRow() {
+    const paymentRowsContainer = document.getElementById('payment_rows_container');
+    const rowId = 'payment_row_' + Date.now();
+    
+    let rowContent = '';
+    
+    if (currentPaymentType === 'cash') {
+        rowContent = `
+            <div class="payment-row" id="${rowId}">
+                <div class="payment-row-header">
+                    <div class="payment-row-title">ردیف نقدی ${paymentRows.length + 1}</div>
+                    <div class="payment-row-actions">
+                        <button type="button" class="btn btn-success btn-sm" onclick="finalizePaymentRow('${rowId}')">
+                            <i class="bi bi-check-circle"></i> نهایی کردن
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removePaymentRow('${rowId}')">
+                            <i class="bi bi-trash"></i> حذف
+                        </button>
+                    </div>
+                </div>
+                <div class="payment-row-content">
+                    <div class="form-group">
+                        <label>مجموع نقدی دریافتی:</label>
+                        <input type="text" class="form-control amount-input" placeholder="مبلغ نقدی" 
+                               oninput="formatAmountInput(this)" data-row-id="${rowId}">
+                    </div>
+                    <div class="form-group">
+                        <label>تاریخ دریافت:</label>
+                        <input type="text" class="form-control persian-datepicker" placeholder="تاریخ">
+                    </div>
+                    <div class="form-group">
+                        <label>توضیحات:</label>
+                        <input type="text" class="form-control" placeholder="توضیحات">
+                    </div>
+                </div>
+                <div class="validation-summary" id="validation_${rowId}"></div>
+            </div>
+        `;
+    } else {
+        rowContent = `
+            <div class="payment-row" id="${rowId}">
+                <div class="payment-row-header">
+                    <div class="payment-row-title">ردیف ${getPaymentTypeName(currentPaymentType)} ${paymentRows.length + 1}</div>
+                    <div class="payment-row-actions">
+                        <button type="button" class="btn btn-success btn-sm" onclick="finalizePaymentRow('${rowId}')">
+                            <i class="bi bi-check-circle"></i> نهایی کردن
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removePaymentRow('${rowId}')">
+                            <i class="bi bi-trash"></i> حذف
+                        </button>
+                    </div>
+                </div>
+                <div class="payment-row-content">
+                    <div class="form-group">
+                        <label>مبلغ ${getPaymentTypeName(currentPaymentType)}:</label>
+                        <input type="text" class="form-control amount-input" placeholder="مبلغ" 
+                               oninput="formatAmountInput(this)" data-row-id="${rowId}">
+                    </div>
+                    <div class="form-group">
+                        <label>تاریخ دریافت:</label>
+                        <input type="text" class="form-control persian-datepicker" placeholder="تاریخ">
+                    </div>
+                    <div class="form-group">
+                        <label>توضیحات:</label>
+                        <input type="text" class="form-control" placeholder="توضیحات">
+                    </div>
+                </div>
+                <div class="validation-summary" id="validation_${rowId}"></div>
+            </div>
+        `;
+    }
+    
+    paymentRowsContainer.insertAdjacentHTML('beforeend', rowContent);
+    paymentRows.push({
+        id: rowId,
+        type: currentPaymentType,
+        amount: 0,
+        finalized: false
+    });
+    
+    // Initialize datepicker for new row
+    $(`#${rowId} .persian-datepicker`).pDatepicker({
+        format: 'YYYY/MM/DD',
+        initialValueType: 'persian',
+        autoClose: true,
+        persianDigit: true,
+        observer: true,
+        calendar: {
+            persian: {
+                locale: 'fa'
+            }
+        },
+        onSelect: function(unix) {
+            var m = moment(unix);
+            var shamsiDate = m.format('jYYYY/jMM/jDD');
+            $(this).val(shamsiDate);
+        },
+        toolbox: {
+            calendarSwitch: {
+                enabled: false
+            }
+        },
+        initialValue: true
+    });
+}
+
+// تابع حذف ردیف دریافتی
+function removePaymentRow(rowId) {
+    if (confirm('آیا مطمئن هستید که می‌خواهید این ردیف را حذف کنید؟')) {
+        document.getElementById(rowId).remove();
+        paymentRows = paymentRows.filter(row => row.id !== rowId);
+        
+        // اگر ردیف حذف شده فعال بود، ردیف فعال را پاک کن
+        if (activePaymentRowId === rowId) {
+            activePaymentRowId = null;
+            clearTables();
+        }
+        
+        updateValidation();
+    }
+}
+
+// تابع نهایی کردن ردیف دریافتی
+function finalizePaymentRow(rowId) {
+    const row = document.getElementById(rowId);
+    const amountInput = row.querySelector('.amount-input');
+    const amount = parseAmountFromFormattedString(amountInput.value);
+    
+    if (!amount || parseFloat(amount) <= 0) {
+        alert('لطفاً مبلغ معتبر وارد کنید');
+        return;
+    }
+    
+    // بررسی اینکه مجموع مبالغ مشتریان با مبلغ دریافتی برابر باشد
+    const totalCustomerAmount = customerPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalInvoiceAmount = invoiceSettlements.reduce((sum, settlement) => sum + settlement.amount, 0);
+    
+    if (totalCustomerAmount !== parseFloat(amount)) {
+        alert(`مجموع مبالغ مشتریان (${totalCustomerAmount.toLocaleString('fa-IR')}) باید با مبلغ دریافتی (${parseFloat(amount).toLocaleString('fa-IR')}) برابر باشد`);
+        return;
+    }
+    
+    if (totalInvoiceAmount !== parseFloat(amount)) {
+        alert(`مجموع مبالغ تسویه فاکتورها (${totalInvoiceAmount.toLocaleString('fa-IR')}) باید با مبلغ دریافتی (${parseFloat(amount).toLocaleString('fa-IR')}) برابر باشد`);
+        return;
+    }
+    
+    // نهایی کردن ردیف
+    row.classList.add('finalized');
+    const paymentRow = paymentRows.find(row => row.id === rowId);
+    if (paymentRow) {
+        paymentRow.finalized = true;
+        paymentRow.amount = parseFloat(amount);
+    }
+    
+    // غیرفعال کردن دکمه‌ها
+    const finalizeBtn = row.querySelector('.btn-success');
+    const removeBtn = row.querySelector('.btn-danger');
+    finalizeBtn.disabled = true;
+    removeBtn.disabled = true;
+    
+    // نمایش پیام موفقیت
+    showValidationMessage(rowId, 'success', 'ردیف با موفقیت نهایی شد');
+    
+    // ارسال داده‌ها به سرور (اینجا باید API call انجام شود)
+    console.log('Finalizing payment row:', {
+        rowId: rowId,
+        amount: parseFloat(amount),
+        customerPayments: customerPayments,
+        invoiceSettlements: invoiceSettlements
+    });
+}
+
+// تابع دریافت نام نوع پرداخت
+function getPaymentTypeName(type) {
+    const names = {
+        'cash': 'نقدی',
+        'cheque': 'چک',
+        'pos': 'کارتخوان',
+        'bank_transfer': 'حواله بانکی'
+    };
+    return names[type] || type;
+}
+
+// تابع پاک کردن جداول
+function clearTables() {
+    document.getElementById('customer_payments_tbody').innerHTML = `
+        <tr class="no-data-row">
+            <td colspan="3" class="text-center text-muted">
+                ابتدا نوع دریافتی را انتخاب کنید
+            </td>
+        </tr>
+    `;
+    
+    document.getElementById('invoice_settlement_tbody').innerHTML = `
+        <tr class="no-data-row">
+            <td colspan="3" class="text-center text-muted">
+                ابتدا مشتری را انتخاب کنید
+            </td>
+        </tr>
+    `;
+    
+    // مخفی کردن دکمه‌های افزودن
+    document.querySelector('.add-customer-row').style.display = 'none';
+    document.querySelector('.add-invoice-row').style.display = 'none';
+}
+
+// Customer Modal Functions
+function initializeCustomerModal() {
+    loadCustomers();
+    
+    document.getElementById('customerModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeCustomerModal();
+        }
+    });
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeCustomerModal();
+        }
+    });
+}
+
+function loadCustomers() {
+    // Load customer data from Django context
+    customers = [
+        // This will be populated by Django template context
+    ];
+    
+    renderCustomerList(customers);
+}
+
+function renderCustomerList(customersToRender) {
+    const customerList = document.getElementById('customerList');
+    customerList.innerHTML = '';
+    
+    if (customersToRender.length === 0) {
+        customerList.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">مشتری یافت نشد</td></tr>';
+        return;
+    }
+    
+    customersToRender.forEach(customer => {
+        const customerRow = document.createElement('tr');
+        customerRow.className = 'customer-item';
+        
+        customerRow.innerHTML = `
+            <td>${customer.name}</td>
+            <td>${customer.last_name}</td>
+            <td>${customer.store_name || ''}</td>
+            <td>${customer.mobile || ''}</td>
+            <td>${customer.phone || ''}</td>
+            <td style="text-align: center;">
+                <button type="button" class="select-customer-btn" onclick="selectCustomerById(${customer.id})">
+                    انتخاب
+                </button>
+            </td>
+        `;
+        
+        customerList.appendChild(customerRow);
+    });
+}
+
+function searchCustomers() {
+    const searchTerm = document.getElementById('customerSearch').value.toLowerCase();
+    const filteredCustomers = customers.filter(customer => 
+        customer.name.toLowerCase().includes(searchTerm) ||
+        customer.last_name.toLowerCase().includes(searchTerm) ||
+        (customer.store_name && customer.store_name.toLowerCase().includes(searchTerm)) ||
+        customer.phone.includes(searchTerm) ||
+        (customer.email && customer.email.toLowerCase().includes(searchTerm))
+    );
+    renderCustomerList(filteredCustomers);
+}
+
+function selectCustomerById(customerId) {
+    const customer = customers.find(c => c.id === customerId);
+    if (customer) {
+        selectCustomer(customer);
+    }
+}
+
+function selectCustomer(customer) {
+    selectedCustomer = customer;
+    
+    let displayName = `${customer.name} ${customer.last_name}`;
+    if (customer.store_name) {
+        displayName += ` (${customer.store_name})`;
+    }
+    
+    // اضافه کردن مشتری به جدول مشتریان
+    addCustomerToTable(customer, displayName);
+    
+    closeCustomerModal();
+    
+    document.getElementById('customerSearch').value = '';
+    renderCustomerList(customers);
+}
+
+// تابع اضافه کردن مشتری به جدول
+function addCustomerToTable(customer, displayName) {
+    const customerPaymentsTbody = document.getElementById('customer_payments_tbody');
+    
+    // حذف ردیف "no data" اگر وجود دارد
+    const noDataRow = customerPaymentsTbody.querySelector('.no-data-row');
+    if (noDataRow) {
+        noDataRow.remove();
+    }
+    
+    const rowId = 'customer_row_' + Date.now();
+    const newRow = `
+        <tr id="${rowId}">
+            <td>${displayName}</td>
+            <td>
+                <input type="text" class="amount-input" placeholder="مبلغ دریافتی" 
+                       oninput="formatAmountInput(this); updateCustomerPayment('${rowId}', this.value);">
+            </td>
+            <td>
+                <button type="button" class="btn btn-primary btn-sm icon-btn" onclick="openInvoiceSelectionForCustomer('${customer.id}', '${displayName}', '${rowId}')" title="انتخاب فاکتور">
+                    <i class="bi bi-file-earmark-text"></i>
+                </button>
+                <button type="button" class="btn btn-danger btn-sm icon-btn" onclick="removeCustomerRow('${rowId}')" title="حذف مشتری">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+    
+    customerPaymentsTbody.insertAdjacentHTML('beforeend', newRow);
+    
+    // اضافه کردن به آرایه
+    customerPayments.push({
+        id: rowId,
+        customerId: customer.id,
+        customerName: displayName,
+        amount: 0
+    });
+    
+    // نمایش دکمه افزودن مشتری
+    document.querySelector('.add-customer-row').style.display = 'block';
+}
+
+// تابع به‌روزرسانی مبلغ مشتری
+function updateCustomerPayment(rowId, amount) {
+    const customerPayment = customerPayments.find(payment => payment.id === rowId);
+    if (customerPayment) {
+        customerPayment.amount = parseFloat(parseAmountFromFormattedString(amount)) || 0;
+        updateValidation();
+    }
+}
+
+// تابع حذف ردیف مشتری
+function removeCustomerRow(rowId) {
+    if (confirm('آیا مطمئن هستید که می‌خواهید این مشتری را حذف کنید؟')) {
+        document.getElementById(rowId).remove();
+        customerPayments = customerPayments.filter(payment => payment.id !== rowId);
+        
+        // حذف تسویه‌های مربوط به این مشتری
+        invoiceSettlements = invoiceSettlements.filter(settlement => settlement.customerId !== customerPayments.find(p => p.id === rowId)?.customerId);
+        
+        // به‌روزرسانی جدول تسویه فاکتورها
+        updateInvoiceSettlementTable();
+        updateValidation();
+    }
+}
+
+// تابع باز کردن مودال انتخاب فاکتور برای مشتری
+function openInvoiceSelectionForCustomer(customerId, customerName, rowId) {
+    currentCustomerForInvoice = { id: customerId, name: customerName, rowId: rowId };
+    document.getElementById('selected_customer_name').textContent = customerName;
+    
+    // بارگذاری فاکتورهای مشتری
+    loadCustomerInvoicesForSettlement(customerId);
+    
+    document.getElementById('invoiceModal').style.display = 'block';
+}
+
+// تابع بارگذاری فاکتورهای مشتری برای تسویه
+function loadCustomerInvoicesForSettlement(customerId) {
+    const invoicesList = document.getElementById('invoicesList');
+    
+    // نمایش loading
+    invoicesList.innerHTML = `
+        <tr>
+            <td colspan="6" class="text-center">
+                <i class="bi bi-hourglass-split"></i> در حال بارگذاری فاکتورها...
+            </td>
+        </tr>
+    `;
+    
+    // شبیه‌سازی بارگذاری فاکتورها
+    setTimeout(() => {
+        const mockInvoices = [
+            { id: 'INV-001', date: '1403/01/15', totalAmount: 5000000, settledAmount: 0, remainingAmount: 5000000 },
+            { id: 'INV-002', date: '1403/01/20', totalAmount: 18000000, settledAmount: 0, remainingAmount: 18000000 },
+            { id: 'INV-003', date: '1403/01/25', totalAmount: 25000000, settledAmount: 0, remainingAmount: 25000000 },
+            { id: 'INV-004', date: '1403/02/01', totalAmount: 6000000, settledAmount: 0, remainingAmount: 6000000 }
+        ];
+        
+        // محاسبه مبالغ باقی‌مانده بر اساس تسویه‌های قبلی
+        mockInvoices.forEach(invoice => {
+            const existingSettlements = invoiceSettlements.filter(s => s.invoiceId === invoice.id);
+            const totalSettled = existingSettlements.reduce((sum, s) => sum + s.amount, 0);
+            invoice.settledAmount = totalSettled;
+            invoice.remainingAmount = invoice.totalAmount - totalSettled;
+        });
+        
+        // فیلتر کردن فاکتورهایی که باقی‌مانده دارند
+        const availableInvoices = mockInvoices.filter(invoice => invoice.remainingAmount > 0);
+        
+        if (availableInvoices.length === 0) {
+            invoicesList.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        فاکتور مانده‌داری برای این مشتری وجود ندارد
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        invoicesList.innerHTML = availableInvoices.map(invoice => `
+            <tr class="invoice-row" data-invoice-id="${invoice.id}" data-remaining="${invoice.remainingAmount}">
+                <td>${invoice.id}</td>
+                <td>${invoice.date}</td>
+                <td>${invoice.totalAmount.toLocaleString('fa-IR')}</td>
+                <td>${invoice.settledAmount.toLocaleString('fa-IR')}</td>
+                <td>${invoice.remainingAmount.toLocaleString('fa-IR')}</td>
+                <td>
+                    <button type="button" class="btn btn-primary btn-sm icon-btn" onclick="selectInvoiceForSettlement('${invoice.id}', ${invoice.remainingAmount})" title="انتخاب فاکتور">
+                        <i class="bi bi-check-circle"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }, 1000);
+}
+
+// تابع انتخاب فاکتور برای تسویه
+function selectInvoiceForSettlement(invoiceId, remainingAmount) {
+    const customerPayment = customerPayments.find(p => p.id === currentCustomerForInvoice.rowId);
+    if (!customerPayment) {
+        alert('خطا در یافتن اطلاعات مشتری');
+        return;
+    }
+    
+    const customerAmount = customerPayment.amount;
+    if (customerAmount <= 0) {
+        alert('ابتدا مبلغ دریافتی از مشتری را وارد کنید');
+        return;
+    }
+    
+    const settlementAmount = Math.min(customerAmount, remainingAmount);
+    
+    // اضافه کردن تسویه به جدول
+    addInvoiceSettlement(invoiceId, settlementAmount, currentCustomerForInvoice);
+    
+    // بستن مودال
+    closeInvoiceModal();
+}
+
+// تابع اضافه کردن تسویه فاکتور
+function addInvoiceSettlement(invoiceId, amount, customerInfo) {
+    const invoiceSettlementTbody = document.getElementById('invoice_settlement_tbody');
+    
+    // حذف ردیف "no data" اگر وجود دارد
+    const noDataRow = invoiceSettlementTbody.querySelector('.no-data-row');
+    if (noDataRow) {
+        noDataRow.remove();
+    }
+    
+    const settlementId = 'settlement_' + Date.now();
+    const newRow = `
+        <tr id="${settlementId}">
+            <td>${invoiceId}</td>
+            <td>
+                <input type="text" class="amount-input" value="${amount.toLocaleString('fa-IR')}" 
+                       oninput="formatAmountInput(this); updateInvoiceSettlement('${settlementId}', this.value);">
+            </td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm icon-btn" onclick="removeInvoiceSettlement('${settlementId}')" title="حذف تسویه">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+    
+    invoiceSettlementTbody.insertAdjacentHTML('beforeend', newRow);
+    
+    // اضافه کردن به آرایه
+    invoiceSettlements.push({
+        id: settlementId,
+        invoiceId: invoiceId,
+        customerId: customerInfo.id,
+        amount: amount
+    });
+    
+    // نمایش دکمه افزودن فاکتور
+    document.querySelector('.add-invoice-row').style.display = 'block';
+    
+    updateValidation();
+}
+
+// تابع به‌روزرسانی مبلغ تسویه فاکتور
+function updateInvoiceSettlement(settlementId, amount) {
+    const settlement = invoiceSettlements.find(s => s.id === settlementId);
+    if (settlement) {
+        settlement.amount = parseFloat(parseAmountFromFormattedString(amount)) || 0;
+        updateValidation();
+    }
+}
+
+// تابع حذف تسویه فاکتور
+function removeInvoiceSettlement(settlementId) {
+    if (confirm('آیا مطمئن هستید که می‌خواهید این تسویه را حذف کنید؟')) {
+        document.getElementById(settlementId).remove();
+        invoiceSettlements = invoiceSettlements.filter(s => s.id !== settlementId);
+        updateInvoiceSettlementTable();
+        updateValidation();
+    }
+}
+
+// تابع به‌روزرسانی جدول تسویه فاکتورها
+function updateInvoiceSettlementTable() {
+    const tbody = document.getElementById('invoice_settlement_tbody');
+    
+    if (invoiceSettlements.length === 0) {
+        tbody.innerHTML = `
+            <tr class="no-data-row">
+                <td colspan="3" class="text-center text-muted">
+                    ابتدا مشتری را انتخاب کنید
+                </td>
+            </tr>
+        `;
+        document.querySelector('.add-invoice-row').style.display = 'none';
+    }
+}
+
+// تابع به‌روزرسانی اعتبارسنجی
+function updateValidation() {
+    const totalCustomerAmount = customerPayments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalInvoiceAmount = invoiceSettlements.reduce((sum, settlement) => sum + settlement.amount, 0);
+    
+    // نمایش خلاصه اعتبارسنجی
+    console.log('Validation:', {
+        totalCustomerAmount,
+        totalInvoiceAmount,
+        customerPayments,
+        invoiceSettlements
+    });
+}
+
+// تابع نمایش پیام اعتبارسنجی
+function showValidationMessage(rowId, type, message) {
+    const validationDiv = document.getElementById(`validation_${rowId}`);
+    validationDiv.className = `validation-summary show ${type}`;
+    validationDiv.innerHTML = `
+        <h5>${type === 'success' ? 'موفقیت' : 'خطا'}</h5>
+        <p>${message}</p>
+    `;
+}
+
+// تابع بستن مودال فاکتور
+function closeInvoiceModal() {
+    document.getElementById('invoiceModal').style.display = 'none';
+    currentCustomerForInvoice = null;
+}
+
+// --- توابع مودال چک ---
+function openChequeModal() {
+    document.getElementById('chequeModal').style.display = 'block';
+    // اضافه کردن ردیف اولیه اگر وجود نداشته باشد
+    if (document.getElementById('cheque-list-body').rows.length === 0) {
+        addChequeRow();
+    }
+}
+
+function closeChequeModal() {
+    document.getElementById('chequeModal').style.display = 'none';
+}
+
+function addChequeRow() {
+    const tbody = document.getElementById('cheque-list-body');
+    const newRow = document.createElement('tr');
+    const rowIndex = tbody.rows.length;
+
+    newRow.innerHTML = `
+        <td style="width: 65px;"><input type="text" name="endorsement_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 95px;"><input type="text" name="due_date_${rowIndex}" class="form-control cheque-input autoformat-date" placeholder="YYYY/MM/DD"></td>
+        <td style="width: 100px;">
+            <select name="bank_name_${rowIndex}" class="form-control cheque-input">
+                <option value="" selected>---------</option>
+                <option value="بانک ملی">بانک ملی</option>
+                <option value="بانک صادرات">بانک صادرات</option>
+                <option value="بانک ملت">بانک ملت</option>
+            </select>
+        </td>
+        <td style="width: 95px;"><input type="text" name="branch_name_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 65px;"><input type="text" name="series_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 85px;"><input type="text" name="serial_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 125px;"><input type="text" name="sayadi_id_${rowIndex}" class="form-control cheque-input" maxlength="16"></td>
+        <td style="width: 100px;"><input type="text" inputmode="numeric" name="amount_${rowIndex}" class="form-control cheque-input amount-field" value="0"></td>
+        <td style="width: 110px;"><input type="text" name="owner_name_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 85px;"><input type="text" name="national_id_${rowIndex}" class="form-control cheque-input" maxlength="10"></td>
+        <td style="width: 110px;"><input type="text" name="account_number_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 45px;"><button type="button" class="btn btn-outline-danger btn-sm" onclick="removeChequeRow(this)" title="حذف"><i class="bi bi-trash3-fill"></i></button></td>
+    `;
+    tbody.appendChild(newRow);
+
+    // اضافه کردن event listeners
+    addEventListenersToChequeRow(newRow);
+    
+    // فوکوس روی اولین فیلد
+    setTimeout(() => {
+        newRow.querySelector('.cheque-input').focus();
+    }, 50);
+}
+
+function removeChequeRow(button) {
+    const row = button.closest('tr');
+    row.remove();
+    updateChequeSummary();
+}
+
+function addEventListenersToChequeRow(row) {
+    const inputs = Array.from(row.querySelectorAll('.cheque-input'));
+    inputs.forEach((input, index) => {
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (index === inputs.length - 1) {
+                    addChequeRow();
+                } else {
+                    inputs[index + 1].focus();
+                }
+            }
+        });
+    });
+
+    // اضافه کردن listener برای محاسبه مبلغ
+    row.querySelector('.amount-field').addEventListener('input', function() {
+        formatAmountInput(this);
+        updateChequeSummary();
+    });
+
+    const dateInput = row.querySelector('.autoformat-date');
+    dateInput.addEventListener('input', function() {
+        formatDateInput(this);
+    });
+}
+
+function updateChequeSummary() {
+    let totalAmount = 0;
+    const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
+    
+    rows.forEach(row => {
+        const amountInput = row.querySelector('input[name^="amount_"]');
+        const amount = parseFloat(parseAmountFromFormattedString(amountInput.value)) || 0;
+        totalAmount += amount;
+    });
+
+    // به‌روزرسانی مجموع مبلغ
+    const totalAmountBox = document.getElementById('totalChequeAmountBox');
+    totalAmountBox.value = totalAmount.toLocaleString('fa-IR');
+    totalAmountBox.dataset.rawAmount = totalAmount;
+}
+
+function saveAllCheques() {
+    const cheques = [];
+    const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
+    let hasError = false;
+
+    rows.forEach((row, index) => {
+        const amountInput = row.querySelector(`input[name="amount_${index}"]`);
+        const amount = parseAmountFromFormattedString(amountInput.value);
+
+        if (parseFloat(amount) > 0) {
+            const chequeData = {
+                endorsement: row.querySelector(`input[name="endorsement_${index}"]`).value,
+                due_date: row.querySelector(`input[name="due_date_${index}"]`).value,
+                bank_name: row.querySelector(`select[name="bank_name_${index}"]`).value,
+                branch_name: row.querySelector(`input[name="branch_name_${index}"]`).value,
+                series: row.querySelector(`input[name="series_${index}"]`).value,
+                serial: row.querySelector(`input[name="serial_${index}"]`).value,
+                sayadi_id: row.querySelector(`input[name="sayadi_id_${index}"]`).value,
+                amount: amount,
+                owner_name: row.querySelector(`input[name="owner_name_${index}"]`).value,
+                national_id: row.querySelector(`input[name="national_id_${index}"]`).value,
+                account_number: row.querySelector(`input[name="account_number_${index}"]`).value,
+            };
+
+            // اعتبارسنجی اولیه
+            if (!chequeData.due_date || !chequeData.bank_name || !chequeData.sayadi_id || !chequeData.owner_name) {
+                alert(`لطفاً اطلاعات ضروری (تاریخ، بانک، شناسه صیادی، صاحب حساب) را برای چک ردیف ${index + 1} کامل کنید.`);
+                hasError = true;
+                return;
+            }
+            cheques.push(chequeData);
+        }
+    });
+
+    if (hasError) {
+        return;
+    }
+
+    // ذخیره اطلاعات چک‌ها در متغیر سراسری
+    window.chequeData = cheques;
+
+    // به‌روزرسانی مبلغ اصلی
+    const totalAmountBox = document.getElementById('totalChequeAmountBox');
+    const rawTotal = totalAmountBox.dataset.rawAmount || '0';
+    const amountInput = document.getElementById('payment_amount');
+    amountInput.value = rawTotal;
+    formatAmountInput(amountInput);
+    
+    // حذف شد - فیلد معرفی چک دیگر وجود ندارد
+
+    // بستن مودال
+    closeChequeModal();
+}
+
+function formatDateInput(input) {
+    let value = input.value.replace(/\D/g, '');
+    
+    if (value.length > 8) {
+        value = value.substring(0, 8);
+    }
+
+    let formattedValue = value;
+    if (value.length > 4) {
+        formattedValue = value.substring(0, 4) + '/' + value.substring(4);
+    }
+    if (value.length > 6) {
+        formattedValue = value.substring(0, 4) + '/' + value.substring(4, 6) + '/' + value.substring(6);
+    }
+    
+    input.value = formattedValue;
+}
+
+// تابع دریافت نام نوع پرداخت
+function getPaymentTypeName(paymentType) {
+    const typeNames = {
+        'cash': 'نقدی',
+        'cheque': 'چک',
+        'pos': 'دستگاه کارتخوان',
+        'bank_transfer': 'حواله بانکی'
+    };
+    return typeNames[paymentType] || paymentType;
+}
+
+// تابع دریافت اطلاعات چک‌ها
+function getChequeInfo() {
+    let chequeInfo = '';
+    
+    // استفاده از اطلاعات ذخیره شده در متغیر سراسری
+    if (window.chequeData && window.chequeData.length > 0) {
+        // فقط اولین چک را نمایش می‌دهیم
+        const cheque = window.chequeData[0];
+        chequeInfo = `
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value">${cheque.due_date || ''}</span>
+            </div>
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value">${cheque.bank_name || ''}</span>
+            </div>
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value">${cheque.serial || ''}</span>
+            </div>
+            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                <span class="payment-value">${cheque.account_number || ''}</span>
+            </div>
+        `;
+    } else {
+        // اگر اطلاعات ذخیره شده وجود ندارد، از جدول استفاده کن
+        const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
+        
+        if (rows.length > 0) {
+            // فقط اولین ردیف را نمایش می‌دهیم
+            const row = rows[0];
+            const amountInput = row.querySelector(`input[name="amount_0"]`);
+            const amount = parseAmountFromFormattedString(amountInput.value);
+            
+            if (parseFloat(amount) > 0) {
+                const dueDate = row.querySelector(`input[name="due_date_0"]`).value;
+                const bankName = row.querySelector(`select[name="bank_name_0"]`).value;
+                const serial = row.querySelector(`input[name="serial_0"]`).value;
+                const accountNumber = row.querySelector(`input[name="account_number_0"]`).value;
+                
+                chequeInfo = `
+                    <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                        <span class="payment-value">${dueDate || ''}</span>
+                    </div>
+                    <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                        <span class="payment-value">${bankName || ''}</span>
+                    </div>
+                    <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                        <span class="payment-value">${serial || ''}</span>
+                    </div>
+                    <div class="form-group" style="width: 140px; flex: 0 0 140px;">
+                        <span class="payment-value">${accountNumber || ''}</span>
+                    </div>
+                `;
+            }
+        }
+    }
+    
+    return chequeInfo;
+}
+
+// تابع جدید برای بارگذاری فاکتورهای مشتری
+function loadCustomerInvoices(customerId) {
+    const invoicesList = document.querySelector('.invoices-list');
+    
+    // نمایش loading
+    invoicesList.innerHTML = `
+        <div class="loading-invoices">
+            <i class="bi bi-hourglass-split"></i>
+            <p>در حال بارگذاری فاکتورها...</p>
+        </div>
+    `;
+    
+    // شبیه‌سازی بارگذاری فاکتورها (بعداً با API واقعی جایگزین می‌شود)
+    setTimeout(() => {
+        invoicesList.innerHTML = `
+            <div class="invoices-table">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>شماره فاکتور</th>
+                            <th>تاریخ</th>
+                            <th>مبلغ</th>
+                            <th>وضعیت</th>
+                            <th>عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>INV-001</td>
+                            <td>1403/01/15</td>
+                            <td>1,500,000 ریال</td>
+                            <td><span class="badge badge-warning">پرداخت نشده</span></td>
+                            <td><button class="btn btn-sm btn-primary" onclick="selectInvoice('INV-001', 1500000)">انتخاب</button></td>
+                        </tr>
+                        <tr>
+                            <td>INV-002</td>
+                            <td>1403/01/20</td>
+                            <td>2,300,000 ریال</td>
+                            <td><span class="badge badge-warning">پرداخت نشده</span></td>
+                            <td><button class="btn btn-sm btn-primary" onclick="selectInvoice('INV-002', 2300000)">انتخاب</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }, 1000);
+}
+
+// تابع انتخاب فاکتور
+function selectInvoice(invoiceNumber, amount) {
+    document.getElementById('id_amount').value = amount.toLocaleString('fa-IR');
+    document.getElementById('id_description').value = `تسویه فاکتور شماره ${invoiceNumber}`;
+    
+    // فرمت کردن مبلغ
+    formatAmountInput(document.getElementById('id_amount'));
+}
+
+function openCustomerModal() {
+    document.getElementById('customerModal').style.display = 'block';
+    document.getElementById('customerSearch').focus();
+}
+
+function closeCustomerModal() {
+    document.getElementById('customerModal').style.display = 'none';
+}
+
+// Helper function to convert Persian/Arabic digits to English digits
+function toEnglishDigits(str) {
+    if (!str) return '';
+    return str.toString().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+}
+
+// Helper function to format amount input with thousand separators
+function formatAmountInput(input) {
+    let value = toEnglishDigits(input.value).replace(/[^0-9]/g, '');
+    if (value) {
+        try {
+            const numericValue = BigInt(value);
+            input.value = numericValue.toLocaleString('fa-IR');
+        } catch (e) {
+            input.value = value;
+        }
+    } else {
+        input.value = '';
+    }
+}
+
+// Helper function to parse amount from formatted string
+function parseAmountFromFormattedString(formattedValue) {
+    if (!formattedValue) return '';
+    return toEnglishDigits(formattedValue).replace(/[^0-9]/g, '');
+}
+
+// Handle form submission
+window.handleFormSubmit = function(event) {
+    const amountInput = document.getElementById('id_amount');
+    if (amountInput) {
+        amountInput.value = parseAmountFromFormattedString(amountInput.value);
+    }
+    
+    document.getElementById('submit-operation-btn').disabled = true;
+    return true;
+};
+</script>
+{% endblock %}

@@ -137,21 +137,23 @@
             <span class="close-modal" onclick="closeCustomerModal()">×</span>
         </div>
         <input type="text" id="customerSearch" class="customer-search-box" placeholder="جستجوی مشتری بر اساس نام..." onkeyup="searchCustomers()">
-        <table class="customers-table">
-            <thead>
-                <tr>
-                    <th>نام</th>
-                    <th>نام خانوادگی</th>
-                    <th>فروشگاه</th>
-                    <th>موبایل</th>
-                    <th>تلفن</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="customerList">
-                <!-- Customer rows will be populated here -->
-            </tbody>
-        </table>
+        <div class="customers-table-wrapper">
+            <table class="customers-table">
+                <thead>
+                    <tr>
+                        <th>نام</th>
+                        <th>نام خانوادگی</th>
+                        <th>فروشگاه</th>
+                        <th>موبایل</th>
+                        <th>تلفن</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="customerList">
+                    <!-- Customer rows will be populated here -->
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -409,7 +411,7 @@
 }
 
 .customer-modal-content {
-    background-color: #fafafa;
+    background-color: #fefefe;
     margin: 5% auto;
     padding: 20px;
     border: 1px solid #888;
@@ -455,6 +457,14 @@
     font-size: 14px;
     margin-right: 20px;
     float: right;
+}
+
+.customers-table-wrapper {
+    max-height: calc(56px * 5);
+    overflow-y: auto;
+    overflow-x: hidden;
+    border: 1px solid #eee;
+    border-radius: 10px;
 }
 
 .customers-table {
@@ -700,6 +710,17 @@
     .customer-search-box {
         width: 100%;
         margin-right: 0;
+        float: none;
+    }
+    
+    .customers-table-wrapper {
+        max-height: calc(56px * 4);
+    }
+    
+    .customers-table th,
+    .customers-table td {
+        padding: 8px 6px;
+        font-size: 0.9rem;
     }
 }
 
@@ -730,6 +751,21 @@
         width: 98%;
         margin: 5% auto;
         padding: 10px;
+    }
+    
+    .customers-table-wrapper {
+        max-height: calc(56px * 3);
+    }
+    
+    .customers-table th,
+    .customers-table td {
+        padding: 6px 4px;
+        font-size: 0.8rem;
+    }
+    
+    .customer-search-box {
+        font-size: 0.9rem;
+        padding: 8px;
     }
 }
 </style>

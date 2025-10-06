@@ -116,6 +116,7 @@ urlpatterns = [
     path('accounting/cash-withdrawal/', views.cash_withdrawal_view, name='cash_withdrawal'),
     path('accounting/payment-from-cash/', views.payment_from_cash_view, name='payment_from_cash'),
     path('accounting/payment-to-cash/', views.payment_to_cash_view, name='payment_to_cash'),
+    path('accounting/invoice-settlement/', views.invoice_settlement_view, name='invoice_settlement'),
     # در قسمت URL های مربوط به عملیات مالی (حدود خط 91)، بعد از سایر URL ها:
     path('accounting/petty-cash/', views.petty_cash_view, name='petty_cash'),
 
