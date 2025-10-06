@@ -96,17 +96,17 @@
                 
                 <!-- عناوین جدول ردیف‌های دریافتی -->
                 <div class="payment-table-headers" style="display: none;">
-                    <div class="table-header-field" style="flex: 0 0 10.8%;">نوع دریافتی</div>
-                    <div class="table-header-field" style="flex: 0 0 10.8%;">مبلغ دریافتی</div>
-                    <div class="table-header-field" style="flex: 0 0 10.8%;">تاریخ دریافت</div>
-                    <div class="table-header-field" id="table-additional-header-1" style="display: none; flex: 0 0 10.8%;">حساب بانکی</div>
-                    <div class="table-header-field" id="table-additional-header-2" style="display: none; flex: 0 0 10.8%;">دستگاه کارتخوان</div>
-                    <div class="table-header-field" id="table-cheque-header-1" style="display: none; flex: 0 0 10.8%;">تاریخ سررسید</div>
-                    <div class="table-header-field" id="table-cheque-header-2" style="display: none; flex: 0 0 10.8%;">نام بانک</div>
-                    <div class="table-header-field" id="table-cheque-header-3" style="display: none; flex: 0 0 10.8%;">سریال چک</div>
-                    <div class="table-header-field" id="table-cheque-header-4" style="display: none; flex: 0 0 10.8%;">شماره حساب</div>
-                    <div class="table-header-field" style="flex: 0 0 10.8%;">توضیحات</div>
-                    <div class="table-header-field" style="flex: 0 0 8%;">عملیات</div>
+                    <div class="table-header-field" style="flex: 0 0 9%; min-width: 0;">نوع دریافتی</div>
+                    <div class="table-header-field" style="flex: 0 0 9%; min-width: 0;">مبلغ دریافتی</div>
+                    <div class="table-header-field" style="flex: 0 0 9%; min-width: 0;">تاریخ دریافت</div>
+                    <div class="table-header-field" id="table-additional-header-1" style="display: none; flex: 0 0 9%; min-width: 0;">حساب بانکی</div>
+                    <div class="table-header-field" id="table-additional-header-2" style="display: none; flex: 0 0 9%; min-width: 0;">دستگاه کارتخوان</div>
+                    <div class="table-header-field" id="table-cheque-header-1" style="display: none; flex: 0 0 9%; min-width: 0;">تاریخ سررسید</div>
+                    <div class="table-header-field" id="table-cheque-header-2" style="display: none; flex: 0 0 9%; min-width: 0;">نام بانک</div>
+                    <div class="table-header-field" id="table-cheque-header-3" style="display: none; flex: 0 0 9%; min-width: 0;">سریال چک</div>
+                    <div class="table-header-field" id="table-cheque-header-4" style="display: none; flex: 0 0 9%; min-width: 0;">شماره حساب</div>
+                    <div class="table-header-field" style="flex: 0 0 12%; min-width: 0;">توضیحات</div>
+                    <div class="table-header-field" style="flex: 0 0 7%; min-width: 0;">عملیات</div>
                 </div>
                 
                 <div id="payment_rows_container" class="payment-rows-container" style="display: none;">
@@ -528,6 +528,11 @@
     min-width: 140px;
 }
 
+.payment-description-field {
+    flex: 0 0 180px;
+    min-width: 180px;
+}
+
 .payment-actions {
     flex: 0 0 auto;
 }
@@ -625,7 +630,7 @@
     margin-bottom: 1rem;
     overflow-y: auto;
     overflow-x: visible;
-    width: 98%;
+    width: 100%;
     max-height: 150px;
     padding: 0 0.2rem 0 0.2rem;
     box-sizing: border-box;
@@ -731,15 +736,18 @@
 /* استایل‌های متن بدون باکس */
 .payment-value {
     display: block;
-    padding: 0.2rem 0.3rem;
-    font-size: 0.7rem;
+    padding: 0.15rem 0.2rem;
+    font-size: 0.65rem;
     color: #374151;
     text-align: center;
     background-color: transparent;
     border: none;
-    min-height: 20px;
-    line-height: 1.3;
+    min-height: 18px;
+    line-height: 1.2;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* استایل‌های جدول ساده */
@@ -779,6 +787,7 @@
     gap: 0;
     position: relative;
     width: 100%;
+    flex-wrap: nowrap;
 }
 
 .payment-row .form-group {
@@ -786,56 +795,67 @@
     align-items: center;
     justify-content: center;
     min-height: 28px;
-    flex: 0 0 100px;
     margin: 0;
     background: transparent;
     border: none;
     padding: 0;
+    box-sizing: border-box;
 }
 
-/* تنظیم عرض فیلدها برای مجموع 98% باکس اصلی */
+/* تنظیم عرض فیلدها برای fit all columns on one row */
 .payment-row .form-group:nth-child(1) {
-    flex: 0 0 10.8%; /* نوع دریافتی */
+    flex: 0 0 9%; /* نوع دریافتی */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(2) {
-    flex: 0 0 10.8%; /* مبلغ دریافتی */
+    flex: 0 0 9%; /* مبلغ دریافتی */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(3) {
-    flex: 0 0 10.8%; /* تاریخ دریافت */
+    flex: 0 0 9%; /* تاریخ دریافت */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(4) {
-    flex: 0 0 10.8%; /* حساب بانکی */
+    flex: 0 0 9%; /* حساب بانکی */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(5) {
-    flex: 0 0 10.8%; /* دستگاه کارتخوان */
+    flex: 0 0 9%; /* دستگاه کارتخوان */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(6) {
-    flex: 0 0 10.8%; /* تاریخ سررسید */
+    flex: 0 0 9%; /* تاریخ سررسید */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(7) {
-    flex: 0 0 10.8%; /* نام بانک */
+    flex: 0 0 9%; /* نام بانک */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(8) {
-    flex: 0 0 10.8%; /* سریال چک */
+    flex: 0 0 9%; /* سریال چک */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(9) {
-    flex: 0 0 10.8%; /* شماره حساب */
+    flex: 0 0 9%; /* شماره حساب */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(10) {
-    flex: 0 0 10.8%; /* توضیحات */
+    flex: 0 0 12%; /* توضیحات */
+    min-width: 0;
 }
 
 .payment-row .form-group:nth-child(11) {
-    flex: 0 0 8%; /* عملیات */
+    flex: 0 0 7%; /* عملیات */
+    min-width: 0;
 }
 
 /* استایل‌های عناوین جدول ساده */
@@ -845,16 +865,26 @@
     border: none;
     padding: 0.2rem 0.2rem 0.2rem 0.2rem;
     margin-bottom: 0;
-    width: 98%;
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    box-sizing: border-box;
 }
 
 .table-header-field {
     font-weight: 600;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     text-align: center;
-    padding: 0.2rem 0.3rem;
+    padding: 0.15rem 0.2rem;
     background: transparent;
     color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* استایل‌های حذف شدند - فیلدهای چک جداگانه شدند */
