@@ -297,8 +297,6 @@
 </div>
 
 <style>
-/* ===== اصلاح کد CSS کامل برای صفحه تسویه فاکتورها ===== */
-
 @font-face {
     font-family: 'BHoma';
     src: url('/static/fonts/BHoma.ttf') format('truetype');
@@ -313,10 +311,12 @@
 
 .financial-operation-container {
     width: 99%;
-    max-width: 1200px;
+    max-width: 100vw;
     margin: 0 auto;
-    padding: 2rem;
+    padding: clamp(0.5rem, 2vw, 2rem);
     font-family: 'BHoma', sans-serif;
+    box-sizing: border-box;
+    font-size: clamp(12px, 1.2vw, 16px);
 }
 
 .operation-header {
@@ -326,7 +326,7 @@
 
 .operation-header h2 {
     color: #2c3e50;
-    font-size: 2rem;
+    font-size: clamp(1.2rem, 3vw, 2rem);
     font-weight: 700;
     margin: 0;
     display: flex;
@@ -339,7 +339,7 @@
     color: #49a1f3;
 }
 
-/* ===== باکس سه قسمتی ===== */
+/* باکس سه قسمتی */
 .settlement-container {
     display: flex;
     flex-direction: column;
@@ -353,7 +353,6 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.1);
     border: 1px solid #e5e7eb;
     overflow: hidden;
-    box-sizing: border-box;
 }
 
 .top-section {
@@ -363,14 +362,15 @@
 .section-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 0.6rem 0.8rem;
-    border-radius: 15px 15px 0 0;
+    padding: clamp(0.4rem, 1vw, 0.6rem) clamp(0.5rem, 1.5vw, 0.8rem);
     margin-bottom: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .section-header h3 {
     margin: 0;
-    font-size: 0.9rem;
+    font-size: clamp(0.7rem, 1.5vw, 0.9rem);
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -378,10 +378,9 @@
 }
 
 .section-content {
-    padding: 0.8rem;
+    padding: clamp(0.5rem, 1.5vw, 0.8rem);
     background: white;
-    border-radius: 0 0 15px 15px;
-    overflow: auto;
+    overflow: visible;
     width: 100%;
     box-sizing: border-box;
 }
@@ -390,7 +389,6 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
-    box-sizing: border-box;
 }
 
 .bottom-section {
@@ -399,7 +397,125 @@
     min-width: 0;
 }
 
-/* ===== استایل‌های ورودی پرداخت ===== */
+.section-header {
+    background: linear-gradient(135deg, #568fe6, #2662a7);
+    color: rgb(245, 245, 245);
+    padding: clamp(0.5rem, 1.5vw, 1rem) clamp(0.8rem, 2vw, 1.5rem);
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.section-content {
+    padding: clamp(0.5rem, 2vw, 1.5rem);
+    box-sizing: border-box;
+}
+
+.invoices-list {
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.no-customer-selected {
+    text-align: center;
+    color: #6b72802d;
+    padding: 2rem;
+}
+
+.no-customer-selected i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #d1d5db;
+}
+
+.no-customer-selected p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.loading-invoices {
+    text-align: center;
+    color: #6b7280;
+    padding: 2rem;
+}
+
+.loading-invoices i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    color: #286283;
+    animation: spin 1s linear infinite;
+}
+
+.loading-invoices p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.invoices-table {
+    width: 100%;
+    overflow: visible;
+}
+
+.invoices-table .table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.invoices-table .table th,
+.invoices-table .table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.invoices-table .table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #374151;
+}
+
+.invoices-table .table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.375rem;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    border-radius: 0.25rem;
+}
+
+/* استایل‌های جدید برای سیستم تسویه */
 .payment-input-row {
     display: flex;
     gap: 0.3rem;
@@ -468,90 +584,38 @@
     min-width: 80px;
 }
 
-/* ===== جدول پرداخت‌ها - اصلاح شده ===== */
-.payment-rows-container {
-    margin-bottom: 1rem;
-    overflow-x: auto;
-    overflow-y: auto;
-    width: 100%;
-    max-height: 150px;
-    padding: 0 0.2rem;
-    box-sizing: border-box;
-    background: transparent;
-    border: none;
-}
-
-.payment-excel-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-    table-layout: fixed;
-}
-
-.payment-excel-table th, 
-.payment-excel-table td {
-    border: 1px solid #ccc;
-    padding: 6px 4px;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.payment-excel-table th {
-    background-color: #e9ecef;
-    font-weight: bold;
-    color: #343a40;
-}
-
-.payment-excel-table tbody tr:nth-child(even) {
-    background-color: #f8f9fa;
-}
-
-.payment-excel-table tbody tr:hover {
-    background-color: #eef;
-}
-
-/* تنظیم عرض ستون‌ها */
-.payment-excel-table th:nth-child(1),
-.payment-excel-table td:nth-child(1) {
-    width: 10%;
-}
-
-.payment-excel-table th:nth-child(2),
-.payment-excel-table td:nth-child(2) {
-    width: 12%;
-}
-
-.payment-excel-table th:nth-child(3),
-.payment-excel-table td:nth-child(3) {
-    width: 10%;
-}
-
-.payment-excel-table th:nth-child(10),
-.payment-excel-table td:nth-child(10) {
-    width: 20%;
-}
-
-.payment-excel-table th:last-child,
-.payment-excel-table td:last-child {
-    width: 12%;
-    min-width: 90px;
-    overflow: visible;
-    white-space: normal;
-}
-
-/* ===== استایل دکمه‌های آیکن - اصلاح شده ===== */
+/* استایل دکمه‌های آیکن */
 .icon-btn {
-    padding: 0.08rem 0.12rem !important;
-    min-width: 24px;
-    height: 24px;
+    padding: clamp(1px, 0.15vw, 2px) !important;
+    min-width: clamp(16px, 1.6vw, 18px);
+    height: clamp(16px, 1.6vw, 18px);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
+    border-radius: 2px;
     transition: all 0.2s ease;
-    font-size: 0.75rem;
-    border: none;
+    font-size: clamp(0.5rem, 0.85vw, 0.6rem);
+    flex-shrink: 0;
+}
+
+/* استایل ستون عملیات برای نمایش آیکن‌ها در یک ردیف */
+.operations-cell {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.1rem, 0.4vw, 0.2rem);
+    white-space: nowrap;
+    overflow: visible;
+    flex-direction: row;
+}
+
+.payment-excel-table .operations-cell {
+    min-height: 28px;
+    height: 28px;
+    max-height: 28px;
+    padding: clamp(1px, 0.25vw, 3px) clamp(2px, 0.35vw, 3px) !important;
+    display: flex !important;
+    flex-direction: row !important;
 }
 
 .icon-btn:hover {
@@ -560,14 +624,14 @@
 }
 
 .icon-btn i {
-    font-size: 0.7rem;
+    font-size: clamp(0.45rem, 0.75vw, 0.55rem);
     margin: 0;
+    line-height: 1;
 }
 
 .icon-btn.btn-success {
     background-color: #10b981;
     border-color: #10b981;
-    color: white;
 }
 
 .icon-btn.btn-success:hover {
@@ -578,7 +642,6 @@
 .icon-btn.btn-danger {
     background-color: #ef4444;
     border-color: #ef4444;
-    color: white;
 }
 
 .icon-btn.btn-danger:hover {
@@ -589,7 +652,6 @@
 .icon-btn.btn-primary {
     background-color: #3b82f6;
     border-color: #3b82f6;
-    color: white;
 }
 
 .icon-btn.btn-primary:hover {
@@ -597,21 +659,162 @@
     border-color: #2563eb;
 }
 
-/* ===== ستون عملیات - اصلاح شده ===== */
-.operations-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.25rem;
-    flex-wrap: wrap;
-    padding: 4px !important;
+.payment-rows-container {
+    margin-bottom: 1rem;
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    width: 100%;
+    max-height: 90px;
+    padding: 0;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+    display: block !important;
 }
 
-/* ===== جداول پایینی - اصلاح شده ===== */
+/* --- New Excel-like table style for payments (payment-excel-table) --- */
+.payment-excel-table {
+    width: 100%;
+    border-collapse: collapse; /* حذف فاصله بین سلول‌ها */
+    font-size: clamp(0.6rem, 1vw, 0.8rem);
+    table-layout: auto;
+    display: table;
+}
+
+.payment-excel-table tbody {
+    display: table-row-group;
+}
+
+.payment-excel-table tr {
+    display: table-row;
+}
+.payment-excel-table th, .payment-excel-table td {
+    border: 1px solid #ccc; /* Border شبیه اکسل */
+    padding: clamp(1px, 0.25vw, 3px) clamp(2px, 0.35vw, 3px);
+    text-align: center;
+    white-space: normal;
+    word-break: break-word;
+    overflow: hidden;
+    vertical-align: middle;
+    height: 28px;
+    line-height: 1.1;
+    max-height: 28px;
+    display: table-cell;
+}
+.payment-excel-table th {
+    background-color: #e9ecef;
+    font-weight: bold;
+    color: #343a40;
+    font-size: clamp(0.6rem, 1vw, 0.75rem);
+}
+.payment-excel-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa; /* سطر‌های زوج کمی روشن‌تر */
+}
+.payment-excel-table tbody tr:hover {
+    background-color: #eef; /* افکت هاور ملایم */
+}
+
+/* استایل‌های عناوین جدول */
+.payment-excel-table th[style*="display: none"] {
+    display: none !important;
+}
+.payment-excel-table th[style*="display: table-cell"] {
+    display: table-cell !important;
+}
+/* --- End of Excel-like table style for payments --- */
+
+/* استایل‌های قدیمی حذف شدند */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* استایل‌های قدیمی حذف شدند */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* استایل‌های قدیمی حذف شدند */
+
+/* استایل‌های قدیمی حذف شدند */
+
+
+/* استایل‌های عناوین جدول */
+.payment-table-headers {
+    display: flex;
+    gap: 0.08rem;
+    margin-bottom: 0.3rem;
+    padding: 0.15rem;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    border: 1px solid #e9ecef;
+}
+
+.table-header-field {
+    font-size: 0.6rem;
+    font-weight: bold;
+    color: #495057;
+    text-align: center;
+    padding: 0.15rem 0.1rem;
+    background-color: #e9ecef;
+    border-radius: 3px;
+    border: 1px solid #dee2e6;
+    box-sizing: border-box;
+}
+
+/* استایل‌های عناوین چک در جدول */
+.table-cheque-header-row {
+    display: flex;
+    gap: 0.05rem;
+}
+
+.table-cheque-header-field {
+    flex: 1;
+    font-size: 0.5rem;
+    font-weight: bold;
+    color: #495057;
+    text-align: center;
+    padding: 0.1rem 0.05rem;
+    background-color: #e9ecef;
+    border-radius: 2px;
+    border: 1px solid #dee2e6;
+    box-sizing: border-box;
+}
+
+
+
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* استایل‌های جدول ساده - حذف شد چون بالاتر تعریف شده */
+
+.payment-row {
+    transition: background-color 0.2s ease;
+    background: transparent;
+}
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* استایل‌های عناوین جدول ساده */
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* استایل‌های حذف شدند - فیلدهای چک جداگانه شدند */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+
 .invoice-settlement-table,
 .customer-payments-table {
     width: 100%;
-    overflow-x: auto;
+    overflow: visible;
     box-sizing: border-box;
 }
 
@@ -620,19 +823,34 @@
     width: 100%;
     border-collapse: collapse;
     margin: 0;
-    font-size: 0.9rem;
-    table-layout: fixed;
+    font-size: clamp(0.7rem, 1.2vw, 0.9rem);
+    table-layout: auto;
 }
 
 .invoice-settlement-table .table th,
 .invoice-settlement-table .table td,
 .customer-payments-table .table th,
 .customer-payments-table .table td {
-    padding: 8px 6px;
+    padding: clamp(1px, 0.25vw, 3px) clamp(2px, 0.35vw, 3px);
     text-align: center;
     border-bottom: 1px solid #e5e7eb;
     overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+    vertical-align: middle;
+    height: clamp(22px, 2.8vw, 28px);
+    line-height: 1.1;
+    max-height: clamp(22px, 2.8vw, 28px);
+}
+
+.invoice-settlement-table .operations-cell,
+.customer-payments-table .operations-cell {
+    min-height: 28px;
+    height: 28px;
+    max-height: 28px;
+    padding: clamp(1px, 0.25vw, 3px) clamp(2px, 0.35vw, 3px) !important;
+    display: flex !important;
+    flex-direction: row !important;
 }
 
 .invoice-settlement-table .table th,
@@ -647,43 +865,6 @@
     background-color: #f9fafb;
 }
 
-/* تنظیم عرض ستون‌ها برای جداول پایینی */
-#customer_payments_table th:nth-child(1),
-#customer_payments_table td:nth-child(1) {
-    width: 45%;
-}
-
-#customer_payments_table th:nth-child(2),
-#customer_payments_table td:nth-child(2) {
-    width: 35%;
-}
-
-#customer_payments_table th:nth-child(3),
-#customer_payments_table td:nth-child(3) {
-    width: 20%;
-    min-width: 90px;
-    overflow: visible;
-    white-space: normal;
-}
-
-#invoice_settlement_table th:nth-child(1),
-#invoice_settlement_table td:nth-child(1) {
-    width: 45%;
-}
-
-#invoice_settlement_table th:nth-child(2),
-#invoice_settlement_table td:nth-child(2) {
-    width: 35%;
-}
-
-#invoice_settlement_table th:nth-child(3),
-#invoice_settlement_table td:nth-child(3) {
-    width: 20%;
-    min-width: 90px;
-    overflow: visible;
-    white-space: normal;
-}
-
 .no-data-row td {
     padding: 2rem !important;
     color: #6b7280;
@@ -696,16 +877,273 @@
     text-align: center;
 }
 
-/* ===== استایل فرم‌ها ===== */
-.form-control {
-    padding: 0.375rem 1rem;
-    line-height: 1.5;
+.customer-info {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.customer-info h4 {
+    margin: 0;
+    color: #374151;
+    font-weight: 600;
+}
+
+.invoices-table-wrapper {
+    overflow: visible;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.invoices-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.invoices-table th,
+.invoices-table td {
+    padding: 8px 6px;
+    text-align: center;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.invoices-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #374151;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.invoices-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.invoice-row.selected {
+    background-color: #dbeafe;
+}
+
+.amount-input {
+    width: 100%;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.amount-input:focus {
+    outline: none;
+    border-color: #215f91;
+    box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.1);
+}
+
+.validation-summary {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+}
+
+.validation-summary.show {
+    display: block;
+}
+
+.validation-summary.error {
+    background: #fef2f2;
+    border-color: #ef4444;
+}
+
+.validation-summary.success {
+    background: #f0fdf4;
+    border-color: #10b981;
+}
+
+.validation-summary h5 {
+    margin: 0 0 0.5rem 0;
+    font-weight: 600;
+}
+
+.validation-summary.error h5 {
+    color: #dc2626;
+}
+
+.validation-summary.success h5 {
+    color: #059669;
+}
+
+.validation-summary p {
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+/* استایل‌های جدول چک */
+.cheque-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    table-layout: auto;
+}
+
+.cheque-table th, 
+.cheque-table td {
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.cheque-table th {
+    background-color: #f8f9fa;
+}
+
+.cheque-table .form-control {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.375rem;
+    text-overflow: ellipsis;
+    min-height: 32px;
+}
+
+.cheque-summary {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+}
+
+.summary-box {
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+}
+
+.summary-box label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    color: #495057;
+}
+
+.summary-box input {
+    font-weight: bold;
+    color: #1d4ed8;
+}
+
+/* Responsive styles for payment row content */
+@media (max-width: 768px) {
+    .payment-input-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .payment-type-field,
+    .payment-amount-field,
+    .payment-date-field,
+    .payment-description-field {
+        flex: none;
+        width: 100%;
+        min-width: auto;
+    }
+    
+    .payment-input-row {
+        gap: 0.1rem;
+    }
+    
+    .payment-rows-container {
+        max-height: 90px !important;
+        width: 100%;
+        padding: 0;
+    }
+    
+    .payment-table-headers {
+        width: 100%;
+        padding: 0.2rem 0;
+    }
+    
+    .payment-amount-field,
+    .payment-date-field,
+    .payment-description-field {
+        flex: none;
+        min-width: auto;
+    }
+    
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+    
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+    
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+    
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+    
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
+    
+    .icon-btn {
+        min-width: 18px;
+        height: 18px;
+        padding: 0.06rem !important;
+    }
+    
+    .icon-btn i {
+        font-size: 0.65rem;
+    }
+}
+
+.operation-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 1rem;
-    height: 38px !important;
+}
+
+.form-group label i {
+    color: #fd7e14;
+}
+
+.form-control {
+    padding: clamp(0.25rem, 0.8vw, 0.375rem) clamp(0.5rem, 1.5vw, 1rem);
+    line-height: 1.5;
+    font-size: clamp(0.8rem, 1.3vw, 1rem);
+    height: clamp(30px, 4vw, 38px) !important;
     box-sizing: border-box;
     font-family: 'BHoma', sans-serif;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: clamp(4px, 1vw, 8px);
     width: 100%;
     vertical-align: middle;
     background-color: #f9fafb;
@@ -734,22 +1172,37 @@ textarea.form-control {
     resize: vertical;
 }
 
-.amount-input {
-    width: 100%;
-    padding: 0.25rem 0.5rem;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    text-align: center;
+.customer-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
-.amount-input:focus {
-    outline: none;
-    border-color: #215f91;
-    box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.1);
+.customer-input-group .form-control {
+    flex: 1;
 }
 
-/* ===== مدال‌ها ===== */
+.customer-select-btn {
+    padding: 0.375rem 0.75rem;
+    height: 38px;
+    border: 1px solid #e5e7eb;
+    background-color: #f9fafb;
+    color: #6b7280;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.customer-select-btn:hover {
+    background-color: #fd7e14;
+    color: white;
+    border-color: #fd7e14;
+}
+
+/* Customer Modal Styles */
 .customer-modal {
     display: none;
     position: fixed;
@@ -811,7 +1264,7 @@ textarea.form-control {
 }
 
 .customers-table-wrapper {
-    max-height: calc(56px * 5);
+    max-height: 50vh;
     overflow-y: auto;
     overflow-x: hidden;
     border: 1px solid #eee;
@@ -840,103 +1293,27 @@ textarea.form-control {
     cursor: pointer;
 }
 
-.invoices-table-wrapper {
-    max-height: 400px;
-    overflow-y: auto;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-}
-
-.invoices-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0;
-    font-size: 0.9rem;
-}
-
-.invoices-table th,
-.invoices-table td {
-    padding: 8px 6px;
-    text-align: center;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.invoices-table th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-    color: #374151;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.invoices-table tbody tr:hover {
-    background-color: #f9fafb;
-}
-
-/* ===== جدول چک ===== */
-.cheque-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-    table-layout: auto;
-}
-
-.cheque-table th, 
-.cheque-table td {
-    padding: 0.5rem;
-    border: 1px solid #dee2e6;
-    text-align: center;
-    overflow: hidden;
-    white-space: nowrap;
-}
-
-.cheque-table th {
-    background-color: #f8f9fa;
-}
-
-.cheque-table .form-control {
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 0.8rem;
-    padding: 0.25rem 0.375rem;
-    text-overflow: ellipsis;
-    min-height: 32px;
-}
-
-.cheque-summary {
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 1rem;
-    padding: 1rem;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-}
-
-.summary-box {
-    display: flex;
-    flex-direction: column;
-    width: 220px;
-}
-
-.summary-box label {
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    color: #495057;
-}
-
-.summary-box input {
-    font-weight: bold;
-    color: #1d4ed8;
-}
-
-/* ===== دکمه‌ها ===== */
-.btn {
-    padding: 0.75rem 1.5rem;
+.select-customer-btn {
+    background-color: #4CAF50;
+    color: white;
+    padding: 8px 16px;
     border: none;
-    border-radius: 8px;
-    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.btn {
+    padding: clamp(0.5rem, 1.2vw, 0.75rem) clamp(1rem, 2vw, 1.5rem);
+    border: none;
+    border-radius: clamp(4px, 1vw, 8px);
+    font-size: clamp(0.8rem, 1.3vw, 1rem);
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -968,20 +1345,7 @@ textarea.form-control {
     box-shadow: 0 5px 15px rgba(107, 114, 128, 0.4);
 }
 
-.btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.8rem;
-    border-radius: 0.25rem;
-}
-
-.form-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-    margin-top: 1rem;
-}
-
-/* ===== Responsive Design ===== */
+/* Responsive Design */
 @media (max-width: 768px) {
     .financial-operation-container {
         padding: 1rem;
@@ -1009,38 +1373,51 @@ textarea.form-control {
         font-size: 1rem;
     }
     
-    .payment-input-row {
+    .form-actions {
         flex-direction: column;
-        align-items: stretch;
     }
     
-    .payment-type-field,
-    .payment-amount-field,
-    .payment-date-field,
-    .payment-description-field {
-        flex: none;
+    .btn {
         width: 100%;
-        min-width: auto;
-    }
-    
-    .icon-btn {
-        min-width: 20px;
-        height: 20px;
-        padding: 0.06rem !important;
-    }
-    
-    .icon-btn i {
-        font-size: 0.65rem;
-    }
-    
-    .operations-cell {
-        gap: 0.15rem;
+        justify-content: center;
     }
     
     .customer-modal-content {
         width: 95%;
         margin: 10% auto;
         padding: 15px;
+    }
+    
+    .customer-search-box {
+        width: 100%;
+        margin-right: 0;
+        float: none;
+    }
+    
+    .customers-table-wrapper {
+        max-height: calc(56px * 4);
+    }
+    
+    .customers-table th,
+    .customers-table td {
+        padding: 8px 6px;
+        font-size: 0.9rem;
+    }
+    
+    .invoices-list {
+        min-height: 150px;
+    }
+    
+    .no-customer-selected {
+        padding: 1rem;
+    }
+    
+    .no-customer-selected i {
+        font-size: 2rem;
+    }
+    
+    .no-customer-selected p {
+        font-size: 0.9rem;
     }
 }
 
@@ -1063,6 +1440,53 @@ textarea.form-control {
     
     .section-header h3 {
         font-size: 0.9rem;
+    }
+    
+    .form-control {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .customer-modal-content {
+        width: 98%;
+        margin: 5% auto;
+        padding: 10px;
+    }
+    
+    .customers-table-wrapper {
+        max-height: calc(56px * 3);
+    }
+    
+    .customers-table th,
+    .customers-table td {
+        padding: 6px 4px;
+        font-size: 0.8rem;
+    }
+    
+    .customer-search-box {
+        font-size: 0.9rem;
+        padding: 8px;
+    }
+    
+    .invoices-list {
+        min-height: 120px;
+    }
+    
+    .no-customer-selected {
+        padding: 0.75rem;
+    }
+    
+    .no-customer-selected i {
+        font-size: 1.5rem;
+    }
+    
+    .no-customer-selected p {
+        font-size: 0.8rem;
     }
 }
 </style>
