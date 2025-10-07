@@ -589,6 +589,14 @@
     font-size: 0.75rem;
 }
 
+/* استایل ستون عملیات برای نمایش آیکن‌ها در یک ردیف */
+.operations-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
 .icon-btn:hover {
     transform: scale(1.05);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -1676,7 +1684,7 @@ function addPaymentFromInputs() {
             <td>${date}</td>
             ${additionalCells}
             <td>${description}</td>
-            <td>
+            <td class="operations-cell">
                 <button type="button" class="btn btn-success btn-sm icon-btn" onclick="finalizePaymentRow('${rowId}')" title="نهایی کردن">
                     <i class="bi bi-check-circle"></i>
                 </button>
@@ -2092,7 +2100,7 @@ function addCustomerToTable(customer, displayName) {
                 <input type="text" class="amount-input" placeholder="مبلغ دریافتی" 
                        oninput="formatAmountInput(this); updateCustomerPayment('${rowId}', this.value);">
             </td>
-            <td>
+            <td class="operations-cell">
                 <button type="button" class="btn btn-primary btn-sm icon-btn" onclick="openInvoiceSelectionForCustomer('${customer.id}', '${displayName}', '${rowId}')" title="انتخاب فاکتور">
                     <i class="bi bi-file-earmark-text"></i>
                 </button>
