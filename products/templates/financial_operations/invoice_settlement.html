@@ -94,23 +94,26 @@
                     </div>
                 </div>
                 
-                <!-- عناوین جدول ردیف‌های دریافتی -->
-                <div class="payment-table-headers" style="display: none;">
-                    <div class="table-header-field" style="flex: 0 0 9%; min-width: 0;">نوع دریافتی</div>
-                    <div class="table-header-field" style="flex: 0 0 9%; min-width: 0;">مبلغ دریافتی</div>
-                    <div class="table-header-field" style="flex: 0 0 9%; min-width: 0;">تاریخ دریافت</div>
-                    <div class="table-header-field" id="table-additional-header-1" style="display: none; flex: 0 0 9%; min-width: 0;">حساب بانکی</div>
-                    <div class="table-header-field" id="table-additional-header-2" style="display: none; flex: 0 0 9%; min-width: 0;">دستگاه کارتخوان</div>
-                    <div class="table-header-field" id="table-cheque-header-1" style="display: none; flex: 0 0 9%; min-width: 0;">تاریخ سررسید</div>
-                    <div class="table-header-field" id="table-cheque-header-2" style="display: none; flex: 0 0 9%; min-width: 0;">نام بانک</div>
-                    <div class="table-header-field" id="table-cheque-header-3" style="display: none; flex: 0 0 9%; min-width: 0;">سریال چک</div>
-                    <div class="table-header-field" id="table-cheque-header-4" style="display: none; flex: 0 0 9%; min-width: 0;">شماره حساب</div>
-                    <div class="table-header-field" style="flex: 0 0 12%; min-width: 0;">توضیحات</div>
-                    <div class="table-header-field" style="flex: 0 0 7%; min-width: 0;">عملیات</div>
-                </div>
-                
                 <div id="payment_rows_container" class="payment-rows-container" style="display: none;">
-                    <!-- ردیف‌های دریافتی اینجا اضافه خواهند شد -->
+                    <table class="payment-excel-table" id="payment_rows_table">
+                        <thead>
+                            <tr id="payment_table_header_row">
+                                <th style="width: 10%;">نوع دریافتی</th>
+                                <th style="width: 10%;">مبلغ دریافتی</th>
+                                <th style="width: 10%;">تاریخ دریافت</th>
+                                <th id="table-additional-header-1" style="width: 10%; display: none;">حساب بانکی</th>
+                                <th id="table-additional-header-2" style="width: 10%; display: none;">دستگاه کارتخوان</th>
+                                <th id="table-cheque-header-1" style="width: 10%; display: none;">تاریخ سررسید</th>
+                                <th id="table-cheque-header-2" style="width: 10%; display: none;">نام بانک</th>
+                                <th id="table-cheque-header-3" style="width: 10%; display: none;">سریال چک</th>
+                                <th id="table-cheque-header-4" style="width: 10%; display: none;">شماره حساب</th>
+                                <th style="width: 15%;">توضیحات</th>
+                                <th style="width: 5%;">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payment_rows_tbody">
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -638,39 +641,47 @@
     border: none;
 }
 
+/* --- New Excel-like table style for payments (payment-excel-table) --- */
+.payment-excel-table {
+    width: 100%;
+    border-collapse: collapse; /* حذف فاصله بین سلول‌ها */
+    font-size: 0.8rem;
+    min-width: 800px; /* حداقل عرض برای نمایش همه ستون‌ها */
+}
+.payment-excel-table th, .payment-excel-table td {
+    border: 1px solid #ccc; /* Border شبیه اکسل */
+    padding: 6px 4px;
+    text-align: center;
+    white-space: nowrap;
+}
+.payment-excel-table th {
+    background-color: #e9ecef;
+    font-weight: bold;
+    color: #343a40;
+}
+.payment-excel-table tbody tr:nth-child(even) {
+    background-color: #f8f9fa; /* سطر‌های زوج کمی روشن‌تر */
+}
+.payment-excel-table tbody tr:hover {
+    background-color: #eef; /* افکت هاور ملایم */
+}
+
+/* استایل‌های عناوین جدول */
+.payment-excel-table th[style*="display: none"] {
+    display: none !important;
+}
+.payment-excel-table th[style*="display: table-cell"] {
+    display: table-cell !important;
+}
+/* --- End of Excel-like table style for payments --- */
+
 /* استایل‌های قدیمی حذف شدند */
 
-.payment-row-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.payment-row-title {
-    font-weight: 600;
-    color: #374151;
-}
-
-.payment-row-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-shrink: 0;
-    align-items: center;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
 /* استایل‌های قدیمی حذف شدند */
 
-.payment-row-actions {
-    position: absolute;
-    right: 0.1rem;
-    top: 100%;
-    transform: translateY(0.2rem);
-    display: flex;
-    gap: 0.1rem;
-    align-items: center;
-    z-index: 15;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
 /* استایل‌های قدیمی حذف شدند */
 
@@ -722,33 +733,9 @@
 
 
 
-.payment-row .form-group input {
-    padding: 0.03rem 0.05rem;
-    font-size: 0.65rem;
-    border: 1px solid #d1d5db;
-    border-radius: 2px;
-    height: 18px;
-    width: 65px;
-    max-width: 65px;
-    box-sizing: border-box;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
-/* استایل‌های متن بدون باکس */
-.payment-value {
-    display: block;
-    padding: 0.15rem 0.2rem;
-    font-size: 0.65rem;
-    color: #374151;
-    text-align: center;
-    background-color: transparent;
-    border: none;
-    min-height: 18px;
-    line-height: 1.2;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
 /* استایل‌های جدول ساده */
 .payment-rows-container {
@@ -758,165 +745,28 @@
 }
 
 .payment-row {
-    border: none;
     transition: background-color 0.2s ease;
     background: transparent;
-    width: 100%;
-    position: relative;
-    overflow: visible;
-    margin-bottom: 2rem;
 }
 
-.payment-row:last-child {
-    border: none;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
-.payment-row:hover {
-    background-color: #f9fafb;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
-.payment-row.active {
-    background-color: #eff6ff;
-    border-left: 3px solid #3b82f6;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
-.payment-row-content {
-    display: flex;
-    align-items: center;
-    padding: 0.2rem 0;
-    gap: 0;
-    position: relative;
-    width: 100%;
-    flex-wrap: nowrap;
-}
-
-.payment-row .form-group {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 28px;
-    margin: 0;
-    background: transparent;
-    border: none;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-/* تنظیم عرض فیلدها برای fit all columns on one row */
-.payment-row .form-group:nth-child(1) {
-    flex: 0 0 9%; /* نوع دریافتی */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(2) {
-    flex: 0 0 9%; /* مبلغ دریافتی */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(3) {
-    flex: 0 0 9%; /* تاریخ دریافت */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(4) {
-    flex: 0 0 9%; /* حساب بانکی */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(5) {
-    flex: 0 0 9%; /* دستگاه کارتخوان */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(6) {
-    flex: 0 0 9%; /* تاریخ سررسید */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(7) {
-    flex: 0 0 9%; /* نام بانک */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(8) {
-    flex: 0 0 9%; /* سریال چک */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(9) {
-    flex: 0 0 9%; /* شماره حساب */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(10) {
-    flex: 0 0 12%; /* توضیحات */
-    min-width: 0;
-}
-
-.payment-row .form-group:nth-child(11) {
-    flex: 0 0 7%; /* عملیات */
-    min-width: 0;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
 /* استایل‌های عناوین جدول ساده */
-.payment-table-headers {
-    background: transparent;
-    color: #374151;
-    border: none;
-    padding: 0.2rem 0.2rem 0.2rem 0.2rem;
-    margin-bottom: 0;
-    width: 100%;
-    display: flex;
-    flex-wrap: nowrap;
-    box-sizing: border-box;
-}
-
-.table-header-field {
-    font-weight: 600;
-    font-size: 0.65rem;
-    text-align: center;
-    padding: 0.15rem 0.2rem;
-    background: transparent;
-    color: #374151;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
 /* استایل‌های حذف شدند - فیلدهای چک جداگانه شدند */
 
-.payment-row.finalized {
-    background: #d1fae5;
-    border-color: #10b981;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
-.payment-row.finalized .payment-row-title::after {
-    content: " ✓ نهایی شده";
-    color: #10b981;
-    font-weight: 600;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
-.payment-row.active {
-    background: #dbeafe;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
-}
-
-.payment-row.active::before {
-    content: "●";
-    color: #3b82f6;
-    font-weight: bold;
-    position: absolute;
-    right: 0.1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.8rem;
-    z-index: 5;
-}
+/* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
 
 .invoice-settlement-table,
 .customer-payments-table {
@@ -1167,68 +1017,15 @@
         min-width: auto;
     }
     
-    .payment-row-content {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-    }
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
     
-    .payment-row-content .form-group {
-        margin-bottom: 1rem;
-    }
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
     
-    .payment-row-header {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: stretch;
-    }
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
     
-    .payment-row-actions {
-        justify-content: center;
-        flex-wrap: wrap;
-    }
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
     
-    .payment-row {
-        padding: 0.03rem;
-    }
-    
-    .payment-row-content {
-        flex-direction: column;
-        gap: 0.3rem;
-        align-items: stretch;
-    }
-    
-    .payment-row .form-group {
-        flex: none;
-        width: 100%;
-        margin-right: 0 !important;
-    }
-    
-    .payment-row .form-group:nth-child(11) {
-        flex: none;
-        width: 100%;
-        margin-right: 0 !important;
-    }
-    
-    .payment-row .form-group input {
-        width: 100%;
-        max-width: none;
-    }
-    
-    .payment-row-actions {
-        position: absolute;
-        right: 0.1rem;
-        top: 100%;
-        transform: translateY(0.2rem);
-        justify-content: center;
-        margin-top: 0;
-        margin-left: 0;
-        z-index: 15;
-    }
-    
-    .payment-row.active::before {
-        display: none;
-    }
+    /* CSS های قدیمی حذف شدند - حالا از جدول HTML استفاده می‌کنیم */
     
     .icon-btn {
         min-width: 18px;
@@ -1745,9 +1542,9 @@ function handlePaymentTypeChange() {
             paymentCardReaderField.style.display = 'block';
         }
         
-        // نمایش عناوین جدول
-        const paymentTableHeaders = document.querySelector('.payment-table-headers');
-        paymentTableHeaders.style.display = 'flex';
+        // نمایش جدول
+        const paymentRowsContainer = document.getElementById('payment_rows_container');
+        paymentRowsContainer.style.display = 'block';
         
         // مخفی کردن عناوین اضافی جدول
         document.getElementById('table-additional-header-1').style.display = 'none';
@@ -1759,20 +1556,20 @@ function handlePaymentTypeChange() {
         
         // نمایش عناوین خاص بر اساس نوع پرداخت
         if (paymentType === 'bank_transfer') {
-            document.getElementById('table-additional-header-1').style.display = 'block';
+            document.getElementById('table-additional-header-1').style.display = 'table-cell';
         } else if (paymentType === 'pos') {
-            document.getElementById('table-additional-header-2').style.display = 'block';
+            document.getElementById('table-additional-header-2').style.display = 'table-cell';
         } else if (paymentType === 'cheque') {
-            document.getElementById('table-cheque-header-1').style.display = 'block';
-            document.getElementById('table-cheque-header-2').style.display = 'block';
-            document.getElementById('table-cheque-header-3').style.display = 'block';
-            document.getElementById('table-cheque-header-4').style.display = 'block';
+            document.getElementById('table-cheque-header-1').style.display = 'table-cell';
+            document.getElementById('table-cheque-header-2').style.display = 'table-cell';
+            document.getElementById('table-cheque-header-3').style.display = 'table-cell';
+            document.getElementById('table-cheque-header-4').style.display = 'table-cell';
         } else if (paymentType === 'cash') {
             // برای نقدی، عناوین چک را نمایش می‌دهیم اما خالی
-            document.getElementById('table-cheque-header-1').style.display = 'block';
-            document.getElementById('table-cheque-header-2').style.display = 'block';
-            document.getElementById('table-cheque-header-3').style.display = 'block';
-            document.getElementById('table-cheque-header-4').style.display = 'block';
+            document.getElementById('table-cheque-header-1').style.display = 'table-cell';
+            document.getElementById('table-cheque-header-2').style.display = 'table-cell';
+            document.getElementById('table-cheque-header-3').style.display = 'table-cell';
+            document.getElementById('table-cheque-header-4').style.display = 'table-cell';
         }
         
         // نمایش جداول
@@ -1812,9 +1609,9 @@ function handlePaymentTypeChange() {
             initialValue: true
         });
     } else {
-        // مخفی کردن عناوین جدول
-        const paymentTableHeaders = document.querySelector('.payment-table-headers');
-        paymentTableHeaders.style.display = 'none';
+        // مخفی کردن جدول
+        const paymentRowsContainer = document.getElementById('payment_rows_container');
+        paymentRowsContainer.style.display = 'none';
         
         // مخفی کردن تمام فیلدهای ورودی
         paymentAmountField.style.display = 'none';
@@ -1855,82 +1652,45 @@ function addPaymentFromInputs() {
     }
     
     // دریافت اطلاعات اضافی بر اساس نوع پرداخت
-    let additionalInfo = '';
+    let additionalCells = '';
     if (paymentType === 'bank_transfer') {
         const bankAccount = document.getElementById('payment_bank_account').value;
-        additionalInfo = `
-            <div class="form-group">
-                <span class="payment-value">${bankAccount || ''}</span>
-            </div>
-        `;
+        additionalCells = `<td>${bankAccount || ''}</td><td></td><td></td><td></td><td></td><td></td>`;
     } else if (paymentType === 'pos') {
         const cardReader = document.getElementById('payment_card_reader').value;
-        additionalInfo = `
-            <div class="form-group">
-                <span class="payment-value">${cardReader || ''}</span>
-            </div>
-        `;
+        additionalCells = `<td></td><td>${cardReader || ''}</td><td></td><td></td><td></td><td></td>`;
     } else if (paymentType === 'cheque') {
         // برای چک، اطلاعات چک‌ها را از مودال دریافت می‌کنیم
-        const chequeInfo = getChequeInfo();
-        additionalInfo = `
-            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
-                <span class="payment-value"></span>
-            </div>
-            ${chequeInfo}
-        `;
+        const chequeInfo = getChequeInfoObject();
+        additionalCells = `<td></td><td></td><td>${chequeInfo.dueDate || ''}</td><td>${chequeInfo.bankName || ''}</td><td>${chequeInfo.serialNumber || ''}</td><td>${chequeInfo.accountNumber || ''}</td>`;
     } else if (paymentType === 'cash') {
         // برای نقدی، فیلدهای خالی اضافه می‌کنیم
-        additionalInfo = `
-            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
-                <span class="payment-value"></span>
-            </div>
-            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
-                <span class="payment-value"></span>
-            </div>
-            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
-                <span class="payment-value"></span>
-            </div>
-            <div class="form-group" style="width: 140px; flex: 0 0 140px;">
-                <span class="payment-value"></span>
-            </div>
-        `;
+        additionalCells = `<td></td><td></td><td></td><td></td><td></td><td></td>`;
     }
     
     // ایجاد ردیف دریافتی
     const rowId = 'payment_row_' + Date.now();
-    const paymentRowsContainer = document.getElementById('payment_rows_container');
+    const paymentRowsTbody = document.getElementById('payment_rows_tbody');
     
     const rowContent = `
-        <div class="payment-row" id="${rowId}" onclick="setActivePaymentRow('${rowId}')">
-            <div class="payment-row-content">
-                <div class="form-group">
-                    <span class="payment-value">${getPaymentTypeName(paymentType)}</span>
-                </div>
-                <div class="form-group">
-                    <span class="payment-value">${amount}</span>
-                </div>
-                <div class="form-group">
-                    <span class="payment-value">${date}</span>
-                </div>
-                ${additionalInfo}
-                <div class="form-group">
-                    <span class="payment-value">${description}</span>
-                </div>
-                <div class="payment-row-actions">
-                    <button type="button" class="btn btn-success btn-sm icon-btn" onclick="finalizePaymentRow('${rowId}')" title="نهایی کردن">
-                        <i class="bi bi-check-circle"></i>
-                    </button>
-                    <button type="button" class="btn btn-danger btn-sm icon-btn" onclick="removePaymentRow('${rowId}')" title="حذف">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="validation-summary" id="validation_${rowId}"></div>
-        </div>
+        <tr class="payment-row" id="${rowId}" onclick="setActivePaymentRow('${rowId}')">
+            <td>${getPaymentTypeName(paymentType)}</td>
+            <td>${amount}</td>
+            <td>${date}</td>
+            ${additionalCells}
+            <td>${description}</td>
+            <td>
+                <button type="button" class="btn btn-success btn-sm icon-btn" onclick="finalizePaymentRow('${rowId}')" title="نهایی کردن">
+                    <i class="bi bi-check-circle"></i>
+                </button>
+                <button type="button" class="btn btn-danger btn-sm icon-btn" onclick="removePaymentRow('${rowId}')" title="حذف">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
     `;
     
-    paymentRowsContainer.insertAdjacentHTML('beforeend', rowContent);
+    paymentRowsTbody.insertAdjacentHTML('beforeend', rowContent);
     paymentRows.push({
         id: rowId,
         type: paymentType,
@@ -2143,8 +1903,8 @@ function removePaymentRow(rowId) {
 // تابع نهایی کردن ردیف دریافتی
 function finalizePaymentRow(rowId) {
     const row = document.getElementById(rowId);
-    const amountInput = row.querySelector('.amount-input');
-    const amount = parseAmountFromFormattedString(amountInput.value);
+    const amountCell = row.cells[1]; // مبلغ در ستون دوم است
+    const amount = parseAmountFromFormattedString(amountCell.textContent);
     
     if (!amount || parseFloat(amount) <= 0) {
         alert('لطفاً مبلغ معتبر وارد کنید');
@@ -2769,6 +2529,50 @@ function getPaymentTypeName(paymentType) {
 }
 
 // تابع دریافت اطلاعات چک‌ها
+function getChequeInfoObject() {
+    let chequeInfo = {
+        dueDate: '',
+        bankName: '',
+        serialNumber: '',
+        accountNumber: ''
+    };
+    
+    // استفاده از اطلاعات ذخیره شده در متغیر سراسری
+    if (window.chequeData && window.chequeData.length > 0) {
+        // فقط اولین چک را نمایش می‌دهیم
+        const cheque = window.chequeData[0];
+        chequeInfo.dueDate = cheque.due_date || '';
+        chequeInfo.bankName = cheque.bank_name || '';
+        chequeInfo.serialNumber = cheque.serial || '';
+        chequeInfo.accountNumber = cheque.account_number || '';
+    } else {
+        // اگر اطلاعات ذخیره شده وجود ندارد، از جدول استفاده کن
+        const rows = document.getElementById('cheque-list-body').querySelectorAll('tr');
+        
+        if (rows.length > 0) {
+            // فقط اولین ردیف را نمایش می‌دهیم
+            const row = rows[0];
+            const amountInput = row.querySelector(`input[name="amount_0"]`);
+            const amount = parseAmountFromFormattedString(amountInput.value);
+            
+            if (parseFloat(amount) > 0) {
+                const dueDate = row.querySelector(`input[name="due_date_0"]`).value;
+                const bankName = row.querySelector(`select[name="bank_name_0"]`).value;
+                const serial = row.querySelector(`input[name="serial_0"]`).value;
+                const accountNumber = row.querySelector(`input[name="account_number_0"]`).value;
+                
+                chequeInfo.dueDate = dueDate || '';
+                chequeInfo.bankName = bankName || '';
+                chequeInfo.serialNumber = serial || '';
+                chequeInfo.accountNumber = accountNumber || '';
+            }
+        }
+    }
+    
+    return chequeInfo;
+}
+
+// تابع قدیمی getChequeInfo برای سازگاری با کدهای موجود
 function getChequeInfo() {
     let chequeInfo = '';
     
