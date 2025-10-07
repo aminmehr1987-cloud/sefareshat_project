@@ -334,7 +334,7 @@
 }
 
 .operation-header h2 i {
-    color: #fd7e14;
+    color: #49a1f3;
 }
 
 /* باکس سه قسمتی */
@@ -393,8 +393,8 @@
 }
 
 .section-header {
-    background: linear-gradient(135deg, #fd7e14, #e55a00);
-    color: white;
+    background: linear-gradient(135deg, #568fe6, #2662a7);
+    color: rgb(245, 245, 245);
     padding: 1rem 1.5rem;
     margin: 0;
 }
@@ -421,7 +421,7 @@
 
 .no-customer-selected {
     text-align: center;
-    color: #6b7280;
+    color: #6b72802d;
     padding: 2rem;
 }
 
@@ -445,7 +445,7 @@
 .loading-invoices i {
     font-size: 3rem;
     margin-bottom: 1rem;
-    color: #fd7e14;
+    color: #286283;
     animation: spin 1s linear infinite;
 }
 
@@ -877,7 +877,7 @@
 
 .amount-input:focus {
     outline: none;
-    border-color: #fd7e14;
+    border-color: #215f91;
     box-shadow: 0 0 0 2px rgba(253, 126, 20, 0.1);
 }
 
@@ -1652,21 +1652,18 @@ function addPaymentFromInputs() {
     }
     
     // دریافت اطلاعات اضافی بر اساس نوع پرداخت
-    let additionalCells = '';
-    if (paymentType === 'bank_transfer') {
-        const bankAccount = document.getElementById('payment_bank_account').value;
-        additionalCells = `<td>${bankAccount || ''}</td><td></td><td></td><td></td><td></td><td></td>`;
-    } else if (paymentType === 'pos') {
-        const cardReader = document.getElementById('payment_card_reader').value;
-        additionalCells = `<td></td><td>${cardReader || ''}</td><td></td><td></td><td></td><td></td>`;
-    } else if (paymentType === 'cheque') {
-        // برای چک، اطلاعات چک‌ها را از مودال دریافت می‌کنیم
-        const chequeInfo = getChequeInfoObject();
-        additionalCells = `<td></td><td></td><td>${chequeInfo.dueDate || ''}</td><td>${chequeInfo.bankName || ''}</td><td>${chequeInfo.serialNumber || ''}</td><td>${chequeInfo.accountNumber || ''}</td>`;
-    } else if (paymentType === 'cash') {
-        // برای نقدی، فیلدهای خالی اضافه می‌کنیم
-        additionalCells = `<td></td><td></td><td></td><td></td><td></td><td></td>`;
-    }
+    const bankAccount = document.getElementById('payment_bank_account').value;
+    const cardReader = document.getElementById('payment_card_reader').value;
+    const chequeInfo = getChequeInfoObject();
+
+    const additionalCells = `
+        <td style="display: ${document.getElementById('table-additional-header-1').style.display};">${paymentType === 'bank_transfer' ? (bankAccount || '') : ''}</td>
+        <td style="display: ${document.getElementById('table-additional-header-2').style.display};">${paymentType === 'pos' ? (cardReader || '') : ''}</td>
+        <td style="display: ${document.getElementById('table-cheque-header-1').style.display};">${paymentType === 'cheque' ? (chequeInfo.dueDate || '') : ''}</td>
+        <td style="display: ${document.getElementById('table-cheque-header-2').style.display};">${paymentType === 'cheque' ? (chequeInfo.bankName || '') : ''}</td>
+        <td style="display: ${document.getElementById('table-cheque-header-3').style.display};">${paymentType === 'cheque' ? (chequeInfo.serialNumber || '') : ''}</td>
+        <td style="display: ${document.getElementById('table-cheque-header-4').style.display};">${paymentType === 'cheque' ? (chequeInfo.accountNumber || '') : ''}</td>
+    `;
     
     // ایجاد ردیف دریافتی
     const rowId = 'payment_row_' + Date.now();
