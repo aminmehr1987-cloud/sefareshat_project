@@ -4477,7 +4477,83 @@ def invoice_settlement_view(request):
     """
     تسویه فاکتورها
     """
-    return render(request, 'financial_operations/invoice_settlement.html')
+    from products.models import Customer, SalesInvoice
+    import json
+    
+    # بارگذاری لیست مشتریان
+    customers = Customer.objects.all().values(
+        'id', 'first_name', 'last_name', 'store_name', 'mobile', 'phone'
+    )
+    # تبدیل first_name به name برای سازگاری با کد JavaScript
+    customers_list = []
+    for customer in customers:
+        customer_dict = dict(customer)
+        customer_dict['name'] = customer_dict.pop('first_name')
+        customers_list.append(customer_dict)
+    
+    customers_json = json.dumps(customers_list, ensure_ascii=False)
+    
+    # بارگذاری فاکتورهای فروش
+    # همه فاکتورهای ثبت شده و تایید شده (فیلتر مانده را در JavaScript انجام می‌دهیم)
+    credit_invoices = SalesInvoice.objects.filter(
+        status__in=['registered', 'confirmed']  # فقط فاکتورهای ثبت شده و تایید شده
+    ).select_related('customer').values(
+        'id',
+        'invoice_number',
+        'invoice_date',
+        'customer_id',
+        'customer__first_name',
+        'customer__last_name',
+        'customer__store_name',
+        'total_amount',
+        'settle_balance',  # مانده تسویه نشده
+        'settle_cash',
+        'settle_card',
+        'settle_bank',
+        'settle_cheque',
+        'settle_extra_discount'
+    ).order_by('-invoice_date')
+    
+    # تبدیل به لیست برای JSON
+    invoices_list = []
+    for invoice in credit_invoices:
+        # محاسبه مبلغ تسویه شده
+        settled_amount = (
+            invoice['settle_cash'] + 
+            invoice['settle_card'] + 
+            invoice['settle_bank'] + 
+            invoice['settle_cheque'] +
+            invoice['settle_extra_discount']
+        )
+        
+        # محاسبه مانده = کل فاکتور - تسویه شده
+        # اگر settle_balance خالی یا صفر است، خودمان محاسبه می‌کنیم
+        remaining_balance = invoice['settle_balance'] if invoice['settle_balance'] else (invoice['total_amount'] - settled_amount)
+        
+        # نام کامل مشتری
+        customer_name = f"{invoice['customer__first_name']} {invoice['customer__last_name']}"
+        if invoice['customer__store_name']:
+            customer_name += f" ({invoice['customer__store_name']})"
+        
+        invoices_list.append({
+            'id': invoice['invoice_number'],  # شماره فاکتور به جای ID
+            'invoiceNumber': invoice['invoice_number'],
+            'invoiceDate': str(invoice['invoice_date']),  # تبدیل تاریخ به string
+            'customerId': str(invoice['customer_id']),  # تبدیل به string برای مقایسه در JS
+            'customerName': customer_name,
+            'totalAmount': float(invoice['total_amount']),
+            'settledAmount': float(settled_amount),
+            'remainingBalance': float(remaining_balance),  # مانده محاسبه شده
+        })
+    
+    invoices_json = json.dumps(invoices_list, ensure_ascii=False)
+    
+    context = {
+        'customers_json': customers_json,
+        'invoices_json': invoices_json
+    }
+    
+    return render(request, 'financial_operations/invoice_settlement.html', context)
 
 # Financial Operations Views
 @login_required
