@@ -1,0 +1,139 @@
+{% extends "admin/change_form.html" %}
+
+{% block content %}
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+    <h2 style="margin-top: 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 28px;">📚</span>
+        راهنمای تعریف حساب بانکی
+    </h2>
+    
+    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; margin-top: 15px;">
+        <h3 style="margin-top: 0; font-size: 18px; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 10px; margin-bottom: 15px;">
+            🔍 فیلد "حساب مرتبط" چیست؟
+        </h3>
+        <p style="line-height: 1.8; margin-bottom: 15px; font-size: 15px;">
+            <strong>حساب مرتبط</strong> لینک این حساب بانکی به <strong>دفتر کل حسابداری</strong> است. 
+            هر عملیات بانکی (واریز، برداشت) به صورت خودکار در این حساب ثبت می‌شود.
+        </p>
+        
+        <div style="background: rgba(255,255,255,0.15); padding: 15px; border-radius: 6px; border-right: 4px solid #ffd700;">
+            <h4 style="margin-top: 0; font-size: 16px; color: #ffd700;">💡 مثال عملی:</h4>
+            <ul style="margin: 10px 0; padding-right: 20px; line-height: 1.8;">
+                <li>برای حساب بانک ملی → انتخاب کنید: <code style="background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 4px; color: #ffd700;">112001 - بانک ملی - حساب جاری</code></li>
+                <li>برای حساب بانک ملت → انتخاب کنید: <code style="background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 4px; color: #ffd700;">112002 - بانک ملت - حساب جاری</code></li>
+                <li>برای حساب بانک سپه → انتخاب کنید: <code style="background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 4px; color: #ffd700;">112003 - بانک سپه - حساب جاری</code></li>
+            </ul>
+        </div>
+    </div>
+
+    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; margin-top: 15px;">
+        <h3 style="margin-top: 0; font-size: 18px; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 10px; margin-bottom: 15px;">
+            📋 مراحل تعریف حساب بانکی
+        </h3>
+        <ol style="margin: 0; padding-right: 20px; line-height: 2;">
+            <li><strong>حساب مرتبط:</strong> یکی از حساب‌های بانکی (کد 1120xx) را انتخاب کنید</li>
+            <li><strong>بانک:</strong> نام بانک را از لیست انتخاب کنید</li>
+            <li><strong>شماره حساب:</strong> شماره حساب بانکی خود را وارد کنید</li>
+            <li><strong>شماره شبا:</strong> شماره شبای 26 رقمی (IR...) را وارد کنید</li>
+            <li><strong>نوع حساب:</strong> نوع حساب (جاری، پس‌انداز و ...) را انتخاب کنید</li>
+            <li><strong>عنوان حساب:</strong> یک نام توصیفی برای حساب وارد کنید (مثلاً: حساب اصلی شرکت)</li>
+        </ol>
+    </div>
+
+    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; margin-top: 15px;">
+        <h3 style="margin-top: 0; font-size: 18px; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 10px; margin-bottom: 15px;">
+            ⚠️ اگر حساب مرتبط مناسبی وجود ندارد چکار کنم؟
+        </h3>
+        <p style="line-height: 1.8; margin-bottom: 10px;">
+            <strong>گزینه 1: اجرای دستور راه‌اندازی (پیشنهادی)</strong>
+        </p>
+        <div style="background: rgba(0,0,0,0.3); padding: 12px; border-radius: 6px; font-family: monospace; margin-bottom: 15px;">
+            <code style="color: #00ff00;">python manage.py setup_accounting</code>
+        </div>
+        <p style="line-height: 1.8; margin-bottom: 10px;">
+            این دستور به صورت خودکار تمام حساب‌های استاندارد ایرانی را ایجاد می‌کند.
+        </p>
+        
+        <p style="line-height: 1.8; margin-top: 20px; margin-bottom: 10px;">
+            <strong>گزینه 2: ایجاد دستی حساب جدید</strong>
+        </p>
+        <ul style="margin: 0; padding-right: 20px; line-height: 1.8;">
+            <li>به <a href="/admin/products/account/add/" target="_blank" style="color: #ffd700; text-decoration: underline;">صفحه افزودن حساب</a> بروید</li>
+            <li>گروه حساب را انتخاب کنید: <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; color: #ffd700;">1120 - بانک‌ها</code></li>
+            <li>کد حساب جدید تعریف کنید (مثل: 112006، 112007، ...)</li>
+            <li>نام حساب را وارد کنید و ذخیره کنید</li>
+        </ul>
+    </div>
+
+    <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 8px; margin-top: 15px;">
+        <h3 style="margin-top: 0; font-size: 18px; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 10px; margin-bottom: 15px;">
+            📊 ساختار حساب‌های بانکی
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.05);">
+            <thead>
+                <tr style="background: rgba(0,0,0,0.3);">
+                    <th style="padding: 10px; text-align: right; border: 1px solid rgba(255,255,255,0.2);">کد</th>
+                    <th style="padding: 10px; text-align: right; border: 1px solid rgba(255,255,255,0.2);">نام حساب</th>
+                    <th style="padding: 10px; text-align: right; border: 1px solid rgba(255,255,255,0.2);">توضیح</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);"><code>1120</code></td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">بانک‌ها (گروه)</td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">گروه اصلی حساب‌های بانکی</td>
+                </tr>
+                <tr style="background: rgba(255,255,255,0.05);">
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);"><code>112001</code></td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">بانک ملی - حساب جاری</td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">حساب تفصیلی</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);"><code>112002</code></td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">بانک ملت - حساب جاری</td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">حساب تفصیلی</td>
+                </tr>
+                <tr style="background: rgba(255,255,255,0.05);">
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);"><code>112003</code></td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">بانک سپه - حساب جاری</td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">حساب تفصیلی</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);"><code>112004</code></td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">بانک صادرات - حساب جاری</td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">حساب تفصیلی</td>
+                </tr>
+                <tr style="background: rgba(255,255,255,0.05);">
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);"><code>112005</code></td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">بانک پاسارگاد - حساب جاری</td>
+                    <td style="padding: 8px; border: 1px solid rgba(255,255,255,0.2);">حساب تفصیلی</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div style="background: rgba(46, 204, 113, 0.2); padding: 15px; border-radius: 6px; margin-top: 15px; border-right: 4px solid #2ecc71;">
+        <p style="margin: 0; font-size: 15px; line-height: 1.8;">
+            <strong style="color: #2ecc71;">✅ نکته مهم:</strong> 
+            بعد از ایجاد حساب بانکی، تمام واریزها و برداشت‌ها به صورت خودکار در دفتر کل ثبت می‌شوند و نیازی به ثبت دستی ندارید.
+        </p>
+    </div>
+
+    <div style="background: rgba(231, 76, 60, 0.2); padding: 15px; border-radius: 6px; margin-top: 15px; border-right: 4px solid #e74c3c;">
+        <p style="margin: 0; font-size: 15px; line-height: 1.8;">
+            <strong style="color: #ff6b6b;">⚠️ هشدار:</strong> 
+            هر حساب بانکی فقط می‌تواند به <strong>یک</strong> حساب دفتر کل متصل باشد. پس از ایجاد، امکان تغییر حساب مرتبط وجود ندارد (فقط می‌توانید حساب جدید ایجاد کنید).
+        </p>
+    </div>
+
+    <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+        <p style="margin: 0; opacity: 0.8; font-size: 14px;">
+            💼 سیستم حسابداری یکپارچه | برای راهنمایی بیشتر به 
+            <a href="/admin/products/account/" target="_blank" style="color: #ffd700; text-decoration: underline;">لیست حساب‌ها</a> 
+            مراجعه کنید
+        </p>
+    </div>
+</div>
+
+{{ block.super }}
+{% endblock %}

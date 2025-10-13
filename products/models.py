@@ -1,6 +1,7 @@
 from django.db import models, transaction, IntegrityError
 from django.utils import timezone
 import jdatetime
+from django_jalali.db import models as jmodels
 from django.contrib.auth.models import User
 from datetime import datetime
 from django.contrib.contenttypes.models import ContentType
@@ -1800,7 +1801,12 @@ class BankAccount(models.Model):
         ('SAVING_QARZ', 'قرض‌الحسنه پس‌انداز'),
     ]
 
-    account = models.OneToOneField(Account, on_delete=models.PROTECT, verbose_name="حساب مرتبط")
+    account = models.OneToOneField(
+        Account, 
+        on_delete=models.PROTECT, 
+        verbose_name="حساب مرتبط",
+        help_text="حساب دفتر کل که این حساب بانکی به آن متصل است (مثل: 112001 - بانک ملی)"
+    )
     bank = models.ForeignKey(Bank, on_delete=models.PROTECT, verbose_name="بانک")
     account_number = models.CharField(max_length=50, verbose_name="شماره حساب")
     sheba = models.CharField(max_length=26, unique=True, verbose_name="شماره شبا")
@@ -4205,6 +4211,167 @@ def get_document_number_display(obj):
     if doc_number:
         return str(doc_number.document_number)
     return "-"
+
+
+class InvoiceSettlementDraft(models.Model):
+    """
+    مدل برای ذخیره موقت (Draft) اطلاعات تسویه فاکتورها
+    این داده‌ها قبل از نهایی شدن در اینجا ذخیره می‌شوند
+    همه کاربران حسابداری می‌توانند این اطلاعات را ببینند
+    """
+    STATUS_CHOICES = [
+        ('draft', 'پیش‌نویس'),
+        ('finalized', 'نهایی شده'),
+        ('cancelled', 'لغو شده'),
+    ]
+    
+    # اطلاعات اصلی
+    customer = models.ForeignKey(
+        Customer, 
+        on_delete=models.CASCADE, 
+        verbose_name="مشتری",
+        null=True,
+        blank=True
+    )
+    
+    # داده‌های JSON برای ذخیره پرداخت‌ها و تسویه‌ها
+    payments_data = models.JSONField(
+        default=list,
+        verbose_name="اطلاعات پرداخت‌ها",
+        help_text="لیست تمام پرداخت‌های ثبت شده"
+    )
+    
+    customer_payments_data = models.JSONField(
+        default=dict,
+        verbose_name="اطلاعات پرداخت به مشتریان",
+        help_text="اطلاعات پرداخت‌های مشتریان برای هر سطر"
+    )
+    
+    invoice_settlements_data = models.JSONField(
+        default=dict,
+        verbose_name="اطلاعات تسویه فاکتورها",
+        help_text="اطلاعات تسویه فاکتورها برای هر سطر"
+    )
+    
+    # وضعیت و مدیریت
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='draft',
+        verbose_name="وضعیت"
+    )
+    
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='created_settlement_drafts',
+        verbose_name="ایجاد کننده"
+    )
+    
+    last_modified_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='modified_settlement_drafts',
+        verbose_name="آخرین ویرایش کننده",
+        null=True,
+        blank=True
+    )
+    
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاریخ ایجاد"
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name="تاریخ آخرین بروزرسانی"
+    )
+    
+    # برای شناسایی session
+    session_id = models.CharField(
+        max_length=100,
+        unique=True,
+        verbose_name="شناسه نشست",
+        help_text="شناسه یکتا برای این draft"
+    )
+    
+    # تاریخ کار (برای تفکیک تسویه‌های روزانه)
+    work_date = jmodels.jDateField(
+        verbose_name="تاریخ کار",
+        help_text="تاریخ ثبت تسویه‌های این draft",
+        db_index=True
+    )
+    
+    class Meta:
+        verbose_name = "پیش‌نویس تسویه فاکتور"
+        verbose_name_plural = "پیش‌نویس‌های تسویه فاکتور"
+        ordering = ['-work_date', '-updated_at']
+        indexes = [
+            models.Index(fields=['-work_date', '-updated_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['session_id']),
+            models.Index(fields=['work_date', 'status']),
+        ]
+    
+    def __str__(self):
+        customer_name = self.customer.get_full_name() if self.customer else "بدون مشتری"
+        return f"Draft {self.work_date} - {customer_name} ({self.get_status_display()})"
+    
+    @classmethod
+    def get_or_create_active_draft(cls, user, work_date=None):
+        """
+        دریافت یا ایجاد draft فعال برای کاربر و تاریخ خاص
+        اگر تاریخ داده نشود، تاریخ امروز استفاده می‌شود
+        """
+        import jdatetime
+        
+        # اگر تاریخ داده نشده، از تاریخ امروز استفاده کن
+        if work_date is None:
+            work_date = jdatetime.date.today()
+        
+        # تبدیل string به jdate اگر نیاز باشد
+        if isinstance(work_date, str):
+            # تاریخ میلادی ISO را تبدیل به شمسی کن
+            from datetime import datetime
+            gregorian_date = datetime.fromisoformat(work_date).date()
+            work_date = jdatetime.date.fromgregorian(date=gregorian_date)
+        
+        # جستجوی draft فعال برای این تاریخ
+        draft = cls.objects.filter(
+            status='draft',
+            work_date=work_date
+        ).order_by('-updated_at').first()
+        
+        if not draft:
+            # ایجاد draft جدید برای این تاریخ
+            import uuid
+            draft = cls.objects.create(
+                session_id=str(uuid.uuid4()),
+                work_date=work_date,
+                created_by=user,
+                last_modified_by=user
+            )
+        
+        return draft
+    
+    def update_data(self, payments_data=None, customer_payments_data=None, 
+                    invoice_settlements_data=None, customer=None, user=None):
+        """
+        بروزرسانی داده‌های draft
+        """
+        if payments_data is not None:
+            self.payments_data = payments_data
+        if customer_payments_data is not None:
+            self.customer_payments_data = customer_payments_data
+        if invoice_settlements_data is not None:
+            self.invoice_settlements_data = invoice_settlements_data
+        if customer is not None:
+            self.customer = customer
+        if user is not None:
+            self.last_modified_by = user
+        
+        self.save()
+        return self
 
 
 

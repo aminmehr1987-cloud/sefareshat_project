@@ -17,7 +17,7 @@ from .models import (
     CashRegister, CheckBook, Check, Voucher, VoucherItem, SalesInvoiceItem,
     Fund, FundBalanceHistory, FinancialOperation, CustomerBalance, PettyCashOperation,
     FinancialTransaction, Bank, CardReaderDevice, FundTransaction, FundStatement, ReceivedCheque, ReceivedChequeAuditTrail,
-    DocumentNumberSettings, Province, County, Courier
+    DocumentNumberSettings, Province, County, Courier, InvoiceSettlementDraft
 )
 import jdatetime as jmodels
 from django.db.models import Q, F, Sum
@@ -761,6 +761,8 @@ admin.site.register(AccountGroup)
 admin.site.register(Account)
 @admin.register(BankAccount)
 class BankAccountAdmin(admin.ModelAdmin):
+    change_form_template = 'admin/products/bankaccount/change_form.html'
+    
     list_display = ('title', 'bank', 'account_number', 'current_balance', 'is_active', 'view_transactions_link')
     list_filter = ('bank', 'account_type', 'is_active', 'has_card_reader')
     search_fields = ('title', 'account_number', 'card_number', 'bank__name')
@@ -1935,3 +1937,51 @@ class DocumentNumberSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """فقط یک رکورد تنظیمات مجاز است"""
         return DocumentNumberSettings.objects.count() == 0
+
+
+@admin.register(InvoiceSettlementDraft)
+class InvoiceSettlementDraftAdmin(admin.ModelAdmin):
+    list_display = ('session_id_short', 'customer', 'status', 'work_date_jalali', 'created_by', 'last_modified_by', 'updated_at_jalali')
+    list_filter = ('status', 'work_date', 'created_at', 'updated_at')
+    search_fields = ('session_id', 'customer__first_name', 'customer__last_name', 'customer__store_name')
+    readonly_fields = ('created_at', 'updated_at', 'created_by', 'session_id')
+    date_hierarchy = 'work_date'
+    ordering = ['-work_date', '-updated_at']
+    
+    def session_id_short(self, obj):
+        return obj.session_id[:8] + '...'
+    session_id_short.short_description = 'شناسه نشست'
+    
+    def work_date_jalali(self, obj):
+        if obj.work_date:
+            return obj.work_date.strftime('%Y/%m/%d')
+        return '-'
+    work_date_jalali.short_description = 'تاریخ کار'
+    
+    def updated_at_jalali(self, obj):
+        if obj.updated_at:
+            import jdatetime
+            jalali_date = jdatetime.datetime.fromgregorian(datetime=obj.updated_at)
+            return jalali_date.strftime('%Y/%m/%d %H:%M')
+        return '-'
+    updated_at_jalali.short_description = 'آخرین بروزرسانی'
+    
+    fieldsets = (
+        ('اطلاعات اصلی', {
+            'fields': ('session_id', 'customer', 'work_date', 'status')
+        }),
+        ('داده‌ها', {
+            'fields': ('payments_data', 'customer_payments_data', 'invoice_settlements_data'),
+            'classes': ('collapse',)
+        }),
+        ('اطلاعات سیستمی', {
+            'fields': ('created_by', 'last_modified_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # اگر رکورد جدید است
+            obj.created_by = request.user
+        obj.last_modified_by = request.user
+        super().save_model(request, obj, form, change)

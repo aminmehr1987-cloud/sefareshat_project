@@ -4477,7 +4477,7 @@ def invoice_settlement_view(request):
     """
     تسویه فاکتورها
     """
-    from products.models import Customer, SalesInvoice
+    from products.models import Customer, SalesInvoice, BankAccount, CashRegister, CardReaderDevice
     import json
     
     # بارگذاری لیست مشتریان
@@ -4492,6 +4492,51 @@ def invoice_settlement_view(request):
         customers_list.append(customer_dict)
     
     customers_json = json.dumps(customers_list, ensure_ascii=False)
+    
+    # بارگذاری لیست حساب‌های بانکی
+    bank_accounts = BankAccount.objects.filter(is_active=True).select_related('bank').values(
+        'id', 'title', 'account_number', 'bank__name'
+    )
+    bank_accounts_list = [
+        {
+            'id': ba['id'],
+            'title': ba['title'],
+            'account_number': ba['account_number'],
+            'bank_name': ba['bank__name'],
+            'display': f"{ba['bank__name']} - {ba['title']} ({ba['account_number']})"
+        }
+        for ba in bank_accounts
+    ]
+    bank_accounts_json = json.dumps(bank_accounts_list, ensure_ascii=False)
+    
+    # بارگذاری لیست دستگاه‌های کارتخوان
+    card_readers = CardReaderDevice.objects.filter(is_active=True).select_related('bank_account__bank').values(
+        'id', 'name', 'terminal_number', 'bank_account__bank__name'
+    )
+    card_readers_list = [
+        {
+            'id': cr['id'],
+            'name': cr['name'],
+            'terminal_number': cr['terminal_number'],
+            'bank_name': cr['bank_account__bank__name'] or 'نامشخص',
+            'display': f"{cr['name']} - {cr['terminal_number']}"
+        }
+        for cr in card_readers
+    ]
+    card_readers_json = json.dumps(card_readers_list, ensure_ascii=False)
+    
+    # بارگذاری لیست صندوق‌های نقدی
+    cash_registers = CashRegister.objects.filter(is_active=True).values(
+        'id', 'title'
+    )
+    cash_registers_list = [
+        {
+            'id': cr['id'],
+            'title': cr['title']
+        }
+        for cr in cash_registers
+    ]
+    cash_registers_json = json.dumps(cash_registers_list, ensure_ascii=False)
     
     # بارگذاری فاکتورهای فروش
     # همه فاکتورهای ثبت شده و تایید شده (فیلتر مانده را در JavaScript انجام می‌دهیم)
@@ -4527,8 +4572,12 @@ def invoice_settlement_view(request):
         )
         
         # محاسبه مانده = کل فاکتور - تسویه شده
-        # اگر settle_balance خالی یا صفر است، خودمان محاسبه می‌کنیم
-        remaining_balance = invoice['settle_balance'] if invoice['settle_balance'] else (invoice['total_amount'] - settled_amount)
+        # همیشه از محاسبه استفاده کن تا مطمئن شویم مانده صحیح است
+        remaining_balance = invoice['total_amount'] - settled_amount
+        
+        # اطمینان از اینکه مانده منفی نشود
+        if remaining_balance < 0:
+            remaining_balance = 0
         
         # نام کامل مشتری
         customer_name = f"{invoice['customer__first_name']} {invoice['customer__last_name']}"
@@ -4550,10 +4599,308 @@ def invoice_settlement_view(request):
     
     context = {
         'customers_json': customers_json,
-        'invoices_json': invoices_json
+        'invoices_json': invoices_json,
+        'bank_accounts_json': bank_accounts_json,
+        'card_readers_json': card_readers_json,
+        'cash_registers_json': cash_registers_json
     }
     
     return render(request, 'financial_operations/invoice_settlement.html', context)
+
+
+# API برای مدیریت Draft تسویه فاکتور
+@login_required
+@group_required('حسابداری')
+@require_http_methods(["GET"])
+def get_active_settlement_draft(request):
+    """
+    دریافت draft فعال برای تاریخ مشخص
+    پارامتر: work_date (اختیاری) - اگر نباشد، تاریخ امروز
+    """
+    from products.models import InvoiceSettlementDraft
+    try:
+        # دریافت تاریخ از query parameter
+        work_date = request.GET.get('work_date')
+        
+        draft = InvoiceSettlementDraft.get_or_create_active_draft(request.user, work_date)
+        
+        return JsonResponse({
+            'success': True,
+            'draft': {
+                'id': draft.id,
+                'session_id': draft.session_id,
+                'work_date': draft.work_date.isoformat(),
+                'customer_id': draft.customer_id if draft.customer else None,
+                'payments_data': draft.payments_data,
+                'customer_payments_data': draft.customer_payments_data,
+                'invoice_settlements_data': draft.invoice_settlements_data,
+                'last_modified_by': draft.last_modified_by.get_full_name() if draft.last_modified_by else None,
+                'updated_at': draft.updated_at.isoformat(),
+            }
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@group_required('حسابداری')
+@require_http_methods(["POST"])
+@csrf_exempt  # موقتی - بعداً CSRF را اضافه کنید
+def save_settlement_draft(request):
+    """
+    ذخیره داده‌های draft برای تاریخ مشخص
+    """
+    from products.models import InvoiceSettlementDraft
+    try:
+        data = json.loads(request.body)
+        
+        # دریافت تاریخ از داده ارسالی
+        work_date = data.get('work_date')
+        
+        # دریافت یا ایجاد draft برای این تاریخ
+        draft = InvoiceSettlementDraft.get_or_create_active_draft(request.user, work_date)
+        
+        # بروزرسانی داده‌ها
+        customer_id = data.get('customer_id')
+        if customer_id:
+            from products.models import Customer
+            try:
+                customer = Customer.objects.get(id=customer_id)
+                draft.customer = customer
+            except Customer.DoesNotExist:
+                pass
+        
+        draft.payments_data = data.get('payments_data', [])
+        draft.customer_payments_data = data.get('customer_payments_data', {})
+        draft.invoice_settlements_data = data.get('invoice_settlements_data', {})
+        draft.last_modified_by = request.user
+        draft.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'ذخیره شد',
+            'draft_id': draft.id,
+            'updated_at': draft.updated_at.isoformat(),
+            'last_modified_by': request.user.get_full_name()
+        })
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False, 
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@login_required
+@group_required('حسابداری')
+@require_http_methods(["POST"])
+@csrf_exempt
+def clear_settlement_draft(request):
+    """
+    پاک کردن draft فعال برای تاریخ مشخص
+    """
+    from products.models import InvoiceSettlementDraft
+    try:
+        # دریافت تاریخ از query parameter
+        work_date = request.GET.get('work_date')
+        
+        draft = InvoiceSettlementDraft.get_or_create_active_draft(request.user, work_date)
+        draft.payments_data = []
+        draft.customer_payments_data = {}
+        draft.invoice_settlements_data = {}
+        draft.customer = None
+        draft.last_modified_by = request.user
+        draft.save()
+        
+        return JsonResponse({'success': True, 'message': 'داده‌ها پاک شد'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@group_required('حسابداری')
+@require_http_methods(["POST"])
+@csrf_exempt
+def finalize_payment_settlement(request):
+    """
+    نهایی کردن ردیف دریافتی و ثبت در صورتحساب مشتریان
+    """
+    from products.models import (
+        SalesInvoice, FinancialOperation, BankAccount, 
+        CashRegister, CardReaderDevice, ReceivedCheque
+    )
+    from decimal import Decimal
+    import jdatetime
+    
+    try:
+        data = json.loads(request.body)
+        
+        row_id = data.get('row_id')
+        payment_type = data.get('payment_type')
+        payment_amount = Decimal(str(data.get('payment_amount', 0)))
+        payment_date_str = data.get('payment_date')
+        payment_description = data.get('payment_description', '')
+        
+        # تبدیل تاریخ فارسی به فرمت استاندارد
+        if payment_date_str:
+            # اگر تاریخ به فرمت 1404/07/19 باشد، تبدیل به 1404-07-19
+            payment_date = payment_date_str.replace('/', '-')
+        else:
+            # اگر تاریخ وارد نشده، از امروز استفاده کن
+            import jdatetime
+            payment_date = jdatetime.date.today().strftime('%Y-%m-%d')
+        customer_payments = data.get('customer_payments', [])
+        invoice_settlements_data = data.get('invoice_settlements', [])
+        # اگر به صورت dict ارسال شده، تبدیل به list کن
+        if isinstance(invoice_settlements_data, dict):
+            invoice_settlements = list(invoice_settlements_data.values())
+        else:
+            invoice_settlements = invoice_settlements_data
+        
+        bank_account_id = data.get('bank_account_id')
+        card_reader_id = data.get('card_reader_id')
+        fish_number = data.get('fish_number', '')
+        tracking_number = data.get('tracking_number', '')
+        
+        # نقشه نوع دریافتی
+        payment_type_names = {
+            'cash': 'نقدی',
+            'bank_transfer': 'حواله بانکی',
+            'pos': 'دستگاه کارتخوان',
+            'cheque': 'چک دریافتی'
+        }
+        payment_type_persian = payment_type_names.get(payment_type, payment_type)
+        
+        # تولید شماره عملیات یکتا
+        last_op = FinancialOperation.objects.filter(
+            operation_number__startswith='REC-'
+        ).order_by('-operation_number').first()
+        
+        if last_op:
+            last_num = int(last_op.operation_number.split('-')[1])
+            operation_base_num = last_num + 1
+        else:
+            operation_base_num = 1
+        
+        operations_created = []
+        
+        # ایجاد عملیات مالی برای هر تسویه فاکتور
+        with transaction.atomic():
+            for settlement_data in invoice_settlements:
+                invoice_id = settlement_data.get('invoiceId')
+                settlement_amount = Decimal(str(settlement_data.get('amount', 0)))
+                customer_id = settlement_data.get('customerId')
+                
+                # پیدا کردن فاکتور
+                try:
+                    invoice = SalesInvoice.objects.get(invoice_number=invoice_id)
+                except SalesInvoice.DoesNotExist:
+                    continue
+                
+                # تولید شماره عملیات
+                operation_number = f'REC-{operation_base_num:06d}'
+                operation_base_num += 1
+                
+                # تعیین حساب بانکی/صندوق
+                bank_account = None
+                card_reader = None
+                cash_register = None
+                
+                if payment_type == 'bank_transfer' and bank_account_id:
+                    bank_account = BankAccount.objects.get(id=bank_account_id)
+                elif payment_type == 'pos' and card_reader_id:
+                    card_reader = CardReaderDevice.objects.get(id=card_reader_id)
+                    bank_account = card_reader.bank_account
+                elif payment_type == 'cash':
+                    # صندوق نقدی پیش‌فرض
+                    cash_register = CashRegister.objects.filter(is_active=True).first()
+                
+                # توضیحات
+                serial_info = ''
+                if payment_type == 'bank_transfer' and fish_number:
+                    serial_info = f' - شماره فیش: {fish_number}'
+                elif payment_type == 'pos' and tracking_number:
+                    serial_info = f' - شماره پیگیری: {tracking_number}'
+                
+                description = f'دریافت {payment_type_persian} بابت فاکتور فروش شماره {invoice.invoice_number}{serial_info}'
+                if payment_description:
+                    description += f' - {payment_description}'
+                
+                # ایجاد عملیات مالی
+                operation = FinancialOperation.objects.create(
+                    operation_type='RECEIVE_FROM_CUSTOMER',
+                    operation_number=operation_number,
+                    date=payment_date,
+                    amount=settlement_amount,
+                    description=description,
+                    status='CONFIRMED',
+                    customer=invoice.customer,
+                    bank_account=bank_account,
+                    payment_method=payment_type,
+                    card_reader_device=card_reader,
+                    reference_number=fish_number or tracking_number,
+                    created_by=request.user,
+                    confirmed_by=request.user,
+                    confirmed_at=timezone.now()
+                )
+                
+                # به‌روزرسانی فاکتور
+                if payment_type == 'cash':
+                    invoice.settle_cash += settlement_amount
+                elif payment_type == 'pos':
+                    invoice.settle_card += settlement_amount
+                elif payment_type == 'bank_transfer':
+                    invoice.settle_bank += settlement_amount
+                elif payment_type == 'cheque':
+                    invoice.settle_cheque += settlement_amount
+                
+                # محاسبه و به‌روزرسانی مانده
+                # مانده = کل فاکتور - (نقدی + کارت + بانک + چک + تخفیف)
+                total_settled = (
+                    invoice.settle_cash + 
+                    invoice.settle_card + 
+                    invoice.settle_bank + 
+                    invoice.settle_cheque + 
+                    invoice.settle_extra_discount
+                )
+                invoice.settle_balance = invoice.total_amount - total_settled
+                
+                # اطمینان از اینکه مانده منفی نشود
+                if invoice.settle_balance < 0:
+                    invoice.settle_balance = 0
+                
+                invoice.save()
+                
+                # به‌روزرسانی موجودی حساب
+                if bank_account:
+                    bank_account.current_balance += settlement_amount
+                    bank_account.save()
+                elif cash_register:
+                    cash_register.current_balance += settlement_amount
+                    cash_register.save()
+                
+                operations_created.append({
+                    'operation_number': operation_number,
+                    'invoice_number': invoice.invoice_number,
+                    'amount': float(settlement_amount),
+                    'customer': invoice.customer.get_full_name()
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{len(operations_created)} عملیات مالی با موفقیت ثبت شد',
+            'operations': operations_created
+        })
+        
+    except Exception as e:
+        import traceback
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
 
 # Financial Operations Views
 @login_required

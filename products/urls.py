@@ -117,6 +117,13 @@ urlpatterns = [
     path('accounting/payment-from-cash/', views.payment_from_cash_view, name='payment_from_cash'),
     path('accounting/payment-to-cash/', views.payment_to_cash_view, name='payment_to_cash'),
     path('accounting/invoice-settlement/', views.invoice_settlement_view, name='invoice_settlement'),
+    
+    # API های تسویه فاکتور (Server-side storage)
+    path('api/settlement-draft/get/', views.get_active_settlement_draft, name='get_settlement_draft'),
+    path('api/settlement-draft/save/', views.save_settlement_draft, name='save_settlement_draft'),
+    path('api/settlement-draft/clear/', views.clear_settlement_draft, name='clear_settlement_draft'),
+    path('api/settlement-draft/finalize/', views.finalize_payment_settlement, name='finalize_payment_settlement'),
+    
     # در قسمت URL های مربوط به عملیات مالی (حدود خط 91)، بعد از سایر URL ها:
     path('accounting/petty-cash/', views.petty_cash_view, name='petty_cash'),
 
