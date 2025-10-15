@@ -23,14 +23,17 @@
         {% endfor %}
     {% endif %}
     
-    <!-- نمایش وضعیت ذخیره و آخرین ویرایش -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px;">
-        <div id="last-modified-info" style="background: #e0f2fe; padding: 10px; border-radius: 5px; flex: 1; display: none;">
-            <i class="bi bi-info-circle"></i> در حال بارگذاری...
-        </div>
-        <span id="save-status" class="save-status" style="padding: 8px 15px; border-radius: 5px; display: none; font-weight: bold; white-space: nowrap;">
-        </span>
-    </div>
+    <!-- Toast برای نمایش اطلاعات از پایین -->
+    <div id="toast-container" style="
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 400px;
+    "></div>
     
         <div class="operation-header">
             <h2><i class="bi bi-file-earmark-check"></i> تسویه فاکتورها</h2>
@@ -46,9 +49,6 @@
                            placeholder="انتخاب تاریخ"
                            readonly>
                 </div>
-                <button type="button" class="btn btn-warning btn-sm" onclick="resetAllData()" title="پاک کردن همه داده‌ها و شروع مجدد">
-                    <i class="bi bi-arrow-clockwise"></i> شروع مجدد
-                </button>
             </div>
         </div>
     
@@ -148,6 +148,39 @@
                         <tbody id="payment_rows_tbody">
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- جمع کل دریافتی‌ها -->
+                <div id="payment_totals_summary" style="
+                    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                    border: 2px solid #3b82f6;
+                    border-radius: 6px;
+                    padding: 5px 10px;
+                    margin-top: 8px;
+                    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+                ">
+                    <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: clamp(8px, 1.5vw, 15px);">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="color: #059669; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">💵 نقدی:</span>
+                            <span id="total_cash" style="color: #047857; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="color: #7c3aed; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">📋 چک:</span>
+                            <span id="total_cheque" style="color: #6d28d9; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="color: #ea580c; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">💳 کارتخوان:</span>
+                            <span id="total_pos" style="color: #c2410c; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span style="color: #0891b2; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">🏦 بانکی:</span>
+                            <span id="total_bank" style="color: #0e7490; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px; border-right: 2px solid #3b82f6; padding-right: 10px;">
+                            <span style="color: #dc2626; font-size: clamp(0.72rem, 0.95vw, 0.85rem); font-weight: 700;">💰 جمع کل:</span>
+                            <span id="total_all" style="color: #b91c1c; font-family: 'BHoma', sans-serif; font-size: clamp(0.8rem, 1.05vw, 0.95rem); font-weight: 700;">0</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -269,21 +302,23 @@
         <div class="invoice-modal-content">
             <div class="customer-info">
                 <h4 id="selected_customer_name">مشتری انتخاب شده</h4>
-                <div id="remaining_amount_info" style="margin-top: 10px; padding: 10px; background-color: #f0f9ff; border-radius: 5px; font-size: 0.9rem;">
-                    <strong>مبلغ باقیمانده قابل اختصاص:</strong> 
-                    <span id="remaining_amount_display" style="color: #0369a1; font-weight: bold;">0 ریال</span>
+                <div id="remaining_amount_info" style="margin-top: 8px; padding: 7px 10px; background-color: #f0f9ff; border-radius: 5px; font-size: 0.8rem;">
+                    <strong style="font-size: 0.75rem;">مبلغ باقیمانده قابل اختصاص:</strong> 
+                    <span id="remaining_amount_display" style="color: #0369a1; font-weight: bold; font-size: 0.85rem;">0 ریال</span>
                 </div>
             </div>
             <div class="invoices-table-wrapper">
                 <table class="invoices-table">
                     <thead>
                         <tr>
+                            <th style="width: 60px;">وضعیت</th>
                             <th>شماره فاکتور</th>
-                            <th>تاریخ</th>
+                            <th style="width: 90px;">تاریخ</th>
                             <th>مبلغ کل</th>
-                            <th>مبلغ باقی‌مانده</th>
-                            <th>مبلغ تسویه</th>
-                            <th>عملیات</th>
+                            <th>مانده</th>
+                            <th>تسویه موقت</th>
+                            <th style="width: 110px;">مبلغ تسویه</th>
+                            <th style="width: 100px;">عملیات</th>
                         </tr>
                     </thead>
                     <tbody id="invoicesList">
@@ -297,7 +332,7 @@
 
 <!-- Cheque Details Modal -->
 <div id="chequeModal" class="customer-modal">
-    <div class="customer-modal-content" style="max-width: 1050px; width: 100%; overflow-x: hidden;">
+    <div class="customer-modal-content" style="max-width: 1200px; width: clamp(80%, 90vw, 95%); min-width: 700px; resize: both; overflow: auto;">
         <div class="customer-modal-header">
             <span class="customer-modal-title">مشخصات چک‌های دریافتی</span>
             <span class="close-modal" onclick="closeChequeModal()">×</span>
@@ -306,18 +341,18 @@
             <table class="cheque-table">
                 <thead>
                     <tr>
-                        <th style="width: 65px;">پشت نمره</th>
-                        <th style="width: 95px;">تاریخ سررسید</th>
-                        <th style="width: 100px;">نام بانک</th>
-                        <th style="width: 95px;">نام شعبه</th>
-                        <th style="width: 65px;">سری چک</th>
-                        <th style="width: 85px;">سریال چک</th>
-                        <th style="width: 125px;">شناسه صیادی</th>
-                        <th style="width: 100px;">مبلغ</th>
-                        <th style="width: 110px;">صاحب حساب</th>
-                        <th style="width: 85px;">کدملی</th>
-                        <th style="width: 110px;">شماره حساب</th>
-                        <th style="width: 45px;">حذف</th>
+                        <th style="width: clamp(50px, 5vw, 70px);">پشت نمره</th>
+                        <th style="width: clamp(80px, 8vw, 110px);">تاریخ سررسید</th>
+                        <th style="width: clamp(90px, 9vw, 120px);">نام بانک</th>
+                        <th style="width: clamp(80px, 8vw, 110px);">نام شعبه</th>
+                        <th style="width: clamp(50px, 5vw, 75px);">سری چک</th>
+                        <th style="width: clamp(75px, 7.5vw, 100px);">سریال چک</th>
+                        <th style="width: clamp(100px, 10vw, 140px);">شناسه صیادی</th>
+                        <th style="width: clamp(90px, 9vw, 120px);">مبلغ</th>
+                        <th style="width: clamp(90px, 9vw, 130px);">صاحب حساب</th>
+                        <th style="width: clamp(75px, 7.5vw, 100px);">کدملی</th>
+                        <th style="width: clamp(90px, 9vw, 130px);">شماره حساب</th>
+                        <th style="width: clamp(40px, 4vw, 50px);">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="cheque-list-body">
@@ -349,38 +384,93 @@
 }
 
 @font-face {
+    font-family: 'Hamase';
+    src: url('/static/fonts/Hamase.ttf') format('truetype');
+}
+
+@font-face {
     font-family: 'Vazirmatn Local';
     src: url('/static/fonts/Vazir.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
 
-/* CSS برای نمایش وضعیت ذخیره */
-#save-status {
-    padding: 5px 12px;
-    border-radius: 5px;
-    font-size: 20px;
-    display: none;
-    opacity: 0.9;
-    transition: opacity 0.3s;
+/* CSS برای Toast Notifications از پایین */
+.toast-notification {
+    background: white;
+    border-radius: 10px;
+    padding: 15px 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideInUp 0.4s ease-out;
+    border-left: 4px solid;
+    min-width: 300px;
+    direction: rtl;
 }
 
-.save-status-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #10b981;
+.toast-notification.success {
+    border-left-color: #10b981;
+    background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
 }
 
-.save-status-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #ef4444;
+.toast-notification.error {
+    border-left-color: #ef4444;
+    background: linear-gradient(135deg, #ffffff 0%, #fef2f2 100%);
 }
 
-.save-status-info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #3b82f6;
+.toast-notification.info {
+    border-left-color: #3b82f6;
+    background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.toast-notification i {
+    font-size: 24px;
+}
+
+.toast-notification.success i {
+    color: #10b981;
+}
+
+.toast-notification.error i {
+    color: #ef4444;
+}
+
+.toast-notification.info i {
+    color: #3b82f6;
+}
+
+.toast-notification .toast-content {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.toast-notification .toast-content strong {
+    color: #1f2937;
+}
+
+@keyframes slideInUp {
+    from {
+        transform: translateY(100px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutDown {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(100px);
+        opacity: 0;
+    }
 }
 
 .financial-operation-container {
@@ -575,10 +665,10 @@
 
 .badge {
     display: inline-block;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.75rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.65rem;
     font-weight: 600;
-    border-radius: 0.375rem;
+    border-radius: 0.3rem;
 }
 
 .badge-warning {
@@ -1030,9 +1120,9 @@
 
 .customer-info {
     background: #f8f9fa;
-    padding: 1rem;
+    padding: 0.7rem;
     border-radius: 8px;
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem;
     text-align: center;
 }
 
@@ -1040,25 +1130,32 @@
     margin: 0;
     color: #374151;
     font-weight: 600;
+    font-size: clamp(0.75rem, 1vw, 0.95rem);
 }
 
 .invoices-table-wrapper {
-    max-height: 450px;
+    max-height: clamp(300px, 50vh, 500px);
     overflow-y: auto;
     overflow-x: hidden;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: clamp(6px, 1vw, 8px);
 }
 
-/* استایل input مبلغ تسویه */
+/* استایل input مبلغ تسویه - دقیقاً هم‌اندازه دکمه */
 .settlement-amount-input {
-    width: 130px !important;
-    height: 32px !important;
-    font-size: 0.85rem !important;
-    padding: 4px 8px !important;
+    width: clamp(90px, 10vw, 120px) !important;
+    height: clamp(20px, 2.5vh, 24px) !important;
+    min-height: clamp(20px, 2.5vh, 24px) !important;
+    max-height: clamp(20px, 2.5vh, 24px) !important;
+    font-size: clamp(0.52rem, 0.72vw, 0.6rem) !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
     border: 1px solid #d1d5db !important;
-    border-radius: 4px !important;
-    text-align: center;
+    border-radius: 3px !important;
+    text-align: center !important;
+    line-height: clamp(18px, 2.3vh, 22px) !important;
+    box-sizing: border-box !important;
+    vertical-align: middle !important;
 }
 
 /* استایل دکمه انتخاب فاکتور در مودال */
@@ -1066,12 +1163,14 @@
     background-color: #10b981 !important;
     border-color: #10b981 !important;
     color: white !important;
-    height: 32px !important;
-    padding: 4px 12px !important;
-    font-size: 0.8rem !important;
+    height: clamp(20px, 2.5vh, 24px) !important;
+    padding: 2px clamp(8px, 1vw, 12px) !important;
+    font-size: clamp(0.58rem, 0.8vw, 0.66rem) !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    white-space: nowrap;
+    gap: 3px;
 }
 
 .invoices-table .btn-success:hover {
@@ -1079,18 +1178,23 @@
     border-color: #059669 !important;
 }
 
+.invoices-table .btn-success i {
+    font-size: clamp(0.62rem, 0.85vw, 0.7rem);
+}
+
 .invoices-table {
     width: 100%;
     border-collapse: collapse;
     margin: 0;
-    font-size: 0.9rem;
+    font-size: clamp(0.65rem, 0.9vw, 0.8rem);
 }
 
 .invoices-table th,
 .invoices-table td {
-    padding: 8px 6px;
+    padding: clamp(4px, 0.5vw, 6px) clamp(2px, 0.3vw, 5px);
     text-align: center;
     border-bottom: 1px solid #e5e7eb;
+    line-height: 1.35;
 }
 
 .invoices-table th {
@@ -1100,6 +1204,8 @@
     position: sticky;
     top: 0;
     z-index: 10;
+    font-size: clamp(0.65rem, 0.9vw, 0.8rem);
+    font-family: 'Hamase', 'BHoma', sans-serif;
 }
 
 .invoices-table tbody tr:hover {
@@ -1108,6 +1214,15 @@
 
 .invoice-row.selected {
     background-color: #dbeafe;
+}
+
+.invoice-row.invoice-already-selected {
+    background-color: #f3f4f6;
+    opacity: 0.7;
+}
+
+.invoice-row.invoice-already-selected td {
+    color: #6b7280;
 }
 
 .amount-input {
@@ -1187,40 +1302,36 @@
     background-color: #f8f9fa;
 }
 
-.cheque-table .form-control {
-    width: 100%;
-    box-sizing: border-box;
-    font-size: 0.8rem;
-    padding: 0.25rem 0.375rem;
-    text-overflow: ellipsis;
-    min-height: 32px;
-}
 
 .cheque-summary {
     display: flex;
     justify-content: flex-end;
-    gap: 1rem;
-    margin-top: 1rem;
-    padding: 1rem;
+    gap: clamp(0.5rem, 1.5vw, 1rem);
+    margin-top: clamp(0.7rem, 1.5vh, 1rem);
+    padding: clamp(0.7rem, 1.5vh, 1rem);
     background-color: #f8f9fa;
-    border-radius: 8px;
+    border-radius: clamp(6px, 1vw, 8px);
 }
 
 .summary-box {
     display: flex;
     flex-direction: column;
-    width: 220px;
+    width: clamp(180px, 20vw, 240px);
 }
 
 .summary-box label {
     font-weight: bold;
-    margin-bottom: 0.5rem;
+    margin-bottom: clamp(0.3rem, 0.8vh, 0.5rem);
     color: #495057;
+    font-size: clamp(0.7rem, 0.95vw, 0.85rem);
 }
 
 .summary-box input {
     font-weight: bold;
     color: #1d4ed8;
+    font-size: clamp(0.75rem, 1vw, 0.9rem);
+    height: clamp(26px, 3.5vh, 32px);
+    padding: clamp(0.2rem, 0.5vh, 0.4rem);
 }
 
 /* Responsive Styles for Large Screens */
@@ -1445,35 +1556,39 @@ textarea.form-control {
 .customer-modal-content {
     background-color: #fefefe;
     margin: 3% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 85%;
-    max-width: 1000px;
-    border-radius: 15px;
+    padding: clamp(10px, 1.2vw, 15px);
+    border: 2px solid #888;
+    width: clamp(75%, 85vw, 90%);
+    max-width: 1100px;
+    min-width: 600px;
+    border-radius: clamp(10px, 1.5vw, 15px);
     position: relative;
     direction: rtl;
     max-height: 90vh;
-    overflow-y: auto;
+    min-height: 400px;
+    overflow: auto;
+    font-size: clamp(0.7rem, 1vw, 0.85rem);
+    resize: both;
 }
 
 .customer-modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 10px;
+    margin-bottom: clamp(10px, 1.5vh, 15px);
+    padding-bottom: clamp(6px, 1vh, 10px);
     border-bottom: 1px solid #ddd;
 }
 
 .customer-modal-title {
-    font-size: 18px;
+    font-size: clamp(14px, 1.5vw, 17px);
     font-weight: bold;
     color: #333;
 }
 
 .close-modal {
     color: #aaa;
-    font-size: 28px;
+    font-size: clamp(22px, 2.5vw, 28px);
     font-weight: bold;
     cursor: pointer;
 }
@@ -1494,11 +1609,11 @@ textarea.form-control {
 }
 
 .customers-table-wrapper {
-    max-height: 50vh;
+    max-height: clamp(300px, 50vh, 500px);
     overflow-y: auto;
     overflow-x: hidden;
     border: 1px solid #eee;
-    border-radius: 10px;
+    border-radius: clamp(6px, 1vw, 10px);
 }
 
 .customers-table {
@@ -1508,14 +1623,16 @@ textarea.form-control {
 
 .customers-table th,
 .customers-table td {
-    padding: 12px;
+    padding: clamp(8px, 1vh, 12px) clamp(6px, 0.8vw, 10px);
     text-align: right;
     border-bottom: 1px solid #ddd;
+    font-size: clamp(0.65rem, 0.9vw, 0.8rem);
 }
 
 .customers-table th {
     background-color: #f5f5f5;
     font-weight: bold;
+    font-family: 'Hamase', 'BHoma', sans-serif;
 }
 
 .customers-table tr:hover {
@@ -1534,9 +1651,10 @@ textarea.form-control {
 
 .form-actions {
     display: flex;
-    gap: 1rem;
+    gap: clamp(0.7rem, 1.5vw, 1rem);
     justify-content: center;
-    margin-top: 1rem;
+    margin-top: clamp(0.8rem, 1.5vh, 1.2rem);
+    flex-wrap: wrap;
 }
 
 .btn {
@@ -2357,8 +2475,11 @@ async function loadFromServer() {
     try {
         // اضافه کردن تاریخ به query parameter
         const url = `/api/settlement-draft/get/?work_date=${currentWorkDate || ''}`;
+        console.log('🌐 درخواست به سرور:', url);
         const response = await fetch(url);
         const result = await response.json();
+        
+        console.log('📨 پاسخ سرور:', result);
         
         if (result.success && result.draft) {
             const draft = result.draft;
@@ -2424,34 +2545,57 @@ async function loadFromServer() {
     return false;
 }
 
-// نمایش اطلاعات آخرین ویرایش
-function showLastModifiedInfo(userName, updatedAt) {
-    const infoDiv = document.getElementById('last-modified-info');
-    if (infoDiv) {
-        const date = new Date(updatedAt);
-        infoDiv.innerHTML = `
-            <i class="bi bi-info-circle"></i>
-            آخرین ویرایش توسط <strong>${userName}</strong> 
-            در ${date.toLocaleDateString('fa-IR')} 
-            ساعت ${date.toLocaleTimeString('fa-IR')}
-        `;
-        infoDiv.style.display = 'block';
-    }
+// نمایش Toast Notification از پایین
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    // انتخاب آیکون بر اساس نوع
+    let icon = 'bi-info-circle';
+    if (type === 'success') icon = 'bi-check-circle-fill';
+    else if (type === 'error') icon = 'bi-x-circle-fill';
+    
+    // ایجاد toast
+    const toast = document.createElement('div');
+    toast.className = `toast-notification ${type}`;
+    toast.innerHTML = `
+        <i class="bi ${icon}"></i>
+        <div class="toast-content">${message}</div>
+    `;
+    
+    container.appendChild(toast);
+    
+    // حذف خودکار بعد از مدت زمان مشخص
+    setTimeout(() => {
+        toast.style.animation = 'slideOutDown 0.4s ease-out';
+        setTimeout(() => {
+            toast.remove();
+        }, 400);
+    }, duration);
 }
 
-// نمایش وضعیت ذخیره
+// نمایش اطلاعات آخرین ویرایش
+function showLastModifiedInfo(userName, updatedAt) {
+    const date = new Date(updatedAt);
+    const persianDate = date.toLocaleDateString('fa-IR');
+    const persianTime = date.toLocaleTimeString('fa-IR');
+    
+    const message = `
+        آخرین ویرایش توسط <strong>${userName}</strong><br>
+        در ${persianDate} ساعت ${persianTime}
+    `;
+    
+    showToast(message, 'info', 4000);
+}
+
+// نمایش وضعیت ذخیره (برای سازگاری با کدهای قبلی)
 function showSaveStatus(message, type = 'info') {
-    const statusDiv = document.getElementById('save-status');
-    if (statusDiv) {
-        statusDiv.textContent = message;
-        statusDiv.className = 'save-status save-status-' + type;
-        statusDiv.style.display = 'inline-block';
-        
-        // مخفی کردن بعد از 1.5 ثانیه
-        setTimeout(() => {
-            statusDiv.style.display = 'none';
-        }, 1500);
+    // فقط برای پیام‌های مهم toast نمایش بده
+    if (message === '💾' || message === '⚠️ خطا') {
+        // برای این پیام‌های کوچک، toast نمایش نده
+        return;
     }
+    showToast(message, type, 2000);
 }
 
 // توابع Backward compatibility
@@ -2469,10 +2613,8 @@ function loadFromLocalStorage() {
 function restorePaymentRows() {
     const paymentRowsTbody = document.getElementById('payment_rows_tbody');
     
-    // فقط اگر داده وجود داشته باشد، جدول را پاک کن
-    if (paymentRows.length > 0) {
-        paymentRowsTbody.innerHTML = '';
-    }
+    // همیشه جدول را پاک کن (حتی اگر داده جدید نداریم)
+    paymentRowsTbody.innerHTML = '';
     
     let restoredCount = 0;
     
@@ -2582,6 +2724,63 @@ function restorePaymentRows() {
     });
     
     console.log(`بازسازی کامل شد: ${restoredCount} سطر از ${paymentRows.length} سطر بازسازی شد`);
+    
+    // بروزرسانی جمع‌های دریافتی
+    updatePaymentTotals();
+}
+
+// محاسبه و بروزرسانی جمع دریافتی‌ها بر اساس نوع
+function updatePaymentTotals() {
+    let totalCash = 0;
+    let totalCheque = 0;
+    let totalPos = 0;
+    let totalBank = 0;
+    
+    // محاسبه جمع‌ها از paymentRows که نهایی شده‌اند
+    paymentRows.forEach(row => {
+        const rowData = paymentRowsData[row.id];
+        if (rowData && rowData.finalized) {
+            const amount = parseFloat(rowData.amount) || 0;
+            
+            switch(rowData.type) {
+                case 'cash':
+                    totalCash += amount;
+                    break;
+                case 'cheque':
+                    totalCheque += amount;
+                    break;
+                case 'pos':
+                    totalPos += amount;
+                    break;
+                case 'bank_transfer':
+                    totalBank += amount;
+                    break;
+            }
+        }
+    });
+    
+    const totalAll = totalCash + totalCheque + totalPos + totalBank;
+    
+    // بروزرسانی نمایش
+    const totalCashEl = document.getElementById('total_cash');
+    const totalChequeEl = document.getElementById('total_cheque');
+    const totalPosEl = document.getElementById('total_pos');
+    const totalBankEl = document.getElementById('total_bank');
+    const totalAllEl = document.getElementById('total_all');
+    
+    if (totalCashEl) totalCashEl.textContent = totalCash.toLocaleString('fa-IR');
+    if (totalChequeEl) totalChequeEl.textContent = totalCheque.toLocaleString('fa-IR');
+    if (totalPosEl) totalPosEl.textContent = totalPos.toLocaleString('fa-IR');
+    if (totalBankEl) totalBankEl.textContent = totalBank.toLocaleString('fa-IR');
+    if (totalAllEl) totalAllEl.textContent = totalAll.toLocaleString('fa-IR');
+    
+    console.log('💰 جمع دریافتی‌ها:', {
+        نقدی: totalCash,
+        چک: totalCheque,
+        کارتخوان: totalPos,
+        بانکی: totalBank,
+        'جمع کل': totalAll
+    });
 }
 
 // پاک کردن localStorage
@@ -3328,6 +3527,9 @@ async function finalizePaymentRow(rowId) {
             
             console.log('✅ نهایی سازی موفق:', result);
             
+            // بروزرسانی جمع‌های دریافتی
+            updatePaymentTotals();
+            
             // ذخیره فوری بعد از نهایی کردن
             setTimeout(() => saveToServer(), 200);
         } else {
@@ -3686,12 +3888,12 @@ async function onWorkDateChanged() {
     paymentRows = [];
     paymentRowsData = {};
     customerPayments = [];
-    invoiceSettlements = [];
+    invoiceSettlements = {};
     activePaymentRowId = null;
     currentCustomerId = null;
     
     // به‌روزرسانی UI (خالی کردن جداول)
-    restorePaymentRows();
+    restorePaymentRows(); // این حالا جدول را پاک می‌کند
     updateCustomerPaymentsTable();
     updateInvoiceSettlementTable();
     
@@ -3713,6 +3915,16 @@ document.addEventListener('DOMContentLoaded', async function() {
     // راه‌اندازی date picker شمسی
     initializePersianDatePicker();
     
+    // مطمئن شویم که currentWorkDate تنظیم شده
+    if (!currentWorkDate) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        currentWorkDate = `${year}-${month}-${day}`;
+        console.log('📅 تنظیم تاریخ پیش‌فرض:', currentWorkDate);
+    }
+    
     // بارگذاری از سرور (جایگزین localStorage)
     await loadFromServer();
     
@@ -3727,6 +3939,53 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (localStorage.getItem('invoice_settlement_data')) {
         console.log('⚠️ پاک کردن localStorage قدیمی');
         localStorage.removeItem('invoice_settlement_data');
+    }
+    
+    // بستن modal‌ها با دکمه ESC
+    console.log('🔧 راه‌اندازی ESC listener...');
+});
+
+// ESC listener برای بستن modal‌ها (خارج از DOMContentLoaded)
+document.addEventListener('keydown', function(event) {
+    // بررسی دکمه ESC (کد 27)
+    if (event.key === 'Escape' || event.key === 'Esc' || event.keyCode === 27) {
+        console.log('⌨️ دکمه ESC فشار داده شد');
+        
+        // بستن modal چک (اولویت اول)
+        const chequeModal = document.getElementById('chequeModal');
+        if (chequeModal) {
+            console.log('🔍 وضعیت modal چک:', chequeModal.style.display);
+            if (chequeModal.style.display === 'block') {
+                closeChequeModal();
+                console.log('✅ مودال چک با ESC بسته شد');
+                event.preventDefault();
+                return;
+            }
+        }
+        
+        // بستن modal فاکتور (اولویت دوم)
+        const invoiceModal = document.getElementById('invoiceModal');
+        if (invoiceModal) {
+            console.log('🔍 وضعیت modal فاکتور:', invoiceModal.style.display);
+            if (invoiceModal.style.display === 'block') {
+                closeInvoiceModal();
+                console.log('✅ مودال فاکتور با ESC بسته شد');
+                event.preventDefault();
+                return;
+            }
+        }
+        
+        // بستن modal مشتری (اولویت سوم)
+        const customerModal = document.getElementById('customerModal');
+        if (customerModal) {
+            console.log('🔍 وضعیت modal مشتری:', customerModal.style.display);
+            if (customerModal.style.display === 'block') {
+                closeCustomerModal();
+                console.log('✅ مودال مشتری با ESC بسته شد');
+                event.preventDefault();
+                return;
+            }
+        }
     }
 });
 
@@ -4037,7 +4296,7 @@ function loadCustomerInvoicesForSettlement(customerId) {
     // نمایش loading
     invoicesList.innerHTML = `
         <tr>
-            <td colspan="6" class="text-center">
+            <td colspan="8" class="text-center">
                 <i class="bi bi-hourglass-split"></i> در حال بارگذاری فاکتورها...
             </td>
         </tr>
@@ -4051,32 +4310,66 @@ function loadCustomerInvoicesForSettlement(customerId) {
         console.log('✅ فاکتورهای مشتری ' + customerId + ':', customerInvoices.length);
         console.log('📊 جزئیات فاکتورها:', customerInvoices);
         
-        // محاسبه مبالغ باقی‌مانده بر اساس تسویه‌های فعلی در این session
-        customerInvoices.forEach(invoice => {
-            const existingSettlements = invoiceSettlements.filter(
-                s => s.invoiceId === invoice.invoiceNumber && s.customerId === invoice.customerId
-            );
-            const totalSettledInSession = existingSettlements.reduce(
-                (sum, s) => sum + parseFloat(s.amount || 0), 
-                0
-            );
+        // پیدا کردن فاکتورهایی که در ردیف فعلی انتخاب شده‌اند
+        const selectedInCurrentRow = invoiceSettlements
+            .filter(s => String(s.customerId) === String(customerId))
+            .map(s => s.invoiceId);
+        
+        console.log('📝 فاکتورهای انتخاب شده در ردیف فعلی:', selectedInCurrentRow);
+        
+        // محاسبه تسویه‌های تمام ردیف‌های دریافتی (موقت) برای این مشتری
+        // باید تسویه‌های همه ردیف‌ها را در نظر بگیریم نه فقط ردیف فعلی
+        const allCustomerSettlements = {};
+        
+        // گردش روی تمام ردیف‌های پرداخت
+        paymentRows.forEach(row => {
+            const rowData = paymentRowsData[row.id];
+            if (!rowData || rowData.finalized) return; // ردیف‌های نهایی شده را نادیده بگیر
             
-            // مانده واقعی = مانده دیتابیس - تسویه‌های این session
-            invoice.currentRemaining = invoice.remainingBalance - totalSettledInSession;
-            invoice.settledInSession = totalSettledInSession;
-            
-            console.log(`فاکتور ${invoice.invoiceNumber}: کل=${invoice.totalAmount}, تسویه شده=${invoice.settledAmount}, مانده=${invoice.remainingBalance}, تسویه در session=${totalSettledInSession}, مانده فعلی=${invoice.currentRemaining}`);
+            const rowSettlements = rowData.invoiceSettlements || {};
+            Object.values(rowSettlements).forEach(settlement => {
+                if (String(settlement.customerId) === String(customerId)) {
+                    const invoiceId = settlement.invoiceId;
+                    if (!allCustomerSettlements[invoiceId]) {
+                        allCustomerSettlements[invoiceId] = 0;
+                    }
+                    allCustomerSettlements[invoiceId] += parseFloat(settlement.amount || 0);
+                }
+            });
         });
         
-        // فیلتر کردن فاکتورهایی که هنوز باقی‌مانده دارند
-        const availableInvoices = customerInvoices.filter(invoice => invoice.currentRemaining > 0);
+        console.log('💰 تسویه‌های موقت تمام ردیف‌ها برای مشتری:', allCustomerSettlements);
+        
+        // محاسبه مبالغ باقی‌مانده بر اساس تسویه‌های موقت تمام ردیف‌ها
+        customerInvoices.forEach(invoice => {
+            // تسویه‌های موقت این فاکتور در تمام ردیف‌ها
+            const totalSettledInAllRows = allCustomerSettlements[invoice.invoiceNumber] || 0;
+            
+            // تسویه‌های این فاکتور فقط در ردیف فعلی
+            const settledInCurrentRow = invoiceSettlements
+                .filter(s => s.invoiceId === invoice.invoiceNumber && String(s.customerId) === String(customerId))
+                .reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
+            
+            // مانده واقعی = مانده دیتابیس - تسویه‌های موقت تمام ردیف‌ها
+            invoice.currentRemaining = invoice.remainingBalance - totalSettledInAllRows;
+            invoice.settledInSession = totalSettledInAllRows;
+            invoice.settledInCurrentRow = settledInCurrentRow;
+            invoice.alreadySelected = selectedInCurrentRow.includes(invoice.invoiceNumber);
+            
+            console.log(`فاکتور ${invoice.invoiceNumber}: کل=${invoice.totalAmount}, تسویه DB=${invoice.settledAmount}, مانده DB=${invoice.remainingBalance}, تسویه موقت کل=${totalSettledInAllRows}, تسویه در ردیف فعلی=${settledInCurrentRow}, مانده نهایی=${invoice.currentRemaining}, انتخاب شده در ردیف فعلی=${invoice.alreadySelected}`);
+        });
+        
+        // فیلتر کردن فاکتورهایی که هنوز باقی‌مانده دارند (شامل انتخاب شده‌ها)
+        const availableInvoices = customerInvoices.filter(invoice => 
+            invoice.currentRemaining > 0
+        );
         
         console.log('🟢 فاکتورهای قابل نمایش (با مانده):', availableInvoices.length);
         
         if (availableInvoices.length === 0) {
             invoicesList.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center text-muted">
+                    <td colspan="8" class="text-center text-muted">
                         فاکتور مانده‌داری برای این مشتری وجود ندارد
                     </td>
                 </tr>
@@ -4087,26 +4380,81 @@ function loadCustomerInvoicesForSettlement(customerId) {
         console.log('📋 نمایش ' + availableInvoices.length + ' فاکتور');
         
         invoicesList.innerHTML = availableInvoices.map(invoice => `
-            <tr class="invoice-row" data-invoice-id="${invoice.invoiceNumber}" data-remaining="${invoice.currentRemaining}">
-                <td>${invoice.invoiceNumber}</td>
-                <td>${invoice.invoiceDate}</td>
-                <td>${invoice.totalAmount.toLocaleString('fa-IR')}</td>
-                <td class="remaining-amount">${invoice.currentRemaining.toLocaleString('fa-IR')}</td>
+            <tr class="invoice-row ${invoice.alreadySelected ? 'invoice-already-selected' : ''}" 
+                data-invoice-id="${invoice.invoiceNumber}" 
+                data-remaining="${invoice.currentRemaining}">
+                <td>
+                    ${invoice.settledInSession > 0 ? `
+                        <span style="background-color: #fef3c7; color: #92400e; font-size: clamp(0.52rem, 0.72vw, 0.6rem); padding: 2px 5px; border-radius: 3px; display: inline-block; white-space: nowrap;">
+                            در حال تسویه
+                        </span>
+                    ` : '<span style="color: #d1d5db;">-</span>'}
+                </td>
+                <td style="font-size: clamp(0.65rem, 0.9vw, 0.75rem);">
+                    ${invoice.invoiceNumber}
+                </td>
+                <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem);">${invoice.invoiceDate}</td>
+                <td style="font-size: clamp(0.65rem, 0.9vw, 0.73rem);">${invoice.totalAmount.toLocaleString('fa-IR')}</td>
+                <td style="font-weight: bold; font-size: clamp(0.68rem, 0.95vw, 0.76rem); color: ${invoice.currentRemaining > 0 ? '#059669' : '#dc2626'};">
+                    ${invoice.currentRemaining.toLocaleString('fa-IR')}
+                </td>
+                <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem); color: #b45309;">
+                    ${invoice.settledInSession > 0 ? invoice.settledInSession.toLocaleString('fa-IR') : '-'}
+                </td>
                 <td>
                     <input type="text" 
                            id="settlement_amount_${invoice.invoiceNumber}" 
                            class="form-control settlement-amount-input" 
                            placeholder="مبلغ"
                            data-max="${invoice.currentRemaining}"
+                           ${invoice.alreadySelected ? 'disabled' : ''}
                            oninput="formatAmountInput(this)">
                 </td>
                 <td>
-                    <button type="button" 
-                            class="btn btn-success btn-sm" 
-                            onclick="selectInvoiceForSettlement('${invoice.invoiceNumber}', ${invoice.currentRemaining})" 
-                            title="تایید و انتخاب">
-                        <i class="bi bi-check-circle"></i> انتخاب
-                    </button>
+                    ${invoice.alreadySelected 
+                        ? `<button type="button" 
+                                class="btn btn-sm" 
+                                disabled
+                                style="
+                                    background-color: #fee2e2; 
+                                    border-color: #fca5a5; 
+                                    color: #dc2626;
+                                    height: clamp(20px, 2.5vh, 24px);
+                                    padding: 2px clamp(8px, 1vw, 12px);
+                                    font-size: clamp(0.58rem, 0.8vw, 0.66rem);
+                                    display: inline-flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    gap: 3px;
+                                    opacity: 0.8;
+                                    cursor: not-allowed;
+                                    white-space: nowrap;
+                                "
+                                title="این فاکتور قبلاً انتخاب شده است">
+                            <i class="bi bi-check-circle-fill" style="font-size: clamp(0.62rem, 0.85vw, 0.7rem);"></i> انتخاب شده
+                        </button>`
+                        : `<button type="button" 
+                                class="btn btn-sm invoice-select-btn" 
+                                onclick="selectInvoiceForSettlement('${invoice.invoiceNumber}', ${invoice.currentRemaining})" 
+                                style="
+                                    background-color: #10b981;
+                                    border-color: #10b981;
+                                    color: white;
+                                    height: clamp(20px, 2.5vh, 24px);
+                                    padding: 2px clamp(8px, 1vw, 12px);
+                                    font-size: clamp(0.58rem, 0.8vw, 0.66rem);
+                                    display: inline-flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    gap: 3px;
+                                    white-space: nowrap;
+                                "
+                                onmouseover="this.style.backgroundColor='#059669'"
+                                onmouseout="this.style.backgroundColor='#10b981'"
+                                title="تایید و انتخاب">
+                            <i class="bi bi-check-circle" style="font-size: clamp(0.62rem, 0.85vw, 0.7rem);"></i> انتخاب
+                        </button>`
+                    }
                 </td>
             </tr>
         `).join('');
@@ -4117,13 +4465,23 @@ function loadCustomerInvoicesForSettlement(customerId) {
 function selectInvoiceForSettlement(invoiceId, maxRemainingAmount) {
     const customerPayment = customerPayments.find(p => p.id === currentCustomerForInvoice.rowId);
     if (!customerPayment) {
-        alert('خطا در یافتن اطلاعات مشتری');
+        showToast('❌ خطا در یافتن اطلاعات مشتری', 'error', 3000);
+        return;
+    }
+    
+    // بررسی اینکه آیا این فاکتور قبلاً انتخاب شده است
+    const alreadySelected = invoiceSettlements.some(
+        s => s.invoiceId === invoiceId && String(s.customerId) === String(customerPayment.customerId)
+    );
+    
+    if (alreadySelected) {
+        showToast(`⚠️ فاکتور ${invoiceId} قبلاً انتخاب شده است!<br><small>برای تغییر مبلغ، ابتدا از جدول پایین حذف کنید</small>`, 'error', 4000);
         return;
     }
     
     const customerAmount = customerPayment.amount;
     if (customerAmount <= 0) {
-        alert('ابتدا مبلغ دریافتی از مشتری را وارد کنید');
+        showToast('⚠️ ابتدا مبلغ دریافتی از مشتری را وارد کنید', 'error', 3000);
         return;
     }
     
@@ -4142,35 +4500,44 @@ function selectInvoiceForSettlement(invoiceId, maxRemainingAmount) {
     });
     
     if (remainingCustomerAmount <= 0) {
-        alert(`تمام مبلغ دریافتی (${customerAmount.toLocaleString('fa-IR')} ریال) قبلاً به فاکتورها اختصاص داده شده است`);
+        showToast(`⚠️ تمام مبلغ دریافتی (${customerAmount.toLocaleString('fa-IR')} ریال) قبلاً به فاکتورها اختصاص داده شده است`, 'error', 4000);
         return;
     }
     
     // دریافت مبلغ تسویه از input
     const amountInput = document.getElementById('settlement_amount_' + invoiceId);
     if (!amountInput) {
-        alert('خطا در یافتن فیلد مبلغ تسویه');
+        showToast('❌ خطا در یافتن فیلد مبلغ تسویه', 'error', 3000);
         return;
     }
     
     const inputValue = parseAmountFromFormattedString(amountInput.value);
     
     if (!inputValue || inputValue <= 0) {
-        alert('لطفاً مبلغ تسویه را وارد کنید');
+        showToast('⚠️ لطفاً مبلغ تسویه را وارد کنید', 'error', 3000);
         amountInput.focus();
         return;
     }
     
     // Validation: مبلغ نباید از مانده فاکتور بیشتر باشد
     if (inputValue > maxRemainingAmount) {
-        alert(`مبلغ تسویه نمی‌تواند از مانده فاکتور (${maxRemainingAmount.toLocaleString('fa-IR')} ریال) بیشتر باشد`);
+        showToast(`⚠️ مبلغ تسویه نمی‌تواند از مانده فاکتور (${maxRemainingAmount.toLocaleString('fa-IR')} ریال) بیشتر باشد`, 'error', 4000);
         amountInput.focus();
         return;
     }
     
     // Validation مهم: مبلغ نباید از مبلغ باقیمانده دریافتی بیشتر باشد
     if (inputValue > remainingCustomerAmount) {
-        alert(`مبلغ تسویه نمی‌تواند از مبلغ باقیمانده دریافتی (${remainingCustomerAmount.toLocaleString('fa-IR')} ریال) بیشتر باشد.\n\nمبلغ کل دریافتی: ${customerAmount.toLocaleString('fa-IR')} ریال\nقبلاً اختصاص داده شده: ${totalAlreadySettled.toLocaleString('fa-IR')} ریال\nباقیمانده: ${remainingCustomerAmount.toLocaleString('fa-IR')} ریال`);
+        showToast(
+            `⚠️ مبلغ تسویه نمی‌تواند از مبلغ باقیمانده دریافتی بیشتر باشد<br>
+            <small>
+            مبلغ کل: ${customerAmount.toLocaleString('fa-IR')} ریال<br>
+            قبلاً اختصاص داده شده: ${totalAlreadySettled.toLocaleString('fa-IR')} ریال<br>
+            باقیمانده: ${remainingCustomerAmount.toLocaleString('fa-IR')} ریال
+            </small>`,
+            'error',
+            5000
+        );
         amountInput.focus();
         return;
     }
@@ -4318,25 +4685,38 @@ function addChequeRow() {
     const rowIndex = tbody.rows.length;
 
     newRow.innerHTML = `
-        <td style="width: 65px;"><input type="text" name="endorsement_${rowIndex}" class="form-control cheque-input"></td>
-        <td style="width: 95px;"><input type="text" name="due_date_${rowIndex}" class="form-control cheque-input autoformat-date" placeholder="YYYY/MM/DD"></td>
-        <td style="width: 100px;">
-            <select name="bank_name_${rowIndex}" class="form-control cheque-input">
+        <td><input type="text" name="endorsement_${rowIndex}" class="form-control cheque-input"></td>
+        <td><input type="text" name="due_date_${rowIndex}" class="form-control cheque-input autoformat-date" placeholder="YYYY/MM/DD"></td>
+        <td>
+            <select name="bank_name_${rowIndex}" class="form-control cheque-input" style="font-size: clamp(0.6rem, 0.85vw, 0.75rem);">
                 <option value="" selected>---------</option>
                 <option value="بانک ملی">بانک ملی</option>
                 <option value="بانک صادرات">بانک صادرات</option>
                 <option value="بانک ملت">بانک ملت</option>
             </select>
         </td>
-        <td style="width: 95px;"><input type="text" name="branch_name_${rowIndex}" class="form-control cheque-input"></td>
-        <td style="width: 65px;"><input type="text" name="series_${rowIndex}" class="form-control cheque-input"></td>
-        <td style="width: 85px;"><input type="text" name="serial_${rowIndex}" class="form-control cheque-input"></td>
-        <td style="width: 125px;"><input type="text" name="sayadi_id_${rowIndex}" class="form-control cheque-input" maxlength="16"></td>
-        <td style="width: 100px;"><input type="text" inputmode="numeric" name="amount_${rowIndex}" class="form-control cheque-input amount-field" value="0"></td>
-        <td style="width: 110px;"><input type="text" name="owner_name_${rowIndex}" class="form-control cheque-input"></td>
-        <td style="width: 85px;"><input type="text" name="national_id_${rowIndex}" class="form-control cheque-input" maxlength="10"></td>
-        <td style="width: 110px;"><input type="text" name="account_number_${rowIndex}" class="form-control cheque-input"></td>
-        <td style="width: 45px;"><button type="button" class="btn btn-outline-danger btn-sm" onclick="removeChequeRow(this)" title="حذف"><i class="bi bi-trash3-fill"></i></button></td>
+        <td><input type="text" name="branch_name_${rowIndex}" class="form-control cheque-input"></td>
+        <td><input type="text" name="series_${rowIndex}" class="form-control cheque-input"></td>
+        <td><input type="text" name="serial_${rowIndex}" class="form-control cheque-input"></td>
+        <td><input type="text" name="sayadi_id_${rowIndex}" class="form-control cheque-input" maxlength="16"></td>
+        <td><input type="text" inputmode="numeric" name="amount_${rowIndex}" class="form-control cheque-input amount-field" value="0"></td>
+        <td><input type="text" name="owner_name_${rowIndex}" class="form-control cheque-input"></td>
+        <td><input type="text" name="national_id_${rowIndex}" class="form-control cheque-input" maxlength="10"></td>
+        <td><input type="text" name="account_number_${rowIndex}" class="form-control cheque-input"></td>
+        <td style="width: 45px;">
+            <button type="button" 
+                    class="btn btn-outline-danger btn-sm" 
+                    onclick="removeChequeRow(this)" 
+                    style="
+                        height: clamp(22px, 3vh, 28px);
+                        width: clamp(26px, 3.5vw, 32px);
+                        padding: 2px;
+                        font-size: clamp(0.65rem, 0.9vw, 0.75rem);
+                    "
+                    title="حذف">
+                <i class="bi bi-trash3-fill"></i>
+            </button>
+        </td>
     `;
     tbody.appendChild(newRow);
 

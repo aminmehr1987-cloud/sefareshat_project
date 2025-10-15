@@ -1429,13 +1429,32 @@ class FinancialOperationAdmin(admin.ModelAdmin):
         return export_model_to_excel(self, request, queryset)
     export_operations_to_excel.short_description = "خروجی اکسل"
     
+    def has_delete_permission(self, request, obj=None):
+        """
+        جلوگیری از حذف عملیات‌های تایید شده
+        فقط عملیات با status='DRAFT' قابل حذف هستند
+        """
+        if obj and obj.status == 'CONFIRMED':
+            return False
+        return super().has_delete_permission(request, obj)
+    
     def delete_model(self, request, obj):
         """حذف عملیات مالی با تنظیم کاربر حذف کننده"""
+        if obj.status == 'CONFIRMED':
+            from django.contrib import messages
+            messages.error(request, 'عملیات تایید شده قابل حذف نیست!')
+            return
         obj.set_deleting_user(request.user)
         super().delete_model(request, obj)
     
     def delete_queryset(self, request, queryset):
         """حذف دسته‌ای عملیات مالی با تنظیم کاربر حذف کننده"""
+        confirmed_count = queryset.filter(status='CONFIRMED').count()
+        if confirmed_count > 0:
+            from django.contrib import messages
+            messages.error(request, f'{confirmed_count} عملیات تایید شده قابل حذف نیست!')
+            queryset = queryset.exclude(status='CONFIRMED')
+        
         for obj in queryset:
             obj.set_deleting_user(request.user)
         super().delete_queryset(request, queryset)
@@ -1985,3 +2004,18 @@ class InvoiceSettlementDraftAdmin(admin.ModelAdmin):
             obj.created_by = request.user
         obj.last_modified_by = request.user
         super().save_model(request, obj, form, change)
+    
+    def has_delete_permission(self, request, obj=None):
+        """
+        جلوگیری از حذف drafts نهایی شده
+        فقط drafts با status='draft' قابل حذف هستند
+        """
+        if obj and obj.status == 'finalized':
+            return False
+        return super().has_delete_permission(request, obj)
+    
+    def get_actions(self, request):
+        """حذف action حذف دسته‌جمعی برای رکوردهای نهایی شده"""
+        actions = super().get_actions(request)
+        # نگه داشتن action حذف، اما فقط برای drafts
+        return actions

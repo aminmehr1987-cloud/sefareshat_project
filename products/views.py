@@ -4616,20 +4616,55 @@ def get_active_settlement_draft(request):
     """
     دریافت draft فعال برای تاریخ مشخص
     پارامتر: work_date (اختیاری) - اگر نباشد، تاریخ امروز
+    فقط drafts موجود را برمی‌گرداند (draft جدید ایجاد نمی‌کند)
     """
     from products.models import InvoiceSettlementDraft
+    import jdatetime
+    from datetime import datetime
+    
     try:
         # دریافت تاریخ از query parameter
-        work_date = request.GET.get('work_date')
+        work_date_str = request.GET.get('work_date')
         
-        draft = InvoiceSettlementDraft.get_or_create_active_draft(request.user, work_date)
+        # تبدیل تاریخ میلادی به شمسی
+        if work_date_str:
+            gregorian_date = datetime.fromisoformat(work_date_str).date()
+            work_date = jdatetime.date.fromgregorian(date=gregorian_date)
+        else:
+            work_date = jdatetime.date.today()
+        
+        # فقط جستجوی drafts موجود (بدون ایجاد جدید)
+        draft = InvoiceSettlementDraft.objects.filter(
+            status='draft',
+            work_date=work_date
+        ).order_by('-updated_at').first()
+        
+        # اگر draft وجود نداشت، یک پاسخ خالی برگردان
+        if not draft:
+            return JsonResponse({
+                'success': True,
+                'draft': {
+                    'id': None,
+                    'session_id': None,
+                    'work_date': work_date.togregorian().isoformat(),
+                    'customer_id': None,
+                    'payments_data': [],
+                    'customer_payments_data': {},
+                    'invoice_settlements_data': {},
+                    'last_modified_by': None,
+                    'updated_at': None,
+                }
+            })
+        
+        # تبدیل work_date شمسی به میلادی برای ارسال به frontend
+        gregorian_work_date = draft.work_date.togregorian().isoformat()
         
         return JsonResponse({
             'success': True,
             'draft': {
                 'id': draft.id,
                 'session_id': draft.session_id,
-                'work_date': draft.work_date.isoformat(),
+                'work_date': gregorian_work_date,
                 'customer_id': draft.customer_id if draft.customer else None,
                 'payments_data': draft.payments_data,
                 'customer_payments_data': draft.customer_payments_data,
@@ -4639,6 +4674,8 @@ def get_active_settlement_draft(request):
             }
         })
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
