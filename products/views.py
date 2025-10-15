@@ -4843,6 +4843,7 @@ def finalize_payment_settlement(request):
                 bank_account = None
                 card_reader = None
                 cash_register = None
+                cash_fund = None
                 
                 if payment_type == 'bank_transfer' and bank_account_id:
                     bank_account = BankAccount.objects.get(id=bank_account_id)
@@ -4852,6 +4853,13 @@ def finalize_payment_settlement(request):
                 elif payment_type == 'cash':
                     # صندوق نقدی پیش‌فرض
                     cash_register = CashRegister.objects.filter(is_active=True).first()
+                    # دریافت صندوق نقدی (Fund) برای ثبت در صورتحساب
+                    from products.models import Fund
+                    try:
+                        cash_fund = Fund.objects.get(id=1, fund_type='CASH')
+                    except Fund.DoesNotExist:
+                        # اگر صندوق نقدی با ID=1 وجود نداشت، اولین صندوق نقدی را انتخاب کن
+                        cash_fund = Fund.objects.filter(fund_type='CASH', is_active=True).first()
                 
                 # توضیحات
                 serial_info = ''
@@ -4877,6 +4885,7 @@ def finalize_payment_settlement(request):
                     payment_method=payment_type,
                     card_reader_device=card_reader,
                     reference_number=fish_number or tracking_number,
+                    fund=cash_fund,  # لینک به صندوق نقدی
                     created_by=request.user,
                     confirmed_by=request.user,
                     confirmed_at=timezone.now()
@@ -4916,6 +4925,42 @@ def finalize_payment_settlement(request):
                 elif cash_register:
                     cash_register.current_balance += settlement_amount
                     cash_register.save()
+                
+                # به‌روزرسانی صندوق نقدی (Fund) و ایجاد رکورد در صورتحساب
+                if cash_fund:
+                    from products.models import FundStatement, FundTransaction
+                    
+                    # محاسبه مانده جدید
+                    previous_balance = cash_fund.current_balance
+                    new_balance = previous_balance + settlement_amount
+                    
+                    # ایجاد رکورد در صورتحساب صندوق
+                    FundStatement.objects.create(
+                        fund=cash_fund,
+                        date=payment_date,
+                        operation_type='دریافت از مشتری',
+                        amount=settlement_amount,
+                        running_balance=new_balance,
+                        description=description,
+                        reference_id=str(operation.id),
+                        reference_type='FinancialOperation',
+                        created_by=request.user
+                    )
+                    
+                    # ایجاد گردش صندوق
+                    FundTransaction.objects.create(
+                        fund=cash_fund,
+                        transaction_type='IN',
+                        amount=settlement_amount,
+                        description=description,
+                        reference_id=str(operation.id),
+                        reference_type='FinancialOperation',
+                        created_by=request.user
+                    )
+                    
+                    # به‌روزرسانی موجودی صندوق
+                    cash_fund.current_balance = new_balance
+                    cash_fund.save()
                 
                 operations_created.append({
                     'operation_number': operation_number,

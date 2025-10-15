@@ -65,10 +65,10 @@
                     <div class="payment-type-field">
                         <label for="payment_type"><i class="bi bi-credit-card"></i> نوع دریافتی:</label>
                         <select id="payment_type" class="form-control payment-type-select" onchange="handlePaymentTypeChange()">
-                            <option value="">انتخاب نوع دریافتی</option>
+                            <option value="">---</option>
                             <option value="cash">نقدی</option>
                             <option value="cheque">چک</option>
-                            <option value="pos">دستگاه کارتخوان</option>
+                            <option value="pos">دستگاه Pos</option>
                             <option value="bank_transfer">حواله بانکی</option>
                         </select>
                     </div>
@@ -161,7 +161,7 @@
                 ">
                     <div style="display: flex; justify-content: space-around; align-items: center; flex-wrap: wrap; gap: clamp(8px, 1.5vw, 15px);">
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <span style="color: #059669; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">💵 نقدی:</span>
+                            <span style="color: #059669; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">💵 نقد:</span>
                             <span id="total_cash" style="color: #047857; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 4px;">
@@ -173,7 +173,7 @@
                             <span id="total_pos" style="color: #c2410c; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <span style="color: #0891b2; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">🏦 بانکی:</span>
+                            <span style="color: #0891b2; font-size: clamp(0.68rem, 0.88vw, 0.78rem); font-weight: 600;">🏦 حواله:</span>
                             <span id="total_bank" style="color: #0e7490; font-family: 'BHoma', sans-serif; font-size: clamp(0.75rem, 0.95vw, 0.85rem); font-weight: 700;">0</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 5px; border-right: 2px solid #3b82f6; padding-right: 10px;">
@@ -3550,7 +3550,7 @@ async function finalizePaymentRow(rowId) {
 // تابع دریافت نام نوع پرداخت
 function getPaymentTypeName(type) {
     const names = {
-        'cash': 'نقدی',
+        'cash': 'نقد',
         'cheque': 'چک',
         'pos': 'کارتخوان',
         'bank_transfer': 'حواله بانکی'
