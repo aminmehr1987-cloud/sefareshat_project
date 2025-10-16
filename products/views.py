@@ -4599,8 +4599,15 @@ def invoice_settlement_view(request):
     
     # تاریخ سرور (برای جلوگیری از اختلاف با تاریخ کلاینت)
     from django.utils import timezone
-    server_date = timezone.now().date()
+    from .persian_calendar import gregorian_to_jalali, gregorian_to_jalali_farsi
+    
+    server_datetime = timezone.now()
+    server_date = server_datetime.date()
     server_date_iso = server_date.strftime('%Y-%m-%d')
+    
+    # تبدیل به شمسی در سمت سرور با استفاده از khayyam (دقیق‌تر از jdatetime)
+    server_date_jalali = gregorian_to_jalali(server_date)
+    server_date_jalali_farsi = gregorian_to_jalali_farsi(server_date)
     
     context = {
         'customers_json': customers_json,
@@ -4608,7 +4615,9 @@ def invoice_settlement_view(request):
         'bank_accounts_json': bank_accounts_json,
         'card_readers_json': card_readers_json,
         'cash_registers_json': cash_registers_json,
-        'server_date': server_date_iso,  # تاریخ سرور به فرمت ISO
+        'server_date': server_date_iso,  # تاریخ میلادی (2025-10-15)
+        'server_date_jalali': server_date_jalali,  # تاریخ شمسی (1404/07/23)
+        'server_date_jalali_farsi': server_date_jalali_farsi,  # تاریخ شمسی با اعداد فارسی (۱۴۰۴/۰۷/۲۳)
     }
     
     return render(request, 'financial_operations/invoice_settlement.html', context)

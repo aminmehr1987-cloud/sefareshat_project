@@ -3889,20 +3889,24 @@ function initializePersianDatePicker() {
         autoClose: true,
         calendar: {
             persian: {
-                locale: 'fa'
+                locale: 'fa',
+                leapYearMode: 'algorithmic'  // استفاده از الگوریتم دقیق‌تر
             }
         },
         onSelect: function(unix) {
             console.log('📅 تاریخ انتخاب شد - unix:', unix);
             
             // تبدیل unix timestamp به تاریخ میلادی
+            // توجه: persian-date.js یک روز عقب است، پس 1 روز اضافه می‌کنیم
             const selectedDate = new Date(unix);
+            selectedDate.setDate(selectedDate.getDate() + 1);  // اصلاح باگ persian-date
+            
             const year = selectedDate.getFullYear();
             const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
             const day = String(selectedDate.getDate()).padStart(2, '0');
             const isoDate = `${year}-${month}-${day}`;
             
-            console.log('📅 تاریخ میلادی:', isoDate);
+            console.log('📅 تاریخ میلادی (اصلاح شده):', isoDate);
             
             // به‌روزرسانی currentWorkDate
             currentWorkDate = isoDate;
@@ -3927,49 +3931,31 @@ function initializePersianDatePicker() {
         currentWorkDate = savedWorkDate;
         console.log('📅 بارگذاری تاریخ از localStorage:', savedWorkDate);
         
-        // تبدیل تاریخ میلادی به شمسی برای نمایش مستقیم
-        const parts = savedWorkDate.split('-');
-        const gYear = parseInt(parts[0]);
-        const gMonth = parseInt(parts[1]);
-        const gDay = parseInt(parts[2]);
+        // استفاده از تبدیل سرور (AJAX) برای تبدیل دقیق
+        // چون persian-date.js مشکل دارد، از backend تبدیل می‌کنیم
+        const serverDate = '{{ server_date }}';
+        const serverDateJalaliFarsi = '{{ server_date_jalali_farsi }}';
         
-        // ایجاد تاریخ میلادی و تبدیل به شمسی
-        const gregorianDate = new Date(gYear, gMonth - 1, gDay);
-        const persianDateObj = new persianDate(gregorianDate);
-        const pYear = persianDateObj.year();
-        const pMonth = String(persianDateObj.month()).padStart(2, '0');
-        const pDay = String(persianDateObj.date()).padStart(2, '0');
-        
-        // تنظیم مستقیم مقدار input با اعداد فارسی
-        const persianDateStr = `${pYear}/${pMonth}/${pDay}`;
-        const persianDateFarsi = persianDateStr.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-        $(dateInput).val(persianDateFarsi);
-        
-        console.log('📅 میلادی:', savedWorkDate, '→ شمسی:', persianDateStr, '→ فارسی:', persianDateFarsi);
+        if (savedWorkDate === serverDate && serverDateJalaliFarsi) {
+            // استفاده از تبدیل سرور (دقیق‌تر)
+            $(dateInput).val(serverDateJalaliFarsi);
+            console.log('📅 استفاده از تبدیل سرور - میلادی:', savedWorkDate, '→ فارسی:', serverDateJalaliFarsi);
+        } else {
+            // برای تاریخ‌های دیگر، فقط نمایش ساده (بدون تبدیل جاوااسکریپت)
+            // چون persian-date یک روز عقب است
+            console.warn('⚠️ تاریخ ذخیره شده با تاریخ سرور متفاوت است:', savedWorkDate);
+            $(dateInput).val(savedWorkDate);  // نمایش موقت تاریخ میلادی
+        }
         
     } else if (serverDate && serverDate !== '') {
         // استفاده از تاریخ سرور (اولویت اول)
         currentWorkDate = serverDate;
         console.log('📅 استفاده از تاریخ سرور:', serverDate);
         
-        // تبدیل تاریخ میلادی به شمسی برای نمایش مستقیم
-        const parts = serverDate.split('-');
-        const gYear = parseInt(parts[0]);
-        const gMonth = parseInt(parts[1]);
-        const gDay = parseInt(parts[2]);
-        
-        // تبدیل به شمسی
-        const persianDateObj = new persianDate([gYear, gMonth, gDay]);
-        const pYear = persianDateObj.year();
-        const pMonth = String(persianDateObj.month()).padStart(2, '0');
-        const pDay = String(persianDateObj.date()).padStart(2, '0');
-        
-        // تنظیم مستقیم مقدار input با اعداد فارسی
-        const persianDateStr = `${pYear}/${pMonth}/${pDay}`;
-        const persianDateFarsi = persianDateStr.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-        $(dateInput).val(persianDateFarsi);
-        
-        console.log('📅 تنظیم مستقیم date picker - میلادی:', serverDate, '→ شمسی:', persianDateFarsi);
+        // استفاده از تبدیل انجام شده در سمت سرور (دقیق‌تر از JavaScript)
+        const serverDateJalaliFarsi = '{{ server_date_jalali_farsi }}';
+        $(dateInput).val(serverDateJalaliFarsi);
+        console.log('📅 تنظیم از سرور - میلادی:', serverDate, '→ شمسی:', serverDateJalaliFarsi);
         
         // ذخیره در localStorage
         localStorage.setItem('invoice_settlement_work_date', currentWorkDate);
@@ -4006,25 +3992,11 @@ function setTodayDate() {
         // تنظیم به تاریخ سرور
         currentWorkDate = serverDate;
         
-        // تبدیل تاریخ میلادی به شمسی برای نمایش مستقیم
-        const parts = serverDate.split('-');
-        const gYear = parseInt(parts[0]);
-        const gMonth = parseInt(parts[1]);
-        const gDay = parseInt(parts[2]);
+        // استفاده از تبدیل سرور (دقیق‌تر از JavaScript)
+        const serverDateJalaliFarsi = '{{ server_date_jalali_farsi }}';
+        $(dateInput).val(serverDateJalaliFarsi);
         
-        // ایجاد تاریخ میلادی و تبدیل به شمسی
-        const gregorianDate = new Date(gYear, gMonth - 1, gDay);
-        const persianDateObj = new persianDate(gregorianDate);
-        const pYear = persianDateObj.year();
-        const pMonth = String(persianDateObj.month()).padStart(2, '0');
-        const pDay = String(persianDateObj.date()).padStart(2, '0');
-        
-        // تنظیم مستقیم مقدار input با اعداد فارسی
-        const persianDateStr = `${pYear}/${pMonth}/${pDay}`;
-        const persianDateFarsi = persianDateStr.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
-        $(dateInput).val(persianDateFarsi);
-        
-        console.log('📅 تنظیم مستقیم date picker - میلادی:', serverDate, '→ شمسی:', persianDateFarsi);
+        console.log('📅 تنظیم از سرور - میلادی:', serverDate, '→ شمسی:', serverDateJalaliFarsi);
         
         // ذخیره در localStorage
         localStorage.setItem('invoice_settlement_work_date', serverDate);
