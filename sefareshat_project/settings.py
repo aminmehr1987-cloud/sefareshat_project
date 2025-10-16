@@ -119,6 +119,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'products.context_processors.recent_orders_processor', # این خط اصلاح شده
                 'products.context_processors.notifications_processor',
+                'products.context_processors.server_datetime_processor',  # تاریخ و ساعت سرور
             ],
         },
     },

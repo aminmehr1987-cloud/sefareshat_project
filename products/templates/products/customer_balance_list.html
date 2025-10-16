@@ -37,24 +37,24 @@
                 </p>
             </div>
         </div>
-        <div class="summary-card total-credit">
-            <div class="card-icon">
-                <i class="bi bi-arrow-down-circle"></i>
-            </div>
-            <div class="card-content">
-                <h3>مجموع بستانکاران</h3>
-                <p class="received">{{ total_received|persian_number_format }} ریال</p>
-                <small class="text-muted">مشتریان به ما پرداخت کرده‌اند</small>
-            </div>
-        </div>
         <div class="summary-card total-debit">
             <div class="card-icon">
                 <i class="bi bi-arrow-up-circle"></i>
             </div>
             <div class="card-content">
-                <h3>مجموع بدهکاران</h3>
-                <p class="paid">{{ total_paid|persian_number_format }} ریال</p>
-                <small class="text-muted">ما به مشتریان پرداخت کرده‌ایم</small>
+                <h3>مجموع بدهکاری مشتریان</h3>
+                <p class="paid">{{ total_debit|persian_number_format }} ریال</p>
+                <small class="text-muted">کل فاکتورهای فروش</small>
+            </div>
+        </div>
+        <div class="summary-card total-credit">
+            <div class="card-icon">
+                <i class="bi bi-arrow-down-circle"></i>
+            </div>
+            <div class="card-content">
+                <h3>مجموع تسویه‌ها</h3>
+                <p class="received">{{ total_credit|persian_number_format }} ریال</p>
+                <small class="text-muted">دریافتی + پرداختی به مشتریان</small>
             </div>
         </div>
         <div class="summary-card customer-count">

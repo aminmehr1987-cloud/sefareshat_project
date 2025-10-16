@@ -4597,12 +4597,18 @@ def invoice_settlement_view(request):
     
     invoices_json = json.dumps(invoices_list, ensure_ascii=False)
     
+    # تاریخ سرور (برای جلوگیری از اختلاف با تاریخ کلاینت)
+    from django.utils import timezone
+    server_date = timezone.now().date()
+    server_date_iso = server_date.strftime('%Y-%m-%d')
+    
     context = {
         'customers_json': customers_json,
         'invoices_json': invoices_json,
         'bank_accounts_json': bank_accounts_json,
         'card_readers_json': card_readers_json,
-        'cash_registers_json': cash_registers_json
+        'cash_registers_json': cash_registers_json,
+        'server_date': server_date_iso,  # تاریخ سرور به فرمت ISO
     }
     
     return render(request, 'financial_operations/invoice_settlement.html', context)
@@ -4799,6 +4805,7 @@ def finalize_payment_settlement(request):
         card_reader_id = data.get('card_reader_id')
         fish_number = data.get('fish_number', '')
         tracking_number = data.get('tracking_number', '')
+        cheque_data = data.get('cheque_data')  # اطلاعات چک (در صورت وجود)
         
         # نقشه نوع دریافتی
         payment_type_names = {
@@ -4809,14 +4816,18 @@ def finalize_payment_settlement(request):
         }
         payment_type_persian = payment_type_names.get(payment_type, payment_type)
         
-        # تولید شماره عملیات یکتا
+        # تولید شماره عملیات یکتا (فقط عدد 10 رقمی)
+        # پیدا کردن آخرین شماره عددی
         last_op = FinancialOperation.objects.filter(
-            operation_number__startswith='REC-'
+            operation_number__regex=r'^\d+$'  # فقط اعداد
         ).order_by('-operation_number').first()
         
         if last_op:
-            last_num = int(last_op.operation_number.split('-')[1])
-            operation_base_num = last_num + 1
+            try:
+                last_num = int(last_op.operation_number)
+                operation_base_num = last_num + 1
+            except (ValueError, AttributeError):
+                operation_base_num = 1
         else:
             operation_base_num = 1
         
@@ -4835,8 +4846,8 @@ def finalize_payment_settlement(request):
                 except SalesInvoice.DoesNotExist:
                     continue
                 
-                # تولید شماره عملیات
-                operation_number = f'REC-{operation_base_num:06d}'
+                # تولید شماره عملیات (فقط عدد 10 رقمی)
+                operation_number = f'{operation_base_num:010d}'
                 operation_base_num += 1
                 
                 # تعیین حساب بانکی/صندوق
@@ -4844,12 +4855,34 @@ def finalize_payment_settlement(request):
                 card_reader = None
                 cash_register = None
                 cash_fund = None
+                bank_fund = None
                 
                 if payment_type == 'bank_transfer' and bank_account_id:
                     bank_account = BankAccount.objects.get(id=bank_account_id)
+                    # دریافت صندوق بانکی (Fund) برای ثبت در صورتحساب
+                    from products.models import Fund
+                    bank_fund = Fund.objects.filter(
+                        fund_type='BANK',
+                        bank_name=bank_account.bank.name,
+                        account_number=bank_account.account_number,
+                        is_active=True
+                    ).first()
                 elif payment_type == 'pos' and card_reader_id:
                     card_reader = CardReaderDevice.objects.get(id=card_reader_id)
                     bank_account = card_reader.bank_account
+                    
+                    # اطمینان از اینکه دستگاه کارتخوان به حساب بانکی متصل است
+                    if not bank_account:
+                        raise ValueError(f'دستگاه کارتخوان {card_reader.name} به حساب بانکی متصل نیست. لطفا در تنظیمات دستگاه، حساب بانکی را مشخص کنید.')
+                    
+                    # دریافت صندوق بانکی (Fund) برای ثبت در صورتحساب
+                    from products.models import Fund
+                    bank_fund = Fund.objects.filter(
+                        fund_type='BANK',
+                        bank_name=bank_account.bank.name,
+                        account_number=bank_account.account_number,
+                        is_active=True
+                    ).first()
                 elif payment_type == 'cash':
                     # صندوق نقدی پیش‌فرض
                     cash_register = CashRegister.objects.filter(is_active=True).first()
@@ -4873,6 +4906,10 @@ def finalize_payment_settlement(request):
                     description += f' - {payment_description}'
                 
                 # ایجاد عملیات مالی
+                # برای POS و bank_transfer، اطمینان از وجود اطلاعات بانک
+                if payment_type in ['pos', 'bank_transfer'] and not bank_account:
+                    raise ValueError('حساب بانکی برای این نوع پرداخت یافت نشد.')
+                
                 operation = FinancialOperation.objects.create(
                     operation_type='RECEIVE_FROM_CUSTOMER',
                     operation_number=operation_number,
@@ -4885,11 +4922,94 @@ def finalize_payment_settlement(request):
                     payment_method=payment_type,
                     card_reader_device=card_reader,
                     reference_number=fish_number or tracking_number,
-                    fund=cash_fund,  # لینک به صندوق نقدی
+                    fund=cash_fund or bank_fund,  # لینک به صندوق نقدی یا بانکی
+                    # برای نمایش در صورتحساب بانک، فیلدهای بانک را ست می‌کنیم
+                    bank_name=bank_account.bank.name if bank_account else '',
+                    account_number=bank_account.account_number if bank_account else '',
                     created_by=request.user,
                     confirmed_by=request.user,
                     confirmed_at=timezone.now()
                 )
+                
+                # لاگ برای دیباگ (می‌توان بعداً حذف کرد)
+                if payment_type == 'pos':
+                    print(f"✅ POS Operation Created: {operation.operation_number}")
+                    print(f"   Bank: {operation.bank_name}")
+                    print(f"   Account: {operation.account_number}")
+                    print(f"   Fund: {operation.fund}")
+                    print(f"   Card Reader: {operation.card_reader_device}")
+                
+                # ایجاد چک‌های دریافتی (در صورت وجود)
+                if payment_type == 'cheque' and cheque_data:
+                    from datetime import datetime
+                    
+                    # cheque_data می‌تواند یک آرایه از چک‌ها یا یک چک واحد باشد
+                    cheques_to_create = []
+                    
+                    if isinstance(cheque_data, list):
+                        # آرایه‌ای از چک‌ها
+                        cheques_to_create = cheque_data
+                    elif isinstance(cheque_data, dict):
+                        # یک چک واحد
+                        cheques_to_create = [cheque_data]
+                    else:
+                        print(f"⚠️ cheque_data نوع صحیح ندارد: {type(cheque_data)}")
+                    
+                    # ایجاد هر چک
+                    for cheque_info in cheques_to_create:
+                        if not isinstance(cheque_info, dict):
+                            print(f"⚠️ اطلاعات چک نامعتبر است: {type(cheque_info)}")
+                            continue
+                        
+                        # تبدیل تاریخ سررسید
+                        due_date_str = cheque_info.get('due_date')
+                        if due_date_str:
+                            # تاریخ به فرمت 1403/07/19 است
+                            try:
+                                import jdatetime
+                                parts = due_date_str.replace('/', '-').split('-')
+                                j_date = jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+                                due_date = j_date.togregorian()
+                            except Exception as e:
+                                print(f"⚠️ خطا در تبدیل تاریخ: {e}")
+                                # اگر تبدیل ناموفق بود، از تاریخ امروز استفاده کن
+                                due_date = datetime.now().date()
+                        else:
+                            due_date = datetime.now().date()
+                        
+                        # بررسی وجود فیلدهای ضروری
+                        if not cheque_info.get('sayadi_id'):
+                            print(f"⚠️ شناسه صیادی چک وارد نشده - چک ایجاد نمی‌شود")
+                            continue
+                        if not cheque_info.get('bank_name'):
+                            print(f"⚠️ نام بانک وارد نشده - چک ایجاد نمی‌شود")
+                            continue
+                        if not cheque_info.get('owner_name'):
+                            print(f"⚠️ نام صاحب حساب وارد نشده - چک ایجاد نمی‌شود")
+                            continue
+                        
+                        # مبلغ چک (از فیلد amount در cheque_info یا از settlement_amount)
+                        cheque_amount = Decimal(str(cheque_info.get('amount', settlement_amount)))
+                        
+                        # ایجاد رکورد چک دریافتی
+                        received_cheque = ReceivedCheque.objects.create(
+                            customer=invoice.customer,
+                            financial_operation=operation,
+                            endorsement=cheque_info.get('endorsement', ''),
+                            due_date=due_date,
+                            bank_name=cheque_info.get('bank_name', ''),
+                            branch_name=cheque_info.get('branch_name', ''),
+                            series=cheque_info.get('series', ''),
+                            serial=cheque_info.get('serial', ''),
+                            sayadi_id=cheque_info.get('sayadi_id', ''),
+                            amount=cheque_amount,
+                            owner_name=cheque_info.get('owner_name', ''),
+                            national_id=cheque_info.get('national_id', ''),
+                            account_number=cheque_info.get('account_number', ''),
+                            status='RECEIVED',  # وضعیت: نزد صندوق
+                            created_by=request.user
+                        )
+                        print(f"✅ چک دریافتی ایجاد شد: {received_cheque.sayadi_id} - مبلغ: {cheque_amount}")
                 
                 # به‌روزرسانی فاکتور
                 if payment_type == 'cash':
@@ -4926,19 +5046,28 @@ def finalize_payment_settlement(request):
                     cash_register.current_balance += settlement_amount
                     cash_register.save()
                 
-                # به‌روزرسانی صندوق نقدی (Fund) و ایجاد رکورد در صورتحساب
-                if cash_fund:
+                # به‌روزرسانی صندوق (Fund) و ایجاد رکورد در صورتحساب
+                # این کار برای صندوق نقدی و صندوق بانکی (کارتخوان) انجام می‌شود
+                target_fund = cash_fund or bank_fund
+                if target_fund:
                     from products.models import FundStatement, FundTransaction
                     
                     # محاسبه مانده جدید
-                    previous_balance = cash_fund.current_balance
+                    previous_balance = target_fund.current_balance
                     new_balance = previous_balance + settlement_amount
+                    
+                    # تعیین نوع عملیات برای نمایش
+                    operation_type_display = 'دریافت از مشتری'
+                    if payment_type == 'pos':
+                        operation_type_display = 'دریافت کارتخوان'
+                    elif payment_type == 'bank_transfer':
+                        operation_type_display = 'دریافت حواله بانکی'
                     
                     # ایجاد رکورد در صورتحساب صندوق
                     FundStatement.objects.create(
-                        fund=cash_fund,
+                        fund=target_fund,
                         date=payment_date,
-                        operation_type='دریافت از مشتری',
+                        operation_type=operation_type_display,
                         amount=settlement_amount,
                         running_balance=new_balance,
                         description=description,
@@ -4949,7 +5078,7 @@ def finalize_payment_settlement(request):
                     
                     # ایجاد گردش صندوق
                     FundTransaction.objects.create(
-                        fund=cash_fund,
+                        fund=target_fund,
                         transaction_type='IN',
                         amount=settlement_amount,
                         description=description,
@@ -4959,8 +5088,8 @@ def finalize_payment_settlement(request):
                     )
                     
                     # به‌روزرسانی موجودی صندوق
-                    cash_fund.current_balance = new_balance
-                    cash_fund.save()
+                    target_fund.current_balance = new_balance
+                    target_fund.save()
                 
                 operations_created.append({
                     'operation_number': operation_number,
@@ -6147,29 +6276,31 @@ def customer_balance_list_view(request):
     # آمار کلی - محاسبه از عملیات‌های واقعی
     all_operations = FinancialOperation.objects.filter(
         customer__isnull=False,
+        status='CONFIRMED',
         is_deleted=False
     )
     
-    # عملیات‌هایی که مشتری بدهکار می‌شود (ما به آنها پرداخت کردیم)
-    debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE', 'SALES_INVOICE']
-    total_paid = all_operations.filter(
+    # عملیات‌هایی که موجودی مشتری را افزایش می‌دهند (مشتری بدهکار می‌شود)
+    debit_ops = ['SALES_INVOICE', 'CHECK_BOUNCE']
+    total_debit = all_operations.filter(
         operation_type__in=debit_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
-    # عملیات‌هایی که مشتری بستانکار می‌شود (آنها به ما پرداخت کردند یا چک ما برگشت خورد)
-    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE', 'PURCHASE_INVOICE']
-    total_received = all_operations.filter(
+    # عملیات‌هایی که موجودی مشتری را کاهش می‌دهند (مشتری بستانکار می‌شود یا بدهی کم می‌شود)
+    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'PAY_TO_CUSTOMER', 'PURCHASE_INVOICE', 
+                  'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
+    total_credit = all_operations.filter(
         operation_type__in=credit_ops
     ).aggregate(Sum('amount'))['amount__sum'] or 0
     
-    # موجودی کل = بدهکاری - بستانکاری (مثبت یعنی ما به مشتریان بدهکاریم، منفی یعنی مشتریان به ما بدهکارند)
-    total_balance = total_paid - total_received
+    # موجودی کل = بدهکاری - بستانکاری (مثبت یعنی مشتریان به ما بدهکارند، منفی یعنی ما به مشتریان بدهکاریم)
+    total_balance = total_debit - total_credit
     
     context = {
         'customer_balances': customer_balances,
         'total_balance': total_balance,
-        'total_received': total_received,  # مجموع بستانکاری (مشتریان به ما پرداخت کردند)
-        'total_paid': total_paid,          # مجموع بدهکاری (ما به مشتریان پرداخت کردیم)
+        'total_debit': total_debit,    # مجموع فاکتورهای فروش
+        'total_credit': total_credit,  # مجموع دریافتی + پرداختی به مشتریان
     }
     
     return render(request, 'products/customer_balance_list.html', context)
@@ -6842,41 +6973,79 @@ def financial_dashboard_view(request):
     # The grand total preserves the original logic of summing all balance types
     total_balance = total_cash_balance + total_bank_balance + total_petty_cash_balance + total_bank_accounts_balance
     
-    # آمار عملیات‌های مالی - فقط برای صندوق نقدی
+    # آمار عملیات‌های مالی - دریافتی و پرداختی صندوق نقدی امروز
     today = timezone.now().date()
-    today_cash_operations = FinancialOperation.objects.filter(
+    
+    # همه عملیات امروز
+    today_operations = FinancialOperation.objects.filter(
         date=today,
         status='CONFIRMED',
-        fund__fund_type='CASH',
         is_deleted=False
     )
     
-    # Note: These definitions determine what counts as income/expense *for the cash fund*.
-    # For example, RECEIVE_FROM_BANK is income for the cash fund.
-    CASH_INCOME_OPS = ['RECEIVE_FROM_CUSTOMER', 'PAYMENT_TO_CASH', 'RECEIVE_FROM_BANK']
-    CASH_EXPENSE_OPS = ['PAY_TO_CUSTOMER', 'PAYMENT_FROM_CASH', 'PAY_TO_BANK']
-
-    today_income = sum(op.amount for op in today_cash_operations if op.operation_type in CASH_INCOME_OPS)
-    today_expense = sum(op.amount for op in today_cash_operations if op.operation_type in CASH_EXPENSE_OPS)
+    # دریافتی‌های صندوق نقدی (افزایش موجودی صندوق)
+    CASH_INCOME_OPS = [
+        'RECEIVE_FROM_CUSTOMER',  # دریافت نقدی از مشتری
+        'PAYMENT_TO_CASH',         # انتقال به صندوق
+        'RECEIVE_FROM_BANK',       # دریافت از بانک
+        'CAPITAL_INVESTMENT',      # سرمایه‌گذاری
+    ]
     
-    # آمار مشتریان - محاسبه از موجودی واقعی مشتریان
+    # پرداختی‌های صندوق نقدی (کاهش موجودی صندوق)
+    CASH_EXPENSE_OPS = [
+        'PAY_TO_CUSTOMER',         # پرداخت نقدی به مشتری
+        'PAYMENT_FROM_CASH',       # انتقال از صندوق
+        'PAY_TO_BANK',            # پرداخت به بانک
+        'DEPOSIT_TO_BANK',        # واریز به بانک
+        'PETTY_CASH',             # تنخواه
+    ]
+    
+    # دریافتی‌های نقدی امروز
+    today_income = today_operations.filter(
+        Q(payment_method='cash', operation_type='RECEIVE_FROM_CUSTOMER') |
+        Q(operation_type__in=CASH_INCOME_OPS)
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # پرداختی‌های نقدی امروز
+    today_expense = today_operations.filter(
+        Q(payment_method='cash', operation_type='PAY_TO_CUSTOMER') |
+        Q(operation_type__in=CASH_EXPENSE_OPS)
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # آمار مشتریان - محاسبه مشابه صفحه customer-balances
     customer_balances = CustomerBalance.objects.all()
     
     # به‌روزرسانی موجودی همه مشتریان
     for cb in customer_balances:
         cb.update_balance()
     
-    # محاسبه مجموع مطلق بدهکاری و بستانکاری با استفاده از aggregate
-    total_debt = customer_balances.aggregate(total=Sum('total_paid'))['total'] or 0  # مجموع بدهکاری‌ها
-    total_credit = customer_balances.aggregate(total=Sum('total_received'))['total'] or 0  # مجموع بستانکاری‌ها
+    # محاسبه از عملیات‌های واقعی (مشابه customer_balance_list_view)
+    all_operations = FinancialOperation.objects.filter(
+        customer__isnull=False,
+        status='CONFIRMED',
+        is_deleted=False
+    )
     
-    # کل موجودی = بدهکاری + بستانکاری (جمع مطلق)
-    total_customer_balance = total_debt + total_credit
+    # عملیات‌هایی که موجودی مشتری را افزایش می‌دهند (مشتری بدهکار می‌شود)
+    debit_ops = ['SALES_INVOICE', 'CHECK_BOUNCE']
+    total_debit = all_operations.filter(
+        operation_type__in=debit_ops
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # عملیات‌هایی که موجودی مشتری را کاهش می‌دهند (مشتری بستانکار می‌شود یا بدهی کم می‌شود)
+    credit_ops = ['RECEIVE_FROM_CUSTOMER', 'PAY_TO_CUSTOMER', 'PURCHASE_INVOICE', 
+                  'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
+    total_credit = all_operations.filter(
+        operation_type__in=credit_ops
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+    
+    # موجودی کل = بدهکاری - بستانکاری (مثبت یعنی مشتریان به ما بدهکارند، منفی یعنی ما به مشتریان بدهکاریم)
+    total_customer_balance = total_debit - total_credit
     
     # شمارش بدهکاران و بستانکاران
-    customer_balances = CustomerBalance.objects.all()
-    debtor_count = customer_balances.filter(current_balance__gt=0).count()
-    creditor_count = customer_balances.filter(current_balance__lt=0).count()
+    customer_balances_query = CustomerBalance.objects.all()
+    debtor_count = customer_balances_query.filter(current_balance__gt=0).count()
+    creditor_count = customer_balances_query.filter(current_balance__lt=0).count()
     
     # عملیات‌های اخیر
     recent_operations = FinancialOperation.objects.filter(status='CONFIRMED', is_deleted=False).order_by('-date', '-created_at')[:10]
@@ -6909,6 +7078,8 @@ def financial_dashboard_view(request):
         'today_expense': today_expense,
         'today_net': today_income - today_expense,
         'total_customer_balance': total_customer_balance,
+        'total_customer_debit': total_debit,      # مجموع فاکتورهای فروش (مشتریان باید بدهند)
+        'total_customer_credit': total_credit,  # مجموع دریافتی + پرداختی به مشتریان
         'debtor_count': debtor_count,
         'creditor_count': creditor_count,
         'recent_operations': recent_operations,
@@ -8099,10 +8270,19 @@ def bank_account_detail_view(request, bank_account_id):
         deposited_bank_account=bank_account
     ).select_related('customer').order_by('-due_date', '-cleared_at', '-created_at')
     
+    # آخرین عملیات مالی این حساب (۱۰ عملیات اخیر)
+    recent_operations = FinancialOperation.objects.filter(
+        bank_name=bank_account.bank.name,
+        account_number=bank_account.account_number,
+        status='CONFIRMED',
+        is_deleted=False
+    ).select_related('customer').order_by('-date', '-created_at')[:10]
+    
     context = {
         'bank_account': bank_account,
         'title': f'جزئیات حساب بانکی {bank_account.title}',
-        'deposited_checks': deposited_checks
+        'deposited_checks': deposited_checks,
+        'recent_operations': recent_operations
     }
     
     return render(request, 'products/bank_account_detail.html', context)

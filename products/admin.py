@@ -1371,7 +1371,7 @@ class FinancialOperationAdmin(admin.ModelAdmin):
     date_hierarchy = 'date'
     ordering = ('-date', '-created_at')
     list_per_page = 20
-    actions = ['confirm_operations', 'export_operations_to_excel']
+    actions = ['confirm_operations', 'export_operations_to_excel', 'force_delete_operations', 'delete_all_operations']
     
     fieldsets = (
         (None, {
@@ -1428,6 +1428,81 @@ class FinancialOperationAdmin(admin.ModelAdmin):
         """خروجی اکسل از عملیات مالی"""
         return export_model_to_excel(self, request, queryset)
     export_operations_to_excel.short_description = "خروجی اکسل"
+    
+    def force_delete_operations(self, request, queryset):
+        """حذف اجباری عملیات‌های انتخاب شده (حتی تایید شده‌ها)"""
+        if not request.user.is_superuser:
+            self.message_user(request, 'فقط مدیر کل می‌تواند این عملیات را انجام دهد!', level='ERROR')
+            return
+        
+        from django.db import transaction
+        from products.models import ReceivedCheque, FundStatement, FundTransaction
+        
+        deleted_count = 0
+        try:
+            with transaction.atomic():
+                for operation in queryset:
+                    # حذف اشیاء وابسته
+                    ReceivedCheque.objects.filter(financial_operation=operation).delete()
+                    FundStatement.objects.filter(reference_type='FinancialOperation', reference_id=str(operation.id)).delete()
+                    FundTransaction.objects.filter(reference_type='FinancialOperation', reference_id=str(operation.id)).delete()
+                    
+                    # حذف عملیات
+                    operation.delete()
+                    deleted_count += 1
+                
+                self.message_user(request, f'{deleted_count} عملیات مالی و داده‌های وابسته با موفقیت حذف شدند.')
+        except Exception as e:
+            self.message_user(request, f'خطا در حذف: {str(e)}', level='ERROR')
+    
+    force_delete_operations.short_description = "🗑️ حذف اجباری عملیات انتخاب شده (فقط superuser)"
+    
+    def delete_all_operations(self, request, queryset):
+        """حذف تمام عملیات‌های مالی و صفر کردن موجودی‌ها"""
+        if not request.user.is_superuser:
+            self.message_user(request, 'فقط مدیر کل می‌تواند این عملیات را انجام دهد!', level='ERROR')
+            return
+        
+        from django.db import transaction
+        from products.models import (
+            ReceivedCheque, FundStatement, FundTransaction, 
+            CustomerBalance, Fund, BankAccount
+        )
+        
+        try:
+            with transaction.atomic():
+                # حذف همه اشیاء وابسته
+                cheques_count = ReceivedCheque.objects.count()
+                statements_count = FundStatement.objects.count()
+                transactions_count = FundTransaction.objects.count()
+                operations_count = FinancialOperation.objects.count()
+                
+                ReceivedCheque.objects.all().delete()
+                FundStatement.objects.all().delete()
+                FundTransaction.objects.all().delete()
+                FinancialOperation.objects.all().delete()
+                
+                # صفر کردن موجودی‌ها
+                CustomerBalance.objects.update(
+                    current_balance=0, 
+                    total_received=0, 
+                    total_paid=0,
+                    last_transaction_date=None
+                )
+                Fund.objects.update(current_balance=0)
+                BankAccount.objects.update(current_balance=0)
+                
+                self.message_user(
+                    request, 
+                    f'✅ حذف کامل انجام شد: {operations_count} عملیات، '
+                    f'{cheques_count} چک، {statements_count} صورتحساب، '
+                    f'{transactions_count} تراکنش. موجودی‌ها صفر شدند.',
+                    level='SUCCESS'
+                )
+        except Exception as e:
+            self.message_user(request, f'❌ خطا در حذف: {str(e)}', level='ERROR')
+    
+    delete_all_operations.short_description = "⚠️ حذف تمام عملیات و صفر کردن موجودی‌ها (فقط superuser)"
     
     def has_delete_permission(self, request, obj=None):
         """

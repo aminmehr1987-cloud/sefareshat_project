@@ -3123,6 +3123,10 @@ class CustomerBalance(models.Model):
         """
         Recalculates the customer's balance from their entire non-deleted transaction history.
         This is a robust method that avoids incremental update errors.
+        
+        منطق محاسبه:
+        - موجودی مثبت = مشتری به ما بدهکار است
+        - موجودی منفی = ما به مشتری بدهکاریم
         """
         from .models import FinancialOperation # Local import to avoid circular dependency
         
@@ -3132,16 +3136,23 @@ class CustomerBalance(models.Model):
             is_deleted=False
         )
 
-        # عملیات‌هایی که بدهی مشتری را افزایش می‌دهند (مشتری بدهکار می‌شود)
-        debit_ops = ['PAY_TO_CUSTOMER', 'BANK_TRANSFER', 'CHECK_BOUNCE', 'SALES_INVOICE']
-        # عملیات‌هایی که بدهی مشتری را کاهش می‌دهند (مشتری بستانکار می‌شود)
-        credit_ops = ['RECEIVE_FROM_CUSTOMER', 'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE', 'PURCHASE_INVOICE']
+        # عملیات‌هایی که موجودی مشتری را افزایش می‌دهند (مشتری بدهکار می‌شود)
+        # مشتری از ما کالا خرید یا چک دریافتی برگشت خورد
+        debit_ops = ['SALES_INVOICE', 'CHECK_BOUNCE']
+        
+        # عملیات‌هایی که موجودی مشتری را کاهش می‌دهند (مشتری بستانکار می‌شود یا بدهی کم می‌شود)
+        # مشتری به ما پول داد، یا ما به او پول دادیم، یا ما از او خرید کردیم
+        credit_ops = ['RECEIVE_FROM_CUSTOMER', 'PAY_TO_CUSTOMER', 'PURCHASE_INVOICE', 
+                      'SPENT_CHEQUE_RETURN', 'ISSUED_CHECK_BOUNCE']
 
         total_debit = operations.filter(operation_type__in=debit_ops).aggregate(total=models.Sum('amount'))['total'] or 0
         total_credit = operations.filter(operation_type__in=credit_ops).aggregate(total=models.Sum('amount'))['total'] or 0
 
         # موجودی نهایی: (کل بدهی‌ها) - (کل بستانکاری‌ها)
         self.current_balance = total_debit - total_credit
+        
+        # total_paid = مجموع فاکتورهای فروش (مشتری باید بدهد)
+        # total_received = مجموع دریافتی از مشتری
         self.total_paid = total_debit
         self.total_received = total_credit
         

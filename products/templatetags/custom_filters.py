@@ -52,15 +52,20 @@ def format_number(value):
 
 @register.filter
 def jformat(value, format_string):
-    """Formats a date/datetime object into a Jalali date string."""
+    """Formats a date/datetime object into a Jalali date string with timezone support."""
     if not value:
         return ''
+    
+    from django.utils import timezone as django_timezone
     
     jalali_dt = None
     try:
         if isinstance(value, (jdatetime.datetime, jdatetime.date)):
             jalali_dt = value
         elif isinstance(value, datetime):
+            # اگر timezone-aware است، به timezone محلی تبدیل کن
+            if django_timezone.is_aware(value):
+                value = django_timezone.localtime(value)
             jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
         elif isinstance(value, date):
             jalali_dt = jdatetime.date.fromgregorian(date=value)
@@ -102,15 +107,20 @@ def persian_number_format(value):
 
 @register.filter
 def jalali_date(value):
-    """Converts a date/datetime object into a standard 'YYYY/MM/DD' Jalali date string."""
+    """Converts a date/datetime object into a standard 'YYYY/MM/DD' Jalali date string with timezone support."""
     if not value:
         return ''
+    
+    from django.utils import timezone as django_timezone
     
     jalali_dt = None
     try:
         if isinstance(value, (jdatetime.datetime, jdatetime.date)):
             jalali_dt = value
         elif isinstance(value, datetime):
+            # اگر timezone-aware است، به timezone محلی تبدیل کن
+            if django_timezone.is_aware(value):
+                value = django_timezone.localtime(value)
             jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
         elif isinstance(value, date):
             jalali_dt = jdatetime.date.fromgregorian(date=value)
@@ -124,15 +134,20 @@ def jalali_date(value):
 
 @register.filter
 def jalali_date_time(value):
-    """Converts a datetime object into a 'YYYY/MM/DD HH:MM' Jalali datetime string."""
+    """Converts a datetime object into a 'YYYY/MM/DD HH:MM' Jalali datetime string with timezone support."""
     if not value:
         return ''
+    
+    from django.utils import timezone as django_timezone
     
     jalali_dt = None
     try:
         if isinstance(value, jdatetime.datetime):
             jalali_dt = value
         elif isinstance(value, datetime):
+            # اگر timezone-aware است، به timezone محلی تبدیل کن
+            if django_timezone.is_aware(value):
+                value = django_timezone.localtime(value)
             jalali_dt = jdatetime.datetime.fromgregorian(datetime=value)
         
         if jalali_dt:

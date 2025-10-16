@@ -111,22 +111,51 @@
         <div class="customer-cards">
             <div class="card customer-card glass-card">
                 <div class="card-body">
-                    <h4>کل موجودی مشتریان</h4>
-                    <p class="amount {% if total_customer_balance >= 0 %}positive{% else %}negative{% endif %}">
+                    <h4>خالص بدهکاری/بستانکاری</h4>
+                    <p class="amount {% if total_customer_balance > 0 %}negative{% else %}{% if total_customer_balance < 0 %}positive{% endif %}{% endif %}">
                         {{ total_customer_balance|persian_number_format }} ریال
                     </p>
+                    <small style="font-size: 0.75rem; color: #666;">
+                        {% if total_customer_balance > 0 %}
+                            مشتریان به ما بدهکارند
+                        {% elif total_customer_balance < 0 %}
+                            ما به مشتریان بدهکاریم
+                        {% else %}
+                            تسویه
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+            <div class="card customer-card glass-card">
+                <div class="card-body">
+                    <h4>کل بدهکاری مشتریان</h4>
+                    <p class="amount" style="color: #dc3545;">
+                        {{ total_customer_debit|persian_number_format }} ریال
+                    </p>
+                    <small style="font-size: 0.75rem; color: #666;">کل فاکتورهای فروش</small>
+                </div>
+            </div>
+            <div class="card customer-card glass-card">
+                <div class="card-body">
+                    <h4>کل تسویه‌ها</h4>
+                    <p class="amount" style="color: #28a745;">
+                        {{ total_customer_credit|persian_number_format }} ریال
+                    </p>
+                    <small style="font-size: 0.75rem; color: #666;">دریافتی + پرداختی به مشتریان</small>
                 </div>
             </div>
             <div class="card customer-card glass-card">
                 <div class="card-body">
                     <h4>تعداد بدهکاران</h4>
                     <p class="count">{{ debtor_count }} نفر</p>
+                    <small style="font-size: 0.75rem; color: #666;">مشتریان بدهکار</small>
                 </div>
             </div>
             <div class="card customer-card glass-card">
                 <div class="card-body">
                     <h4>تعداد بستانکاران</h4>
                     <p class="count">{{ creditor_count }} نفر</p>
+                    <small style="font-size: 0.75rem; color: #666;">مشتریان بستانکار</small>
                 </div>
             </div>
         </div>
@@ -530,9 +559,15 @@
     gap: 0.5rem;
 }
 
-.today-cards, .customer-cards {
+.today-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.customer-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 1rem;
 }
 

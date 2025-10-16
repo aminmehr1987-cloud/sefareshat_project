@@ -925,8 +925,55 @@
     </a>
   </div>
 
-  <!-- بخش چک‌های واگذاری -->
+  <!-- بخش عملیات مالی اخیر -->
   <div class="deposited-checks-section">
+    <div class="section-title">آخرین عملیات مالی</div>
+    
+    {% if recent_operations %}
+      <div class="deposited-checks-table">
+        <div class="deposited-checks-header" style="grid-template-columns: 1fr 2fr 1.5fr 1.5fr 1fr;">
+          <div class="check-col">تاریخ</div>
+          <div class="check-col">شرح</div>
+          <div class="check-col">مبلغ</div>
+          <div class="check-col">نوع پرداخت</div>
+          <div class="check-col">مشتری</div>
+        </div>
+        
+        {% for operation in recent_operations %}
+          <div class="deposited-check-row" style="grid-template-columns: 1fr 2fr 1.5fr 1.5fr 1fr;">
+            <div class="check-col">
+              <span>{{ operation.date|jalali_date }}</span>
+            </div>
+            <div class="check-col" style="text-align: right; padding-right: 10px;">
+              <span>{{ operation.description|truncatewords:10 }}</span>
+            </div>
+            <div class="check-col">
+              <span class="check-amount">{{ operation.amount|persian_number_format }} ریال</span>
+            </div>
+            <div class="check-col">
+              <span>{{ operation.get_payment_method_display }}</span>
+            </div>
+            <div class="check-col">
+              <span>{{ operation.customer.get_full_name|default:"-" }}</span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <div style="text-align: center; margin-top: 15px;">
+        <a href="{% url 'products:bank_statement' bank_account.id %}" class="list-checks-btn">
+          <i class="bi bi-file-text"></i>
+          مشاهده صورتحساب کامل
+        </a>
+      </div>
+    {% else %}
+      <div class="empty-message">
+        <p>هیچ عملیات مالی برای این حساب ثبت نشده است.</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- بخش چک‌های واگذاری -->
+  <div class="deposited-checks-section" style="margin-top: 30px;">
     <div class="section-title">چک‌های واگذاری</div>
     
     <div class="deposited-checks-actions">
