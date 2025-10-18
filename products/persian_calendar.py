@@ -5,6 +5,11 @@ Persian Calendar Utilities
 توجه:
 - jdatetime: 1404/07/01 → 2025-09-23 (سه‌شنبه) ✅ صحیح
 - persian-date.js: 1404/07/01 → 2025-09-22 (دوشنبه) ❌ یک روز عقب
+
+به‌روزرسانی:
+- سال 1403 یک سال کبیسه است (اسفند 30 روزه)
+- فایل persian-calendar-fix.js این مشکل را در frontend برطرف می‌کند
+- jdatetime محاسبه صحیح سال کبیسه را انجام می‌دهد
 """
 
 from datetime import datetime, date as py_date
