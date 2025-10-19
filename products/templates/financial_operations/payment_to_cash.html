@@ -1,5 +1,6 @@
 {% extends "products/base.html" %}
 
+{% load static %}
 {% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
 {% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
 
@@ -9,9 +10,6 @@
 
 {% block content %}
 <!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
-<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
-<script src="https://unpkg.com/moment/min/moment.min.js"></script>
-<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
 
 <div class="financial-operation-container">
     <div class="operation-header">
@@ -68,6 +66,14 @@
 </div>
 
 <style>
+
+@font-face {
+    font-family: 'BNAZANB';
+    src: url('/static/fonts/BNAZANB.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 @font-face {
     font-family: 'BHoma';
     src: url('/static/fonts/BHoma.ttf') format('truetype');
@@ -312,14 +318,11 @@
 
 <!-- Persian Datepicker Script -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
-<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
-<script src="{% static 'js/persian-calendar-fix.js' %}"></script>
-
+<script src="{% static 'js/simple-persian-calendar.js' %}?v=4.0"></script>
 <script>
 $(document).ready(function() {
     // Persian Datepicker initialization
-    $("#date").pDatepicker({
+    $("#date").simplePersianDatepicker({
         format: 'YYYY/MM/DD',
         initialValueType: 'persian',
         autoClose: true,

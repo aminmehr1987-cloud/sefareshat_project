@@ -1,12 +1,21 @@
 {% extends 'products/base.html' %}
+{% load static %}
 {% load custom_filters %}
 {% block title %}{{ title }}{% endblock %}
 
 {% block customer_elements %}{% endblock customer_elements %}{% block cart_elements %}{% endblock cart_elements %}
 
 {% block content %}
-<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
+
 <style>
+
+@font-face {
+    font-family: 'BNAZANB';
+    src: url('/static/fonts/BNAZANB.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
   .available-checks-container {
     max-width: 1200px;
     margin: 20px auto;
@@ -731,15 +740,11 @@ function clearAdvancedSearch() {
 
 <!-- Scripts for persian-datepicker -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://unpkg.com/moment/min/moment.min.js"></script>
-<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
-<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
-<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
-<script src="{% static 'js/persian-calendar-fix.js' %}"></script>
+<script src="{% static 'js/simple-persian-calendar.js' %}?v=4.0"></script>
 <script>
 // Initialize persian-datepicker
 $(document).ready(function() {
-    $('.persian-datepicker').pDatepicker({
+    $(".persian-datepicker").simplePersianDatepicker({
         format: 'YYYY/MM/DD',
         initialValueType: 'persian',
         autoClose: true,

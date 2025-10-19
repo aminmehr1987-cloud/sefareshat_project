@@ -358,6 +358,14 @@
 {% endif %}
 
 <style>
+
+@font-face {
+    font-family: 'BNAZANB';
+    src: url('/static/fonts/BNAZANB.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 .filters-section .card {
     border: 1px solid #dee2e6;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -588,4 +596,9 @@ function printReport() {
 <!-- کتابخانه XLSX برای خروجی اکسل -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 {% endif %}
+
+<!-- Persian Calendar -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{% static 'js/simple-persian-calendar.js' %}?v=4.0"></script>
+
 {% endblock %} 

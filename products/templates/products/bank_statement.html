@@ -1,4 +1,5 @@
 {% extends 'products/base.html' %}
+{% load static %}
 {% load custom_filters %}
 {% block title %}صورتحساب بانکی - {{ bank_account.title }}{% endblock %}
 
@@ -6,6 +7,14 @@
 
 {% block content %}
 <style>
+
+@font-face {
+    font-family: 'BNAZANB';
+    src: url('/static/fonts/BNAZANB.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
   .bank-statement-container {
     max-width: 1200px;
     margin: 20px auto;
@@ -537,15 +546,11 @@
 
 <!-- jQuery and Persian Datepicker CSS and JS -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@latest/dist/css/persian-datepicker.min.css">
-<script src="https://unpkg.com/persian-date@latest/dist/persian-date.min.js"></script>
-<script src="https://unpkg.com/persian-datepicker@latest/dist/js/persian-datepicker.min.js"></script>
-<script src="{% static 'js/persian-calendar-fix.js' %}"></script>
-
+<script src="{% static 'js/simple-persian-calendar.js' %}?v=4.0"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Persian Datepicker
-    $('.persian-datepicker').persianDatepicker({
+    $(".persian-datepicker").simplePersianDatepicker({
         format: 'YYYY/MM/DD',
         initialValue: false,
         autoClose: true,

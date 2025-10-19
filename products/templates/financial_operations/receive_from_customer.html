@@ -1,5 +1,6 @@
 {% extends "products/base.html" %}
 
+{% load static %}
 {% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
 {% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
 
@@ -9,11 +10,8 @@
 
 {% block content %}
 <!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
-<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<script src="https://unpkg.com/moment/min/moment.min.js"></script>
-<script src="https://unpkg.com/moment-jalaali/build/moment-jalaali.js"></script>
 
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <div class="financial-operation-container">
     <!-- نمایش پیام‌های سیستم -->
     {% if messages %}
@@ -205,6 +203,14 @@
 </div>
 
 <style>
+
+@font-face {
+    font-family: 'BNAZANB';
+    src: url('/static/fonts/BNAZANB.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 @font-face {
     font-family: 'BHoma';
     src: url('/static/fonts/BHoma.ttf') format('truetype');
@@ -775,9 +781,7 @@
 
 <!-- Persian Datepicker Script -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
-<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
-<script src="{% static 'js/persian-calendar-fix.js' %}"></script>
+<script src="{% static 'js/simple-persian-calendar.js' %}?v=4.2"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
@@ -810,7 +814,7 @@ $(document).ready(function() {
     paymentMethodField.on('change', toggleFields);
     
     // Persian Datepicker initialization
-    $(".persian-datepicker").pDatepicker({
+    $(".persian-datepicker").simplePersianDatepicker({
         format: 'YYYY/MM/DD',
         initialValueType: 'persian',
         autoClose: true,

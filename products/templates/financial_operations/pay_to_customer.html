@@ -1,5 +1,6 @@
 {% extends "products/base.html" %}
 
+{% load static %}
 {% block home_url %}{% url 'products:accounting_panel' %}{% endblock home_url %}
 {% block home_url_logo %}{% url 'products:accounting_panel' %}{% endblock home_url_logo %}
 
@@ -9,9 +10,6 @@
 
 {% block content %}
 <!-- اضافه کردن کتابخانه‌های Persian Datepicker -->
-<link rel="stylesheet" href="https://unpkg.com/persian-datepicker@1.2.0/dist/css/persian-datepicker.min.css">
-<script src="https://unpkg.com/moment@2.30.1/min/moment.min.js" defer></script>
-<script src="https://unpkg.com/moment-jalaali@0.10.4/build/moment-jalaali.js" defer></script>
 
 <div class="financial-operation-container">
     <!-- نمایش پیام‌های سیستم -->
@@ -337,6 +335,14 @@
 </div>
 
 <style>
+
+@font-face {
+    font-family: 'BNAZANB';
+    src: url('/static/fonts/BNAZANB.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 /* Styles for Spend Received Check Modal Table */
 #spendReceivedCheckModal .cheque-table {
     border-collapse: collapse;
@@ -1225,10 +1231,7 @@
 
 <!-- Persian Datepicker Script -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://unpkg.com/persian-date@1.1.0/dist/persian-date.min.js"></script>
-<script src="https://unpkg.com/persian-datepicker@1.2.0/dist/js/persian-datepicker.min.js"></script>
-<script src="{% static 'js/persian-calendar-fix.js' %}"></script>
-
+<script src="{% static 'js/simple-persian-calendar.js' %}?v=4.0"></script>
 <script>
 // Helper function to convert Persian/Arabic digits to English digits
 function toEnglishDigits(str) {
@@ -1263,7 +1266,7 @@ function parseAmountFromFormattedString(formattedValue) {
 
 $(document).ready(function() {
     // Persian Datepicker initialization
-    $("#id_date_shamsi").pDatepicker({
+    $("#id_date_shamsi").simplePersianDatepicker({
         format: 'YYYY/MM/DD',
         initialValueType: 'persian',
         autoClose: true,
@@ -2034,7 +2037,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Initialize datepicker
-        $(row.querySelector('.cheque-due-date')).pDatepicker({
+        $(row.querySelector('.cheque-due-date')).simplePersianDatepicker({
             format: 'YYYY/MM/DD',
             autoClose: true,
             onSelect: function(unix) {

@@ -15,7 +15,7 @@ class FinancialYearForm(forms.ModelForm):
     start_date_shamsi = forms.CharField(
         label="تاریخ شروع",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ شروع را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -25,7 +25,7 @@ class FinancialYearForm(forms.ModelForm):
     end_date_shamsi = forms.CharField(
         label="تاریخ پایان",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ پایان را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -148,19 +148,19 @@ class CurrencyForm(forms.ModelForm):
         fields = ['code', 'name', 'symbol', 'is_default', 'exchange_rate', 'is_active']
         widgets = {
             'code': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مثال: IRR یا USD'
             }),
             'name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مثال: ریال یا دلار'
             }),
             'symbol': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مثال: ﷼ یا $'
             }),
             'exchange_rate': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'step': '0.000001'
             }),
         }
@@ -189,7 +189,7 @@ class CustomerForm(forms.ModelForm):
     first_name = forms.CharField(
         required=True,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'نام را وارد کنید'
         }),
         error_messages={
@@ -199,7 +199,7 @@ class CustomerForm(forms.ModelForm):
     last_name = forms.CharField(
         required=True,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'نام خانوادگی را وارد کنید'
         }),
         error_messages={
@@ -209,21 +209,21 @@ class CustomerForm(forms.ModelForm):
     store_name = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'نام فروشگاه را وارد کنید (اختیاری)'
         })
     )
     phone = forms.CharField(
         required=False,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'شماره تلفن ثابت را وارد کنید (اختیاری)'
         })
     )
     mobile = forms.CharField(
         required=True,
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'شماره موبایل را وارد کنید'
         }),
         error_messages={
@@ -236,7 +236,7 @@ class CustomerForm(forms.ModelForm):
         required=True,
         empty_label="انتخاب استان",
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'id': 'province-select'
         }),
         label="استان"
@@ -247,7 +247,7 @@ class CustomerForm(forms.ModelForm):
         required=True,
         empty_label="انتخاب شهرستان",
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'id': 'county-select'
         }),
         label="شهرستان"
@@ -256,7 +256,7 @@ class CustomerForm(forms.ModelForm):
     address = forms.CharField(
         required=True,
         widget=forms.Textarea(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'آدرس را وارد کنید',
             'rows': 3
         }),
@@ -389,7 +389,7 @@ class ReceiptForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -509,7 +509,7 @@ class FinancialOperationForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -526,35 +526,35 @@ class FinancialOperationForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.Select(attrs={'class': 'form-control'}),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
             'customer': forms.Select(attrs={'class': 'form-control'}),
             'bank_name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'نام بانک'
             }),
             'account_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره حساب'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
             'reference_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره مرجع'
             }),
             'cheque_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره چک'
             }),
             'cheque_date': forms.DateInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'type': 'date'
             }),
         }
@@ -593,29 +593,29 @@ class FundForm(forms.ModelForm):
         ]
         widgets = {
             'name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'نام صندوق'
             }),
             'fund_type': forms.Select(attrs={'class': 'form-control'}),
             'initial_balance': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'موجودی اولیه',
                 'step': '0.01'
             }),
             'bank_name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'نام بانک'
             }),
             'account_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره حساب'
             }),
             'sheba_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره شبا'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات'
             }),
@@ -644,7 +644,7 @@ class PettyCashOperationForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -656,7 +656,7 @@ class PettyCashOperationForm(forms.ModelForm):
         label="صندوق منبع",
         queryset=Fund.objects.filter(fund_type__in=['CASH', 'PETTY_CASH'], is_active=True),
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'انتخاب صندوق منبع'
         }),
         empty_label="انتخاب صندوق منبع",
@@ -667,7 +667,7 @@ class PettyCashOperationForm(forms.ModelForm):
         label="حساب بانکی منبع",
         queryset=BankAccount.objects.filter(is_active=True),
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'انتخاب حساب بانکی منبع'
         }),
         empty_label="انتخاب حساب بانکی منبع",
@@ -698,12 +698,12 @@ class PettyCashOperationForm(forms.ModelForm):
                 ('WITHDRAW', 'برداشت از تنخواه'),
             ]),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -747,7 +747,7 @@ class CustomerBalanceForm(forms.ModelForm):
         fields = ['current_balance']
         widgets = {
             'current_balance': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'step': '0.01'
             }),
         }
@@ -761,7 +761,7 @@ class ReceiveFromCustomerForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -783,14 +783,14 @@ class ReceiveFromCustomerForm(forms.ModelForm):
             'operation_type': forms.HiddenInput(),
             'customer': forms.Select(attrs={'class': 'form-control'}),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
             'card_reader_device': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -820,7 +820,7 @@ class PayToCustomerForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -834,13 +834,13 @@ class PayToCustomerForm(forms.ModelForm):
             'operation_type': forms.HiddenInput(),
             'customer': forms.Select(attrs={'class': 'form-control'}),
             'amount': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'inputmode': 'numeric'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -870,7 +870,7 @@ class BankOperationForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -883,21 +883,21 @@ class BankOperationForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.HiddenInput(),
             'bank_name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'نام بانک'
             }),
             'account_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره حساب'
             }),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -915,7 +915,7 @@ class BankTransferForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -926,7 +926,7 @@ class BankTransferForm(forms.ModelForm):
         label="حساب بانکی مبدا",
         queryset=BankAccount.objects.filter(is_active=True),
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'انتخاب حساب بانکی مبدا'
         }),
         empty_label="انتخاب حساب بانکی مبدا",
@@ -937,7 +937,7 @@ class BankTransferForm(forms.ModelForm):
         label="بانک مقصد",
         queryset=Bank.objects.filter(is_active=True),
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'انتخاب بانک مقصد'
         }),
         empty_label="انتخاب بانک مقصد",
@@ -954,7 +954,7 @@ class BankTransferForm(forms.ModelForm):
     recipient_display = forms.CharField(
         label="گیرنده حواله",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'برای انتخاب گیرنده کلیک کنید',
             'readonly': 'readonly'
         }),
@@ -964,7 +964,7 @@ class BankTransferForm(forms.ModelForm):
     to_account = forms.CharField(
         label="شماره حساب مقصد",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'شماره حساب مقصد را وارد کنید'
         }),
         required=True
@@ -976,12 +976,12 @@ class BankTransferForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.HiddenInput(),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -1004,7 +1004,7 @@ class CashOperationForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -1017,13 +1017,13 @@ class CashOperationForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.HiddenInput(),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'payment_method': forms.Select(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -1041,7 +1041,7 @@ class CapitalInvestmentForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -1064,7 +1064,7 @@ class CapitalInvestmentForm(forms.ModelForm):
         label="بازده مورد انتظار (%)",
         required=False,
         widget=forms.NumberInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'درصد بازده',
             'step': '0.01'
         })
@@ -1076,12 +1076,12 @@ class CapitalInvestmentForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.HiddenInput(),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ سرمایه گذاری',
                 'step': '0.01'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات سرمایه گذاری (اختیاری)'
             }),
@@ -1150,37 +1150,37 @@ class BankAccountForm(forms.ModelForm):
         ]
         widgets = {
             'bank': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب بانک'
             }),
             'account_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره حساب'
             }),
             'sheba': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره شبا (IR...)',
                 'maxlength': '26'
             }),
             'card_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره کارت (اختیاری)'
             }),
             'account_type': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'نوع حساب'
             }),
             'title': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'عنوان حساب'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات (اختیاری)'
             }),
             'initial_balance': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'موجودی اولیه',
                 'step': '0.01'
             }),
@@ -1189,19 +1189,19 @@ class BankAccountForm(forms.ModelForm):
                 'style': 'margin-left: 8px;'
             }),
             'card_reader_device_1': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب دستگاه کارت‌خوان 1'
             }),
             'card_reader_device_2': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب دستگاه کارت‌خوان 2'
             }),
             'card_reader_device_3': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب دستگاه کارت‌خوان 3'
             }),
             'card_reader_device_4': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب دستگاه کارت‌خوان 4'
             }),
         }
@@ -1225,7 +1225,7 @@ class BankAccountForm(forms.ModelForm):
             label="موجودی جدید",
             required=False,
             widget=forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'موجودی جدید محاسبه شده',
                 'step': '0.01'
             })
@@ -1302,19 +1302,19 @@ class CheckBookForm(forms.ModelForm):
         fields = ['bank_account', 'serial', 'start_number', 'end_number', 'is_active']
         widgets = {
             'bank_account': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب حساب بانکی'
             }),
             'serial': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'سریال دسته چک'
             }),
             'start_number': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره اولین چک'
             }),
             'end_number': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره آخرین چک'
             }),
             'is_active': forms.CheckboxInput(attrs={
@@ -1388,7 +1388,7 @@ class ReceiveFromBankForm(forms.ModelForm):
         label="حساب بانکی",
         queryset=BankAccount.objects.filter(is_active=True),
         widget=forms.Select(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'انتخاب حساب بانکی'
         }),
         empty_label="انتخاب حساب بانکی",
@@ -1412,12 +1412,12 @@ class ReceiveFromBankForm(forms.ModelForm):
         widgets = {
             'operation_type': forms.HiddenInput(),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'rows': 3,
                 'placeholder': 'توضیحات اضافی (اختیاری)'
             }),
@@ -1439,7 +1439,7 @@ class FinancialOperationEditForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ",
         widget=forms.TextInput(attrs={
-            'class': 'form-control',
+            'class': 'form-control persian-datepicker',
             'placeholder': 'تاریخ را انتخاب کنید',
             'readonly': 'readonly'
         }),
@@ -1456,45 +1456,45 @@ class FinancialOperationEditForm(forms.ModelForm):
         ]
         widgets = {
             'operation_type': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب نوع عملیات'
             }),
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'مبلغ را وارد کنید',
                 'step': '0.01'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'توضیحات عملیات',
                 'rows': '3'
             }),
             'customer': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب مشتری'
             }),
             'bank_name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'نام بانک'
             }),
             'account_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره حساب'
             }),
             'payment_method': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'انتخاب روش پرداخت'
             }),
             'reference_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره مرجع'
             }),
             'cheque_number': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'شماره چک'
             }),
             'status': forms.Select(attrs={
-                'class': 'form-control',
+                'class': 'form-control persian-datepicker',
                 'placeholder': 'وضعیت عملیات'
             }),
             'card_reader_device': forms.Select(attrs={'class': 'form-control'}),
@@ -1520,7 +1520,7 @@ class FinancialOperationEditForm(forms.ModelForm):
                 self.fields['date_shamsi'].initial = self.instance.date.strftime('%Y/%m/%d')
             if self.instance.cheque_date:
                 self.fields['cheque_date'].widget = forms.TextInput(attrs={
-                    'class': 'form-control',
+                    'class': 'form-control persian-datepicker',
                     'placeholder': 'تاریخ چک را انتخاب کنید',
                     'readonly': 'readonly'
                 })
@@ -1562,7 +1562,7 @@ class FinancialOperationEditForm(forms.ModelForm):
 class IssuedCheckEditForm(forms.ModelForm):
     date_shamsi = forms.CharField(
         label="تاریخ سررسید",
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'YYYY/MM/DD'}),
+        widget=forms.TextInput(attrs={'class': 'form-control persian-datepicker', 'placeholder': 'YYYY/MM/DD'}),
         required=True
     )
 
