@@ -204,11 +204,34 @@ class WarehouseAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('code', 'name', 'brand', 'car_group', 'price', 'purchase_price', 'quantity', 'warehouse', 'get_created_at_jalali', 'max_payment_term') # purchase_price added
+    list_display = ('code', 'name', 'brand', 'car_group', 'get_product_group_display', 'price', 'price_with_vat', 'purchase_price', 'quantity', 'warehouse', 'get_created_at_jalali', 'max_payment_term')
     search_fields = ('code', 'name', 'brand', 'car_group')
-    list_filter = ('brand', 'car_group', 'warehouse', 'created_at', 'max_payment_term') # created_at به فیلترها اضافه شد
-    ordering = ('-created_at',) # مرتب‌سازی بر اساس جدیدترین‌ها
+    list_filter = ('brand', 'car_group', 'warehouse', 'created_at', 'max_payment_term', 'product_group')
+    ordering = ('-created_at',)
     actions = [export_model_to_excel]
+    
+    fieldsets = (
+        ('اطلاعات اصلی', {
+            'fields': ('code', 'name', 'brand', 'car_group', 'image')
+        }),
+        ('گروه‌بندی و شرایط پرداخت', {
+            'fields': ('product_group', 'max_payment_term'),
+            'description': 'گروه محصول تعیین می‌کند که چه تخفیفی و چه شرایط پرداختی به این کالا تعلق می‌گیرد.'
+        }),
+        ('قیمت‌گذاری', {
+            'fields': ('price', 'price_with_vat', 'purchase_price', 'profit_percentage'),
+            'description': 'قیمت با ارزش افزوده فقط برای محصولات گروه ۴ (ایساکو) استفاده می‌شود.'
+        }),
+        ('موجودی و انبار', {
+            'fields': ('quantity', 'warehouse')
+        }),
+    )
+
+    def get_product_group_display(self, obj):
+        """نمایش نام فارسی گروه محصول"""
+        return obj.get_product_group_display()
+    get_product_group_display.short_description = 'گروه محصول'
+    get_product_group_display.admin_order_field = 'product_group'
 
     def get_created_at_jalali(self, obj):
         if obj.created_at:

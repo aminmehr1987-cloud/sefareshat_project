@@ -263,12 +263,13 @@
                                 <tr>
                                     <th>شماره فاکتور</th>
                                     <th>مبلغ تسویه</th>
+                                    <th>تخفیف</th>
                                     <th>عملیات</th>
                                 </tr>
                             </thead>
                             <tbody id="invoice_settlement_tbody">
                                 <tr class="no-data-row">
-                                    <td colspan="3" class="text-center text-muted">
+                                    <td colspan="4" class="text-center text-muted">
                                         ابتدا مشتری را انتخاب کنید
                                     </td>
                                 </tr>
@@ -332,6 +333,10 @@
                             <th>شماره فاکتور</th>
                             <th style="width: 90px;">تاریخ</th>
                             <th>مبلغ کل</th>
+                            <th style="width: 90px;">نقدی پای‌بار</th>
+                            <th style="width: 90px;">چکی</th>
+                            <th style="width: 90px;">سررسید چک</th>
+                            <th style="width: 90px;">معادل نقدی</th>
                             <th>مانده</th>
                             <th>تسویه موقت</th>
                             <th style="width: 110px;">مبلغ تسویه</th>
@@ -394,6 +399,7 @@
     </div>
 </div>
 
+<!-- Updated: 2025-10-20 16:40 - Fixed duplicate font-family in invoices-table th + added !important -->
 <style>
 @font-face {
     font-family: 'BHoma';
@@ -564,6 +570,7 @@
     margin: 0;
     font-size: clamp(0.7rem, 1.5vw, 0.9rem);
     font-weight: 600;
+    font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -602,6 +609,7 @@
     margin: 0;
     font-size: clamp(0.7rem, 1.5vw, 0.9rem);
     font-weight: 600;
+    font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -1230,7 +1238,7 @@
     top: 0;
     z-index: 10;
     font-size: clamp(0.65rem, 0.9vw, 0.8rem);
-    font-family: 'Hamase', 'BHoma', sans-serif;
+    font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
 }
 
 .invoices-table tbody tr:hover {
@@ -1606,8 +1614,8 @@ textarea.form-control {
 }
 
 .customer-modal-title {
-    font-size: clamp(14px, 1.5vw, 17px);
-    font-weight: bold;
+    font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+    font-weight: 600;
     color: #333;
 }
 
@@ -1656,8 +1664,9 @@ textarea.form-control {
 
 .customers-table th {
     background-color: #f5f5f5;
-    font-weight: bold;
-    font-family: 'Hamase', 'BHoma', sans-serif;
+    font-weight: 600;
+    font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+    font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
 }
 
 .customers-table tr:hover {
@@ -1769,7 +1778,11 @@ textarea.form-control {
     .invoices-table th,
     .invoices-table td {
         padding: 6px 4px;
+    }
+    
+    .invoices-table th {
         font-size: 0.85rem;
+        font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     }
     
     .settlement-amount-input {
@@ -1834,6 +1847,7 @@ textarea.form-control {
     
     .section-header h3 {
         font-size: 0.9rem;
+        font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     }
     
     .form-control {
@@ -1855,6 +1869,7 @@ textarea.form-control {
     
     .customer-modal-title {
         font-size: 1rem;
+        font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     }
     
     .invoices-table-wrapper {
@@ -1864,7 +1879,11 @@ textarea.form-control {
     .invoices-table th,
     .invoices-table td {
         padding: 5px 3px;
+    }
+    
+    .invoices-table th {
         font-size: 0.75rem;
+        font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     }
     
     .settlement-amount-input {
@@ -1891,7 +1910,11 @@ textarea.form-control {
     .customers-table th,
     .customers-table td {
         padding: 6px 4px;
+    }
+    
+    .customers-table th {
         font-size: 0.8rem;
+        font-family: 'BNAZANB', 'BHoma', 'Hamase', sans-serif !important;
     }
     
     .customer-search-box {
@@ -1968,6 +1991,7 @@ let currentPaymentType = '';
 let paymentRows = [];
 let customerPayments = [];
 let invoiceSettlements = [];
+let availableInvoices = []; // فاکتورهای قابل انتخاب برای محاسبه تخفیف
 let currentCustomerForInvoice = null;
 let activePaymentRowId = null;
 let currentCustomerId = null; // شناسه مشتری فعال برای ذخیره در سرور
@@ -1987,6 +2011,8 @@ console.log('🚀 JavaScript در حال بارگذاری - نسخه Server-side
 
 // بارگذاری فاکتورهای فروش اعتباری از Django context
 let allInvoices = [];
+let serverDateJalali = '{{ server_date_jalali }}'; // تاریخ شمسی امروز از سرور
+
 {% if invoices_json %}
 try {
     allInvoices = {{ invoices_json|safe }};
@@ -2259,6 +2285,8 @@ function addPaymentFromInputs() {
         id: rowId,
         type: paymentType,
         amount: parseFloat(parseAmountFromFormattedString(amount)),
+        date: date,  // تاریخ پرداخت
+        dueDate: dueDate,  // تاریخ سررسید (برای چک)
         finalized: false
     };
     
@@ -2271,18 +2299,22 @@ function addPaymentFromInputs() {
     }
     
     // ذخیره داده‌های خاص این سطر
+    // برای چک: تبدیل آرایه به object
+    const chequeInfoToSave = (paymentType === 'cheque') ? getChequeInfoObject() : {};
+    
     paymentRowsData[rowId] = {
         customerPayments: isEditing ? customerPayments : [],
         invoiceSettlements: isEditing ? invoiceSettlements : [],
         type: paymentType,
         amount: parseFloat(parseAmountFromFormattedString(amount)),
         date: date,
+        dueDate: dueDate,  // تاریخ سررسید (برای چک)
         description: description,
         bankAccount: bankAccount,
         fishNumber: fishNumber,
         cardReader: cardReader,
         trackingNumber: trackingNumber,
-        chequeInfo: window.chequeData || {},
+        chequeInfo: chequeInfoToSave,
         finalized: false  // پیش‌فرض: نهایی نشده
     };
     
@@ -2501,11 +2533,52 @@ async function loadFromServer() {
             currentCustomerId = draft.customer_id;
             lastServerUpdate = draft.updated_at;
             
+            // اضافه کردن عملیات نهایی شده
+            const finalizedOps = draft.finalized_operations || [];
+            
             console.log('📥 داده‌های بارگذاری شده از سرور:', {
                 سطرها: paymentRows.length,
                 دادههایسطرها: Object.keys(paymentRowsData).length,
+                عملیاتنهایی: finalizedOps.length,
                 'لیست سطرها': paymentRows.map(r => r.id),
                 'کلیدهای داده': Object.keys(paymentRowsData)
+            });
+            
+            // اضافه کردن عملیات نهایی شده به paymentRows
+            if (finalizedOps.length > 0) {
+                console.log(`✅ اضافه کردن ${finalizedOps.length} عملیات نهایی شده`);
+            }
+            
+            finalizedOps.forEach(op => {
+                const rowId = 'finalized_' + op.id;
+                
+                console.log(`  + عملیات ${op.operation_number}: ${op.amount.toLocaleString('fa-IR')} (${op.payment_method})`);
+                
+                // اضافه به paymentRows
+                if (!paymentRows.find(r => r.id === rowId)) {
+                    paymentRows.push({
+                        id: rowId,
+                        type: op.payment_method,
+                        amount: op.amount,
+                        date: op.date,
+                        finalized: true
+                    });
+                }
+                
+                // اضافه به paymentRowsData
+                if (!paymentRowsData[rowId]) {
+                    paymentRowsData[rowId] = {
+                        customerPayments: [],
+                        invoiceSettlements: [],
+                        type: op.payment_method,
+                        amount: op.amount,
+                        date: op.date,
+                        description: op.description,
+                        finalized: true,
+                        operation_number: op.operation_number,
+                        created_by: op.created_by
+                    };
+                }
             });
             
             // بازسازی UI
@@ -2664,6 +2737,12 @@ function restorePaymentRows() {
             console.warn('داده برای سطر یافت نشد:', row.id);
             return;
         }
+        
+        console.log(`سطر ${row.id} بازسازی می‌شود:`, {
+            type: rowData.type,
+            hasChecqueInfo: !!rowData.chequeInfo,
+            chequeInfo: rowData.chequeInfo
+        });
         
         // همگام‌سازی finalized flag بین paymentRows و paymentRowsData
         if (rowData.finalized && !row.finalized) {
@@ -3045,7 +3124,7 @@ function updateInvoiceSettlementTable() {
     if (!activePaymentRowId) {
         tbody.innerHTML = `
             <tr class="no-data-row">
-                <td colspan="3" class="text-center text-muted">
+                <td colspan="4" class="text-center text-muted">
                     لطفاً یک سطر از جدول بالا را انتخاب کنید
                 </td>
             </tr>
@@ -3056,7 +3135,7 @@ function updateInvoiceSettlementTable() {
     if (!activeCustomerRowId) {
         tbody.innerHTML = `
             <tr class="no-data-row">
-                <td colspan="3" class="text-center text-muted">
+                <td colspan="4" class="text-center text-muted">
                     لطفاً یک مشتری از جدول چپ را انتخاب کنید
                 </td>
             </tr>
@@ -3132,16 +3211,26 @@ function updateInvoiceSettlementTable() {
     // نمایش تسویه‌های مشتری فعال
     tbody.innerHTML = '';
     customerInvoices.forEach(settlement => {
+        // محاسبه تخفیف برای این فاکتور
+        const discount = settlement.discount || 0;
+        
         const newRow = `
             <tr id="${settlement.id}">
-                <td>${settlement.invoiceId}</td>
+                <td style="font-size: clamp(0.7rem, 0.9vw, 0.8rem);">${settlement.invoiceId}</td>
                 <td>
                     <input type="text" 
                            class="amount-input" 
                            value="${formatPersianNumber(settlement.amount)}" 
                            readonly
-                           style="background-color: #f3f4f6; cursor: default; border-color: #e5e7eb;">
+                           style="background-color: #f3f4f6; cursor: default; border-color: #e5e7eb; font-size: clamp(0.65rem, 0.85vw, 0.75rem);">
                 </td>
+            <td>
+                <input type="text"
+                       class="amount-input"
+                       value="${formatPersianNumber(discount)}"
+                       readonly
+                       style="width: 50%; background-color: #f0fdf4; color: #059669; font-weight: 600; cursor: default; border-color: #86efac; font-size: clamp(0.65rem, 0.85vw, 0.75rem);">
+            </td>
                 <td class="operations-cell">
                     <button type="button" class="btn btn-danger btn-sm icon-btn" onclick="removeInvoiceSettlement('${settlement.id}')" title="حذف تسویه">
                         <i class="bi bi-trash"></i>
@@ -3871,6 +3960,22 @@ function initializePersianDatePicker() {
     
     console.log('🔧 راه‌اندازی Persian Date Picker...');
     
+    // تابع دریافت CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    
     // راه‌اندازی date picker
     $(dateInput).simplePersianDatepicker({
         format: 'YYYY/MM/DD',
@@ -3886,29 +3991,57 @@ function initializePersianDatePicker() {
         onSelect: function(unix) {
             console.log('📅 تاریخ انتخاب شد - unix:', unix);
             
-            // تبدیل unix timestamp به تاریخ میلادی
-            // توجه: persian-date.js یک روز عقب است، پس 1 روز اضافه می‌کنیم
-            const selectedDate = new Date(unix);
-            selectedDate.setDate(selectedDate.getDate() + 1);  // اصلاح باگ persian-date
+            // دریافت تاریخ شمسی از input (دقیق‌تر از unix)
+            const persianDateStr = $(dateInput).val(); // فرمت: YYYY/MM/DD یا ۱۴۰۴/۰۷/۳۰
+            console.log('📅 تاریخ شمسی انتخاب شده:', persianDateStr);
             
-            const year = selectedDate.getFullYear();
-            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
-            const day = String(selectedDate.getDate()).padStart(2, '0');
-            const isoDate = `${year}-${month}-${day}`;
+            // تبدیل اعداد فارسی به انگلیسی  
+            const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
+            const arabicDigits = '٠١٢٣٤٥٦٧٨٩';
+            let englishDate = persianDateStr;
             
-            console.log('📅 تاریخ میلادی (اصلاح شده):', isoDate);
+            // تبدیل فارسی
+            for (let i = 0; i < 10; i++) {
+                englishDate = englishDate.replace(new RegExp(persianDigits[i], 'g'), i.toString());
+                englishDate = englishDate.replace(new RegExp(arabicDigits[i], 'g'), i.toString());
+            }
             
-            // به‌روزرسانی currentWorkDate
-            currentWorkDate = isoDate;
+            console.log('📅 تاریخ تبدیل شده:', persianDateStr, '→', englishDate);
             
-            // ذخیره در localStorage
-            localStorage.setItem('invoice_settlement_work_date', isoDate);
-            
-            // جستجوی خودکار بعد از انتخاب تاریخ
-            setTimeout(() => {
-                updateWorkDateInfo();
-                onWorkDateChanged();
-            }, 100);
+            // استفاده از AJAX برای تبدیل دقیق
+            fetch('/api/convert-jalali-to-gregorian/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({ jalali_date: englishDate })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const isoDate = data.gregorian_date;
+                    console.log('📅 تبدیل از سرور:', englishDate, '→', isoDate);
+                    
+                    // به‌روزرسانی currentWorkDate
+                    currentWorkDate = isoDate;
+                    
+                    // ذخیره در localStorage
+                    localStorage.setItem('invoice_settlement_work_date', isoDate);
+                    
+                    // جستجوی خودکار بعد از انتخاب تاریخ
+                    setTimeout(() => {
+                        updateWorkDateInfo();
+                        onWorkDateChanged();
+                    }, 100);
+                } else {
+                    console.error('❌ خطا در تبدیل تاریخ:', data.error);
+                    alert('خطا در تبدیل تاریخ');
+                }
+            })
+            .catch(error => {
+                console.error('❌ خطای شبکه:', error);
+            });
         }
     });
     
@@ -3917,20 +4050,29 @@ function initializePersianDatePicker() {
     const serverDate = '{{ server_date }}';  // تاریخ سرور از Django
     
     if (savedWorkDate) {
-        // استفاده از تاریخ ذخیره شده
-        currentWorkDate = savedWorkDate;
-        console.log('📅 بارگذاری تاریخ از localStorage:', savedWorkDate);
+        // بررسی معتبر بودن تاریخ
+        const year = parseInt(savedWorkDate.split('-')[0]);
+        if (year < 2000 || year > 2100) {
+            console.warn('⚠️ سال نامعتبر:', year, '- پاک کردن localStorage و استفاده از تاریخ سرور');
+            localStorage.removeItem('invoice_settlement_work_date');
+            savedWorkDate = null;
+            currentWorkDate = '{{ server_date }}';
+        } else {
+            // استفاده از تاریخ ذخیره شده
+            currentWorkDate = savedWorkDate;
+            console.log('📅 بارگذاری تاریخ از localStorage:', savedWorkDate);
+        }
         
         // استفاده از تبدیل سرور (AJAX) برای تبدیل دقیق
         // چون persian-date.js مشکل دارد، از backend تبدیل می‌کنیم
         const serverDate = '{{ server_date }}';
         const serverDateJalaliFarsi = '{{ server_date_jalali_farsi }}';
         
-        if (savedWorkDate === serverDate && serverDateJalaliFarsi) {
+        if (savedWorkDate && savedWorkDate === serverDate && serverDateJalaliFarsi) {
             // استفاده از تبدیل سرور (دقیق‌تر)
             $(dateInput).val(serverDateJalaliFarsi);
             console.log('📅 استفاده از تبدیل سرور - میلادی:', savedWorkDate, '→ فارسی:', serverDateJalaliFarsi);
-        } else {
+        } else if (savedWorkDate) {
             // برای تاریخ‌های دیگر، فقط نمایش ساده (بدون تبدیل جاوااسکریپت)
             // چون persian-date یک روز عقب است
             console.warn('⚠️ تاریخ ذخیره شده با تاریخ سرور متفاوت است:', savedWorkDate);
@@ -4448,7 +4590,7 @@ function loadCustomerInvoicesForSettlement(customerId) {
     // نمایش loading
     invoicesList.innerHTML = `
         <tr>
-            <td colspan="8" class="text-center">
+            <td colspan="12" class="text-center">
                 <i class="bi bi-hourglass-split"></i> در حال بارگذاری فاکتورها...
             </td>
         </tr>
@@ -4512,7 +4654,8 @@ function loadCustomerInvoicesForSettlement(customerId) {
         });
         
         // فیلتر کردن فاکتورهایی که هنوز باقی‌مانده دارند (شامل انتخاب شده‌ها)
-        const availableInvoices = customerInvoices.filter(invoice => 
+        // به‌روزرسانی متغیر global برای استفاده در محاسبه تخفیف
+        availableInvoices = customerInvoices.filter(invoice => 
             invoice.currentRemaining > 0
         );
         
@@ -4521,7 +4664,7 @@ function loadCustomerInvoicesForSettlement(customerId) {
         if (availableInvoices.length === 0) {
             invoicesList.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center text-muted">
+                    <td colspan="12" class="text-center text-muted">
                         فاکتور مانده‌داری برای این مشتری وجود ندارد
                     </td>
                 </tr>
@@ -4547,6 +4690,20 @@ function loadCustomerInvoicesForSettlement(customerId) {
                 </td>
                 <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem);">${invoice.invoiceDate}</td>
                 <td style="font-size: clamp(0.65rem, 0.9vw, 0.73rem);">${invoice.totalAmount.toLocaleString('fa-IR')}</td>
+                <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem); color: #059669; font-weight: 600;" 
+                    title="${invoice.cashAmount > 0 ? 'کل: ' + invoice.cashAmount.toLocaleString('fa-IR') + ' | تسویه: ' + invoice.settledCashAmount.toLocaleString('fa-IR') + ' | باقی‌مانده: ' + invoice.remainingCashAmount.toLocaleString('fa-IR') : ''}">
+                    ${invoice.remainingCashAmount > 0 ? invoice.remainingCashAmount.toLocaleString('fa-IR') : '-'}
+                    ${invoice.settledCashAmount > 0 ? '<span style="font-size: 0.55rem; color: #6b7280;"> (از ' + invoice.cashAmount.toLocaleString('fa-IR') + ')</span>' : ''}
+                </td>
+                <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem); color: #7c3aed; font-weight: 600;">
+                    ${invoice.chequeAmount > 0 ? invoice.chequeAmount.toLocaleString('fa-IR') : '-'}
+                </td>
+                <td style="font-size: clamp(0.6rem, 0.82vw, 0.68rem); color: #ea580c;">
+                    ${invoice.chequeDueDate ? invoice.chequeDueDate : '-'}
+                </td>
+                <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem); color: #0891b2; font-weight: 600;">
+                    ${invoice.cashEquivalentOfCheques > 0 ? invoice.cashEquivalentOfCheques.toLocaleString('fa-IR') : '-'}
+                </td>
                 <td style="font-weight: bold; font-size: clamp(0.68rem, 0.95vw, 0.76rem); color: ${invoice.currentRemaining > 0 ? '#059669' : '#dc2626'};">
                     ${invoice.currentRemaining.toLocaleString('fa-IR')}
                 </td>
@@ -4730,13 +4887,18 @@ function addInvoiceSettlement(invoiceId, amount, customerInfo) {
     // تبدیل amount به عدد (مهم!)
     const settlementAmount = typeof amount === 'string' ? parseFloat(parseAmountFromFormattedString(amount)) : parseFloat(amount);
     
+    // محاسبه تخفیف برای این فاکتور بر اساس مدت زمان و گروه کالایی
+    const invoice = availableInvoices.find(inv => inv.invoiceNumber === invoiceId);
+    let discount = 0;
+    
     // اضافه کردن به آرایه
     const settlementId = 'settlement_' + Date.now();
     invoiceSettlements.push({
         id: settlementId,
         invoiceId: invoiceId,
         customerId: customerInfo.id,
-        amount: settlementAmount
+        amount: settlementAmount,
+        discount: discount
     });
     
     console.log('فاکتور به آرایه اضافه شد. مجموع فاکتورها:', invoiceSettlements.length);
@@ -5211,6 +5373,194 @@ function formatPersianNumber(number) {
 }
 
 // Helper function to format amount input with thousand separators
+// این تابع در مودال استفاده نمی‌شود
+// تخفیف در زمان افزودن فاکتور به جدول محاسبه می‌شود
+
+// دریافت CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// دریافت تاریخ جلالی امروز به فرمت ISO (YYYY-MM-DD)
+function getJalaliDateISO() {
+    // استفاده از متغیر global که از سرور آمده
+    if (typeof serverDateJalali !== 'undefined' && serverDateJalali) {
+        console.log('📅 استفاده از تاریخ سرور:', serverDateJalali);
+        return serverDateJalali;
+    }
+    
+    console.warn('⚠️ serverDateJalali تعریف نشده - استفاده از فالبک');
+    
+    // فالبک: تبدیل ساده (نسبتاً دقیق برای محاسبه تفاوت روز)
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+    const day = today.getDate();
+    
+    // تبدیل ساده میلادی به جلالی (تقریبی)
+    const jYear = year > 1621 ? year - 621 : year - 622;
+    const jMonth = String(month).padStart(2, '0');
+    const jDay = String(day).padStart(2, '0');
+    
+    const fallbackDate = `${jYear}-${jMonth}-${jDay}`;
+    console.log('📅 تاریخ فالبک:', fallbackDate);
+    return fallbackDate;
+}
+
+// محاسبه تفاوت روز بین دو تاریخ جلالی
+function calculateDateDifference(date1, date2) {
+    try {
+        // تبدیل به فرمت YYYY-MM-DD (اگر / دارد)
+        const d1 = date1.replace(/\//g, '-');
+        const d2 = date2.replace(/\//g, '-');
+        
+        const d1Parts = d1.split('-').map(p => parseInt(p));
+        const d2Parts = d2.split('-').map(p => parseInt(p));
+        
+        // تبدیل جلالی به روز یولیوس (Julian Day Number) برای محاسبه دقیق
+        // فرمول ساده: تبدیل به میلادی تقریبی و محاسبه
+        
+        // تبدیل ساده جلالی به میلادی (تقریبی)
+        const g1Year = d1Parts[0] + 621;
+        const g2Year = d2Parts[0] + 621;
+        
+        // محاسبه روزهای کل (با در نظر گرفتن طول ماه‌های فارسی)
+        const persianMonthDays = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29]; // اسفند 29 روز (غیر کبیسه)
+        
+        // محاسبه روز کل برای تاریخ اول
+        let days1 = d1Parts[0] * 365;
+        for (let i = 0; i < d1Parts[1] - 1; i++) {
+            days1 += persianMonthDays[i];
+        }
+        days1 += d1Parts[2];
+        
+        // محاسبه روز کل برای تاریخ دوم
+        let days2 = d2Parts[0] * 365;
+        for (let i = 0; i < d2Parts[1] - 1; i++) {
+            days2 += persianMonthDays[i];
+        }
+        days2 += d2Parts[2];
+        
+        const diff = Math.abs(days2 - days1);
+        
+        console.log('🔢 محاسبه تفاوت روز:', {
+            date1: d1,
+            date2: d2,
+            days1,
+            days2,
+            diff
+        });
+        
+        return diff;
+    } catch (e) {
+        console.error('❌ خطا در محاسبه تفاوت تاریخ:', e);
+        return 0;
+    }
+}
+
+function formatAmountInput(input) {
+    let value = toEnglishDigits(input.value).replace(/[^0-9]/g, '');
+    if (value) {
+        try {
+            const numericValue = BigInt(value);
+            input.value = numericValue.toLocaleString('fa-IR');
+        } catch (e) {
+            input.value = value;
+        }
+    } else {
+        input.value = '';
+    }
+}
+
+
+// دریافت تاریخ جلالی امروز به فرمت ISO (YYYY-MM-DD)
+function getJalaliDateISO() {
+    // استفاده از متغیر global که از سرور آمده
+    if (typeof serverDateJalali !== 'undefined' && serverDateJalali) {
+        console.log('📅 استفاده از تاریخ سرور:', serverDateJalali);
+        return serverDateJalali;
+    }
+    
+    console.warn('⚠️ serverDateJalali تعریف نشده - استفاده از فالبک');
+    
+    // فالبک: تبدیل ساده (نسبتاً دقیق برای محاسبه تفاوت روز)
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth() + 1;
+    const day = today.getDate();
+    
+    // تبدیل ساده میلادی به جلالی (تقریبی)
+    const jYear = year > 1621 ? year - 621 : year - 622;
+    const jMonth = String(month).padStart(2, '0');
+    const jDay = String(day).padStart(2, '0');
+    
+    const fallbackDate = `${jYear}-${jMonth}-${jDay}`;
+    console.log('📅 تاریخ فالبک:', fallbackDate);
+    return fallbackDate;
+}
+
+// محاسبه تفاوت روز بین دو تاریخ جلالی
+function calculateDateDifference(date1, date2) {
+    try {
+        // تبدیل به فرمت YYYY-MM-DD (اگر / دارد)
+        const d1 = date1.replace(/\//g, '-');
+        const d2 = date2.replace(/\//g, '-');
+        
+        const d1Parts = d1.split('-').map(p => parseInt(p));
+        const d2Parts = d2.split('-').map(p => parseInt(p));
+        
+        // تبدیل جلالی به روز یولیوس (Julian Day Number) برای محاسبه دقیق
+        // فرمول ساده: تبدیل به میلادی تقریبی و محاسبه
+        
+        // تبدیل ساده جلالی به میلادی (تقریبی)
+        const g1Year = d1Parts[0] + 621;
+        const g2Year = d2Parts[0] + 621;
+        
+        // محاسبه روزهای کل (با در نظر گرفتن طول ماه‌های فارسی)
+        const persianMonthDays = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29]; // اسفند 29 روز (غیر کبیسه)
+        
+        // محاسبه روز کل برای تاریخ اول
+        let days1 = d1Parts[0] * 365;
+        for (let i = 0; i < d1Parts[1] - 1; i++) {
+            days1 += persianMonthDays[i];
+        }
+        days1 += d1Parts[2];
+        
+        // محاسبه روز کل برای تاریخ دوم
+        let days2 = d2Parts[0] * 365;
+        for (let i = 0; i < d2Parts[1] - 1; i++) {
+            days2 += persianMonthDays[i];
+        }
+        days2 += d2Parts[2];
+        
+        const diff = Math.abs(days2 - days1);
+        
+        console.log('🔢 محاسبه تفاوت روز:', {
+            date1: d1,
+            date2: d2,
+            days1,
+            days2,
+            diff
+        });
+        
+        return diff;
+    } catch (e) {
+        console.error('❌ خطا در محاسبه تفاوت تاریخ:', e);
+        return 0;
+    }
+}
+
 function formatAmountInput(input) {
     let value = toEnglishDigits(input.value).replace(/[^0-9]/g, '');
     if (value) {

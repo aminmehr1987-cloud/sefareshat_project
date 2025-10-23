@@ -191,6 +191,31 @@ class Product(models.Model):
         verbose_name="حداکثر مهلت تسویه"
     )
     
+    PRODUCT_GROUP_CHOICES = [
+        ('group_1', 'گروه ۱ - حداکثر ۴ ماهه با تخفیف تدریجی'),
+        ('group_2', 'گروه ۲ - فقط نقدی بدون تخفیف'),
+        ('group_3', 'گروه ۳ - حداکثر ۲ ماهه با تخفیف نقدی'),
+        ('group_4', 'گروه ۴ - ایساکو با لیست قیمت متغیر'),
+    ]
+    
+    product_group = models.CharField(
+        max_length=20,
+        choices=PRODUCT_GROUP_CHOICES,
+        default='group_1',
+        verbose_name="گروه محصول",
+        help_text="گروه محصول برای محاسبه تخفیف"
+    )
+    
+    # قیمت با ارزش افزوده برای محصولات ایساکو
+    price_with_vat = models.DecimalField(
+        max_digits=100,
+        decimal_places=0,
+        verbose_name="قیمت با ارزش افزوده",
+        null=True,
+        blank=True,
+        help_text="فقط برای محصولات گروه ۴ (ایساکو)"
+    )
+    
     created_at = models.DateTimeField(default=timezone.now, verbose_name="تاریخ ایجاد")
     
     @property
@@ -222,6 +247,56 @@ class Product(models.Model):
             '4m': ['cash', '1m', '2m', '3m', '4m'],
         }
         return payment_terms_map.get(self.max_payment_term, ['cash'])
+    
+    def get_discount_percentage(self, payment_term):
+        """
+        محاسبه درصد تخفیف بر اساس گروه محصول و مدت تسویه
+        
+        گروه ۱: نقدی 8%، 1 ماهه 6%، 2 ماهه 4%، 3 ماهه 2%، 4 ماهه 0%
+        گروه ۲: همیشه 0% (فقط نقدی)
+        گروه ۳: نقدی 8%، 1 ماهه 0%، 2 ماهه 0%
+        گروه ۴: بر اساس لیست قیمت (نقدی = بدون ارزش افزوده، چک = با ارزش افزوده)
+        """
+        discount_map = {
+            'group_1': {
+                'cash': 8,
+                '1m': 6,
+                '2m': 4,
+                '3m': 2,
+                '4m': 0,
+            },
+            'group_2': {
+                'cash': 0,
+            },
+            'group_3': {
+                'cash': 8,
+                '1m': 0,
+                '2m': 0,
+            },
+            'group_4': {
+                # برای ایساکو تخفیف به صورت قیمت‌گذاری متفاوت است
+                'cash': 0,
+                '1m': 0,
+                '2m': 0,
+            },
+        }
+        
+        group_discounts = discount_map.get(self.product_group, {})
+        return group_discounts.get(payment_term, 0)
+    
+    def get_price_for_payment_term(self, payment_term):
+        """
+        دریافت قیمت محصول بر اساس نوع پرداخت
+        برای محصولات ایساکو (گروه ۴): نقدی = قیمت بدون ارزش افزوده، چک = قیمت با ارزش افزوده
+        """
+        if self.product_group == 'group_4':
+            # برای ایساکو
+            if payment_term == 'cash':
+                return self.price  # قیمت بدون ارزش افزوده
+            else:
+                return self.price_with_vat if self.price_with_vat else self.price
+        else:
+            return self.price
 
     def __str__(self):
         return f"{self.name} ({self.code})"
@@ -1020,6 +1095,14 @@ class SalesInvoice(models.Model):
     settle_cheque = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="تسویه چک")
     settle_balance = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="مانده حساب")
     settle_extra_discount = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="تخفیف مازاد")
+    
+    # فیلدهای جدید برای محاسبات نقدی/چکی
+    cash_amount = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="مبلغ نقدی پای بار", help_text="مبلغ کالاهای نقدی")
+    cheque_amount = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="مبلغ چکی", help_text="مبلغ کالاهای چکی")
+    cheque_due_date = jmodels.jDateField(null=True, blank=True, verbose_name="سررسید میانگین چک")
+    cash_equivalent_of_cheques = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="معادل نقدی چک‌ها", help_text="مبلغ نقدی برای پرداخت چک‌ها")
+    auto_discount_applied = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="تخفیف خودکار اعمال شده")
+    settled_cash_amount = models.DecimalField(max_digits=18, decimal_places=0, default=0, verbose_name="مبلغ تسویه شده از نقدی پای‌بار", help_text="مبلغی که از نقدی پای‌بار تسویه شده")
 
     class Meta:
         verbose_name = "فاکتور فروش"
@@ -1028,6 +1111,104 @@ class SalesInvoice(models.Model):
 
     def __str__(self):
         return f"فاکتور {self.invoice_number} - {self.customer.get_full_name()}"
+    
+    def has_overdue_cash_amount(self):
+        """
+        بررسی اینکه آیا نقدی پای‌بار این فاکتور معوقه است یا نه
+        نقدی پای‌بار باید ظرف 7 روز پرداخت شود
+        
+        Returns: (is_overdue: bool, remaining_amount: Decimal, days_overdue: int)
+        """
+        from decimal import Decimal
+        import jdatetime
+        
+        # اگر نقدی پای‌باری نداشته باشد
+        if self.cash_amount == 0:
+            return False, Decimal(0), 0
+        
+        # محاسبه مانده نقدی پای‌بار
+        remaining_cash = self.cash_amount - self.settled_cash_amount
+        
+        # اگر کاملاً تسویه شده
+        if remaining_cash <= 0:
+            return False, Decimal(0), 0
+        
+        # محاسبه تعداد روزهای گذشته از تاریخ فاکتور
+        today = jdatetime.date.today()
+        invoice_date = self.invoice_date
+        
+        if isinstance(invoice_date, str):
+            invoice_date = jdatetime.date(*map(int, invoice_date.split('-')))
+        
+        days_passed = (today.togregorian() - invoice_date.togregorian()).days
+        
+        # اگر بیشتر از 7 روز گذشته، معوقه است
+        is_overdue = days_passed > 7
+        days_overdue = days_passed - 7 if is_overdue else 0
+        
+        return is_overdue, remaining_cash, days_overdue
+    
+    def calculate_cash_and_cheque_amounts(self):
+        """محاسبه مبالغ نقدی و چکی فاکتور"""
+        from decimal import Decimal
+        from datetime import timedelta
+        
+        cash_total = Decimal(0)
+        cheque_total = Decimal(0)
+        weighted_days_sum = Decimal(0)
+        total_cheque_base = Decimal(0)
+        cash_equivalent_cheque = Decimal(0)
+        
+        for item in self.items.all():
+            product = item.product
+            base_amount = item.quantity * item.price
+            
+            # کالاهای گروه ۲ (فقط نقدی) همیشه نقدی محسوب می‌شوند
+            if product.product_group == 'group_2':
+                cash_total += base_amount
+            else:
+                # بقیه کالاها می‌توانند چکی باشند
+                cheque_total += base_amount
+                
+                # محاسبه روزهای سررسید برای میانگین وزنی
+                max_term = product.max_payment_term or 'cash'
+                days_map = {
+                    'cash': 0,
+                    '1m': 30,
+                    '2m': 60,
+                    '3m': 90,
+                    '4m': 120,
+                }
+                max_days = days_map.get(max_term, 0)
+                weighted_days_sum += base_amount * max_days
+                total_cheque_base += base_amount
+                
+                # محاسبه معادل نقدی این آیتم
+                cash_discount = Decimal(str(product.get_discount_percentage('cash')))
+                cash_equivalent_cheque += base_amount * (Decimal(1) - cash_discount / Decimal(100))
+        
+        # محاسبه میانگین روزهای سررسید
+        avg_days = 0
+        if total_cheque_base > 0:
+            avg_days = int(weighted_days_sum / total_cheque_base)
+        
+        # محاسبه تاریخ سررسید
+        from django_jalali.db import models as jmodels
+        import jdatetime
+        
+        if avg_days > 0:
+            gregorian_date = self.invoice_date.togregorian()
+            due_date_gregorian = gregorian_date + timedelta(days=avg_days)
+            cheque_due = jdatetime.date.fromgregorian(date=due_date_gregorian)
+        else:
+            cheque_due = None
+        
+        # به‌روزرسانی فیلدها
+        self.cash_amount = cash_total
+        self.cheque_amount = cheque_total
+        self.cheque_due_date = cheque_due
+        self.cash_equivalent_of_cheques = cash_equivalent_cheque
+        self.save()
 
 
 class SalesInvoiceItem(models.Model):
@@ -1046,6 +1227,25 @@ class SalesInvoiceItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.quantity} عدد در فاکتور {self.invoice.invoice_number}"
+
+
+# Signal برای محاسبه خودکار مبالغ نقدی/چکی هنگام تغییر آیتم‌های فاکتور
+@receiver(post_save, sender=SalesInvoiceItem)
+def recalculate_invoice_amounts_on_item_save(sender, instance, created, **kwargs):
+    """محاسبه مجدد مبالغ فاکتور هنگام ذخیره آیتم"""
+    try:
+        instance.invoice.calculate_cash_and_cheque_amounts()
+    except Exception as e:
+        print(f"خطا در محاسبه مبالغ فاکتور {instance.invoice.invoice_number}: {e}")
+
+
+@receiver(post_delete, sender=SalesInvoiceItem)
+def recalculate_invoice_amounts_on_item_delete(sender, instance, **kwargs):
+    """محاسبه مجدد مبالغ فاکتور هنگام حذف آیتم"""
+    try:
+        instance.invoice.calculate_cash_and_cheque_amounts()
+    except Exception as e:
+        print(f"خطا در محاسبه مبالغ فاکتور {instance.invoice.invoice_number}: {e}")
 
 
 class AccountingReport(models.Model):

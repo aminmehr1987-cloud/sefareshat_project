@@ -123,6 +123,10 @@ urlpatterns = [
     path('api/settlement-draft/save/', views.save_settlement_draft, name='save_settlement_draft'),
     path('api/settlement-draft/clear/', views.clear_settlement_draft, name='clear_settlement_draft'),
     path('api/settlement-draft/finalize/', views.finalize_payment_settlement, name='finalize_payment_settlement'),
+    path('api/invoice/calculate-discount/', views.calculate_invoice_discount, name='calculate_invoice_discount'),
+    path('api/customer/check-overdue/', views.check_customer_overdue_invoices, name='check_customer_overdue'),
+    path('api/convert-jalali-to-gregorian/', views.convert_jalali_to_gregorian, name='convert_jalali_to_gregorian'),
+    path('api/convert-jalali-to-gregorian/', views.convert_jalali_to_gregorian, name='convert_jalali_to_gregorian'),
     
     # در قسمت URL های مربوط به عملیات مالی (حدود خط 91)، بعد از سایر URL ها:
     path('accounting/petty-cash/', views.petty_cash_view, name='petty_cash'),

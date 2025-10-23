@@ -8,7 +8,7 @@ import jdatetime
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('products', '0008_shipment_delivery_date_alter_shipment_status'),
+        ('products', '0010_invoicesettlementdraft'),
     ]
 
     operations = [

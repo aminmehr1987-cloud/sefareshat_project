@@ -152,6 +152,29 @@ def confirm_order(request):
             messages.error(request, 'سفارش یافت نشد یا قبلاً تایید شده است')
             return redirect('products:product_list')
 
+        # بررسی فاکتورهای معوقه نقدی پای‌بار
+        from products.models import SalesInvoice
+        overdue_invoices = SalesInvoice.objects.filter(
+            customer=order.customer,
+            status__in=['registered', 'confirmed']
+        )
+        
+        blocking_invoice = None
+        for invoice in overdue_invoices:
+            is_overdue, remaining, days_overdue = invoice.has_overdue_cash_amount()
+            if is_overdue:
+                blocking_invoice = invoice
+                break
+        
+        if blocking_invoice:
+            is_overdue, remaining, days_overdue = blocking_invoice.has_overdue_cash_amount()
+            messages.error(
+                request, 
+                f'به دلیل اینکه فاکتور شماره {blocking_invoice.invoice_number} به مبلغ {remaining:,.0f} ریال '
+                f'نقدی پای‌بار ({days_overdue} روز معوقه) تسویه نشده، امکان صدور فاکتور جدید وجود ندارد'
+            )
+            return redirect('products:product_list')
+
         # تغییر وضعیت سفارش به 'pending'
         order.status = 'pending'
         order.order_date = timezone.now()
@@ -1205,6 +1228,39 @@ def upload_excel(request):
                         max_payment_term = str(row['مدت تسویه']).strip()
                         if max_payment_term in ['cash', '1m', '2m', '3m', '4m']:
                             product.max_payment_term = max_payment_term
+                    
+                    # گروه محصول
+                    if 'گروه محصول' in row and pd.notna(row['گروه محصول']):
+                        product_group = str(row['گروه محصول']).strip()
+                        # تبدیل نام فارسی یا شماره گروه به کد
+                        group_mapping = {
+                            '1': 'group_1',
+                            '2': 'group_2',
+                            '3': 'group_3',
+                            '4': 'group_4',
+                            'گروه 1': 'group_1',
+                            'گروه 2': 'group_2',
+                            'گروه 3': 'group_3',
+                            'گروه 4': 'group_4',
+                            'گروه ۱': 'group_1',
+                            'گروه ۲': 'group_2',
+                            'گروه ۳': 'group_3',
+                            'گروه ۴': 'group_4',
+                            'group_1': 'group_1',
+                            'group_2': 'group_2',
+                            'group_3': 'group_3',
+                            'group_4': 'group_4',
+                        }
+                        if product_group in group_mapping:
+                            product.product_group = group_mapping[product_group]
+                    
+                    # قیمت با ارزش افزوده (برای محصولات ایساکو)
+                    if 'قیمت با ارزش افزوده' in row and pd.notna(row['قیمت با ارزش افزوده']):
+                        try:
+                            price_with_vat_float = float(str(row['قیمت با ارزش افزوده']).replace(',', '').strip())
+                            product.price_with_vat = price_with_vat_float
+                        except Exception:
+                            pass  # در صورت خطا، فیلد را خالی نگه می‌داریم
 
                     product.save()
 
@@ -4556,7 +4612,13 @@ def invoice_settlement_view(request):
         'settle_card',
         'settle_bank',
         'settle_cheque',
-        'settle_extra_discount'
+        'settle_extra_discount',
+        'cash_amount',  # مبلغ نقدی پای بار
+        'cheque_amount',  # مبلغ چکی
+        'cheque_due_date',  # سررسید چک
+        'cash_equivalent_of_cheques',  # معادل نقدی چک‌ها
+        'auto_discount_applied',  # تخفیف خودکار
+        'settled_cash_amount'  # مبلغ تسویه شده از نقدی پای‌بار
     ).order_by('-invoice_date')
     
     # تبدیل به لیست برای JSON
@@ -4579,6 +4641,11 @@ def invoice_settlement_view(request):
         if remaining_balance < 0:
             remaining_balance = 0
         
+        # محاسبه باقی‌مانده نقدی پای‌بار
+        cash_amount = invoice['cash_amount'] if invoice['cash_amount'] else 0
+        settled_cash = invoice['settled_cash_amount'] if invoice['settled_cash_amount'] else 0
+        remaining_cash_amount = cash_amount - settled_cash
+        
         # نام کامل مشتری
         customer_name = f"{invoice['customer__first_name']} {invoice['customer__last_name']}"
         if invoice['customer__store_name']:
@@ -4593,6 +4660,13 @@ def invoice_settlement_view(request):
             'totalAmount': float(invoice['total_amount']),
             'settledAmount': float(settled_amount),
             'remainingBalance': float(remaining_balance),  # مانده محاسبه شده
+            'cashAmount': float(cash_amount),
+            'settledCashAmount': float(settled_cash),  # مبلغ تسویه شده از نقدی پای‌بار
+            'remainingCashAmount': float(remaining_cash_amount),  # باقی‌مانده نقدی پای‌بار
+            'chequeAmount': float(invoice['cheque_amount']) if invoice['cheque_amount'] else 0,
+            'chequeDueDate': str(invoice['cheque_due_date']) if invoice['cheque_due_date'] else '',
+            'cashEquivalentOfCheques': float(invoice['cash_equivalent_of_cheques']) if invoice['cash_equivalent_of_cheques'] else 0,
+            'autoDiscountApplied': float(invoice['auto_discount_applied']) if invoice['auto_discount_applied'] else 0,
         })
     
     invoices_json = json.dumps(invoices_list, ensure_ascii=False)
@@ -4609,18 +4683,78 @@ def invoice_settlement_view(request):
     server_date_jalali = gregorian_to_jalali(server_date)
     server_date_jalali_farsi = gregorian_to_jalali_farsi(server_date)
     
+    # بارگذاری عملیات نهایی شده برای تاریخ امروز (برای نمایش در جدول)
+    from products.models import FinancialOperation
+    
+    finalized_operations = FinancialOperation.objects.filter(
+        operation_type='RECEIVE_FROM_CUSTOMER',
+        date=server_date,
+        status='CONFIRMED'
+    ).select_related('customer', 'bank_account', 'created_by').order_by('-created_at')
+    
+    # تبدیل به JSON
+    finalized_ops_list = []
+    for op in finalized_operations:
+        finalized_ops_list.append({
+            'id': op.id,
+            'operation_number': op.operation_number,
+            'date': str(op.date),
+            'payment_method': op.payment_method,
+            'amount': float(op.amount),
+            'customer_id': op.customer.id if op.customer else None,
+            'customer_name': op.customer.get_full_name() if op.customer else '',
+            'description': op.description,
+            'created_by': op.created_by.get_full_name() if op.created_by else '',
+        })
+    
+    finalized_operations_json = json.dumps(finalized_ops_list, ensure_ascii=False)
+    
     context = {
         'customers_json': customers_json,
         'invoices_json': invoices_json,
         'bank_accounts_json': bank_accounts_json,
         'card_readers_json': card_readers_json,
         'cash_registers_json': cash_registers_json,
+        'finalized_operations_json': finalized_operations_json,
         'server_date': server_date_iso,  # تاریخ میلادی (2025-10-15)
         'server_date_jalali': server_date_jalali,  # تاریخ شمسی (1404/07/23)
         'server_date_jalali_farsi': server_date_jalali_farsi,  # تاریخ شمسی با اعداد فارسی (۱۴۰۴/۰۷/۲۳)
     }
     
     return render(request, 'financial_operations/invoice_settlement.html', context)
+
+
+# API برای تبدیل تاریخ شمسی به میلادی
+@login_required
+@require_http_methods(["POST"])
+def convert_jalali_to_gregorian(request):
+    """
+    تبدیل تاریخ شمسی به میلادی
+    """
+    import jdatetime
+    import json
+    
+    try:
+        data = json.loads(request.body)
+        jalali_date_str = data.get('jalali_date', '').replace('/', '-')
+        
+        # تبدیل به تاریخ جلالی
+        parts = jalali_date_str.split('-')
+        if len(parts) != 3:
+            return JsonResponse({'success': False, 'error': 'فرمت تاریخ نامعتبر است'})
+        
+        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+        jalali_date = jdatetime.date(year, month, day)
+        gregorian_date = jalali_date.togregorian()
+        
+        return JsonResponse({
+            'success': True,
+            'gregorian_date': gregorian_date.isoformat(),
+            'jalali_date': str(jalali_date)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
 
 
 # API برای مدیریت Draft تسویه فاکتور
@@ -4656,6 +4790,30 @@ def get_active_settlement_draft(request):
         
         # اگر draft وجود نداشت، یک پاسخ خالی برگردان
         if not draft:
+            # بارگذاری عملیات نهایی شده برای این تاریخ
+            from products.models import FinancialOperation
+            
+            finalized_operations = FinancialOperation.objects.filter(
+                operation_type='RECEIVE_FROM_CUSTOMER',
+                date=work_date.togregorian(),
+                status='CONFIRMED'
+            ).select_related('customer', 'created_by').order_by('created_at')
+            
+            finalized_ops_list = []
+            for op in finalized_operations:
+                finalized_ops_list.append({
+                    'id': str(op.id),
+                    'operation_number': op.operation_number,
+                    'payment_method': op.payment_method,
+                    'amount': float(op.amount),
+                    'date': str(op.date),
+                    'customer_id': op.customer.id if op.customer else None,
+                    'customer_name': op.customer.get_full_name() if op.customer else '',
+                    'description': op.description,
+                    'created_by': op.created_by.get_full_name() if op.created_by else '',
+                    'finalized': True
+                })
+            
             return JsonResponse({
                 'success': True,
                 'draft': {
@@ -4666,13 +4824,39 @@ def get_active_settlement_draft(request):
                     'payments_data': [],
                     'customer_payments_data': {},
                     'invoice_settlements_data': {},
+                    'finalized_operations': finalized_ops_list,
                     'last_modified_by': None,
                     'updated_at': None,
                 }
             })
         
         # تبدیل work_date شمسی به میلادی برای ارسال به frontend
-        gregorian_work_date = draft.work_date.togregorian().isoformat()
+        gregorian_work_date = draft.work_date.togregorian().isoformat() if hasattr(draft.work_date, 'togregorian') else draft.work_date.isoformat()
+        
+        # بارگذاری عملیات نهایی شده برای این تاریخ
+        from products.models import FinancialOperation
+        
+        # تبدیل تاریخ جلالی به میلادی برای فیلتر FinancialOperation
+        finalized_operations = FinancialOperation.objects.filter(
+            operation_type='RECEIVE_FROM_CUSTOMER',
+            date=draft.work_date.togregorian(),
+            status='CONFIRMED'
+        ).select_related('customer', 'created_by').order_by('created_at')
+        
+        finalized_ops_list = []
+        for op in finalized_operations:
+            finalized_ops_list.append({
+                'id': str(op.id),
+                'operation_number': op.operation_number,
+                'payment_method': op.payment_method,
+                'amount': float(op.amount),
+                'date': str(op.date),
+                'customer_id': op.customer.id if op.customer else None,
+                'customer_name': op.customer.get_full_name() if op.customer else '',
+                'description': op.description,
+                'created_by': op.created_by.get_full_name() if op.created_by else '',
+                'finalized': True
+            })
         
         return JsonResponse({
             'success': True,
@@ -4684,6 +4868,7 @@ def get_active_settlement_draft(request):
                 'payments_data': draft.payments_data,
                 'customer_payments_data': draft.customer_payments_data,
                 'invoice_settlements_data': draft.invoice_settlements_data,
+                'finalized_operations': finalized_ops_list,
                 'last_modified_by': draft.last_modified_by.get_full_name() if draft.last_modified_by else None,
                 'updated_at': draft.updated_at.isoformat(),
             }
@@ -4768,6 +4953,228 @@ def clear_settlement_draft(request):
         return JsonResponse({'success': True, 'message': 'داده‌ها پاک شد'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+def calculate_auto_discount(invoice, payment_date, payment_type, payment_amount):
+    """
+    محاسبه تخفیف خودکار بر اساس:
+    1. مدت زمان از تاریخ فاکتور
+    2. گروه کالایی هر محصول
+    3. نوع پرداخت
+    
+    اولویت تسویه:
+    - فقط دریافت نقدی: ابتدا به "نقدی پای‌بار" اختصاص داده می‌شود (بدون تخفیف)
+    - بقیه روش‌ها: مستقیم به بخش چکی (با تخفیف)
+    
+    Args:
+        invoice: فاکتور
+        payment_date: تاریخ پرداخت
+        payment_type: نوع پرداخت (cash, pos, bank_transfer, cheque)
+        payment_amount: مبلغ پرداختی
+    
+    Returns: (مبلغ تخفیف, مبلغی که به نقدی پای‌بار اختصاص یافت)
+    """
+    from decimal import Decimal
+    import jdatetime
+    
+    # تبدیل payment_date به jdatetime اگر string است
+    if isinstance(payment_date, str):
+        payment_date = jdatetime.date(*map(int, payment_date.split('-')))
+    
+    # محاسبه تفاوت روزها
+    invoice_date = invoice.invoice_date
+    if isinstance(invoice_date, str):
+        invoice_date = jdatetime.date(*map(int, invoice_date.split('-')))
+    
+    days_diff = (payment_date.togregorian() - invoice_date.togregorian()).days
+    
+    # تعیین payment_term بر اساس مدت زمان و نوع پرداخت
+    # فقط نقدی در 0-7 روز = 8% برای همه
+    # بقیه: بر اساس مدت زمان و گروه کالا
+    if payment_type == 'cash' and days_diff <= 7:
+        payment_term = 'cash'  # 8% برای همه (به جز گروه 2)
+    elif days_diff <= 37:
+        payment_term = '1m'    # 6% برای گروه 1، 0% برای گروه 3
+    elif days_diff <= 67:
+        payment_term = '2m'    # 4% برای گروه 1، 0% برای گروه 3
+    elif days_diff <= 97:
+        payment_term = '3m'    # 2% برای گروه 1، 0% برای گروه 3
+    else:
+        payment_term = '4m'    # 0% برای همه
+    
+    # اولویت تسویه: فقط دریافت نقدی به "نقدی پای‌بار" اختصاص می‌یابد
+    cash_portion = Decimal(0)
+    if payment_type == 'cash':
+        remaining_cash_amount = invoice.cash_amount - invoice.settled_cash_amount
+        cash_portion = min(payment_amount, remaining_cash_amount)
+    
+    # مبلغ باقیمانده برای بخش چکی (با تخفیف)
+    cheque_portion = payment_amount - cash_portion
+    
+    # محاسبه تخفیف برای بخش چکی
+    total_discount = Decimal(0)
+    
+    if cheque_portion > 0 and invoice.cheque_amount > 0:
+        # محاسبه تخفیف برای هر آیتم بر اساس گروه کالا
+        for item in invoice.items.all():
+            product = item.product
+            
+            # گروه 2: بدون تخفیف
+            if product.product_group == 'group_2':
+                continue
+            
+            # دریافت درصد تخفیف بر اساس گروه و payment_term
+            discount_percentage = product.get_discount_percentage(payment_term)
+            
+            # محاسبه مبلغ پایه این آیتم
+            base_amount = item.quantity * item.price
+            
+            # محاسبه تخفیف این آیتم
+            discount_amount = base_amount * (Decimal(str(discount_percentage)) / Decimal(100))
+            total_discount += discount_amount
+        
+        # تخفیف نسبی بر اساس نسبت پرداخت
+        discount_ratio = cheque_portion / invoice.cheque_amount
+        total_discount = total_discount * discount_ratio
+    
+    return total_discount, cash_portion
+
+
+@login_required
+@require_http_methods(["POST"])
+@csrf_exempt
+def check_customer_overdue_invoices(request):
+    """
+    بررسی فاکتورهای معوقه نقدی پای‌بار مشتری
+    اگر فاکتوری بیش از 7 روز معوقه باشد، پیام خطا برمی‌گرداند
+    """
+    try:
+        data = json.loads(request.body)
+        customer_id = data.get('customer_id')
+        
+        if not customer_id:
+            return JsonResponse({
+                'success': False,
+                'message': 'شناسه مشتری ارسال نشده است'
+            }, status=400)
+        
+        from products.models import Customer, SalesInvoice
+        
+        try:
+            customer = Customer.objects.get(id=customer_id)
+        except Customer.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'مشتری یافت نشد'
+            }, status=404)
+        
+        # بررسی فاکتورهای معوقه
+        overdue_invoices = SalesInvoice.objects.filter(
+            customer=customer,
+            status__in=['registered', 'confirmed']
+        ).order_by('invoice_date')
+        
+        blocking_invoices = []
+        for invoice in overdue_invoices:
+            is_overdue, remaining, days_overdue = invoice.has_overdue_cash_amount()
+            if is_overdue:
+                blocking_invoices.append({
+                    'invoice_number': invoice.invoice_number,
+                    'invoice_date': str(invoice.invoice_date),
+                    'remaining_amount': float(remaining),
+                    'days_overdue': days_overdue
+                })
+        
+        if blocking_invoices:
+            # ایجاد پیام خطا
+            first_invoice = blocking_invoices[0]
+            message = (
+                f"به دلیل اینکه فاکتور شماره {first_invoice['invoice_number']} "
+                f"به مبلغ {first_invoice['remaining_amount']:,.0f} ریال "
+                f"نقدی پای‌بار ({first_invoice['days_overdue']} روز معوقه) تسویه نشده، "
+                f"امکان صدور فاکتور جدید وجود ندارد"
+            )
+            
+            return JsonResponse({
+                'success': False,
+                'has_overdue': True,
+                'message': message,
+                'overdue_invoices': blocking_invoices
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'has_overdue': False,
+            'message': 'مشتری فاکتور معوقه ندارد'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'خطا در بررسی فاکتورهای معوقه: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@group_required('حسابداری')
+@require_http_methods(["POST"])
+@csrf_exempt
+def calculate_invoice_discount(request):
+    """
+    API برای محاسبه تخفیف برای فاکتور بر اساس:
+    - نوع پرداخت
+    - تاریخ پرداخت یا سررسید
+    - مبلغ پرداختی
+    - گروه کالاها
+    """
+    from decimal import Decimal
+    
+    try:
+        data = json.loads(request.body)
+        invoice_number = data.get('invoice_number')
+        payment_type = data.get('payment_type', 'cash')
+        payment_date_str = data.get('payment_date')  # برای غیر چک
+        due_date_str = data.get('due_date')  # برای چک
+        payment_amount = Decimal(str(data.get('payment_amount', 0)))
+        
+        # پیدا کردن فاکتور
+        from products.models import SalesInvoice
+        import jdatetime
+        
+        invoice = SalesInvoice.objects.get(invoice_number=invoice_number)
+        
+        # تعیین تاریخ محاسبه
+        calculation_date = None
+        if payment_type == 'cheque' and due_date_str:
+            # برای چک: از سررسید استفاده کن
+            calculation_date = jdatetime.date(*map(int, due_date_str.replace('/', '-').split('-')))
+        elif payment_date_str:
+            calculation_date = jdatetime.date(*map(int, payment_date_str.replace('/', '-').split('-')))
+        else:
+            calculation_date = jdatetime.date.today()
+        
+        # محاسبه تخفیف
+        discount, cash_portion = calculate_auto_discount(
+            invoice, calculation_date, payment_type, payment_amount
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'discount': float(discount),
+            'cash_portion': float(cash_portion),
+            'cheque_portion': float(payment_amount - cash_portion),
+            'discount_formatted': f'{int(discount):,}',
+        })
+    except SalesInvoice.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'فاکتور یافت نشد'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 @login_required
@@ -4914,6 +5321,9 @@ def finalize_payment_settlement(request):
                 if payment_description:
                     description += f' - {payment_description}'
                 
+                # اضافه کردن جزئیات تخفیف و تفکیک به توضیحات (قبل از ایجاد operation)
+                # این توضیحات بعداً به‌روز می‌شود
+                
                 # ایجاد عملیات مالی
                 # برای POS و bank_transfer، اطمینان از وجود اطلاعات بانک
                 if payment_type in ['pos', 'bank_transfer'] and not bank_account:
@@ -5030,16 +5440,74 @@ def finalize_payment_settlement(request):
                 elif payment_type == 'cheque':
                     invoice.settle_cheque += settlement_amount
                 
+                # محاسبه تخفیف خودکار با اولویت تسویه
+                # برای چک: از تاریخ سررسید استفاده می‌شود
+                # بقیه: از تاریخ پرداخت استفاده می‌شود
+                calculation_date = payment_date
+                
+                # اگر چک است، از اولین سررسید چک استفاده کن
+                if payment_type == 'cheque' and cheque_data:
+                    cheques = cheque_data if isinstance(cheque_data, list) else [cheque_data]
+                    if cheques and isinstance(cheques[0], dict) and 'due_date' in cheques[0]:
+                        # تبدیل تاریخ سررسید به jdatetime
+                        due_date_str = cheques[0]['due_date']
+                        try:
+                            if isinstance(due_date_str, str):
+                                calculation_date = jdatetime.date(*map(int, due_date_str.replace('/', '-').split('-')))
+                            print(f"📅 استفاده از تاریخ سررسید چک برای محاسبه: {calculation_date}")
+                        except:
+                            pass
+                
+                auto_discount, cash_portion = calculate_auto_discount(
+                    invoice, calculation_date, payment_type, settlement_amount
+                )
+                
+                # به‌روزرسانی مبلغ تسویه شده از نقدی پای‌بار
+                cheque_portion = settlement_amount - cash_portion
+                
+                if cash_portion > 0:
+                    invoice.settled_cash_amount += cash_portion
+                    print(f"💵 {cash_portion:,.0f} ریال از نقدی پای‌بار تسویه شد")
+                
+                if auto_discount > 0:
+                    invoice.auto_discount_applied += auto_discount
+                    # اضافه کردن تخفیف خودکار به settle_extra_discount
+                    invoice.settle_extra_discount += auto_discount
+                    
+                    # تعیین نوع پرداخت برای لاگ
+                    payment_term_display = ''
+                    if payment_type == 'cash':
+                        days_diff = (payment_date.togregorian() - invoice.invoice_date.togregorian()).days if hasattr(payment_date, 'togregorian') else 0
+                        if days_diff <= 7:
+                            payment_term_display = 'نقدی (8%)'
+                        elif days_diff <= 37:
+                            payment_term_display = '1 ماهه (6%)'
+                        elif days_diff <= 67:
+                            payment_term_display = '2 ماهه (4%)'
+                        elif days_diff <= 97:
+                            payment_term_display = '3 ماهه (2%)'
+                        else:
+                            payment_term_display = '4 ماهه (0%)'
+                    elif payment_type == 'pos':
+                        payment_term_display = 'کارتخوان - 1 ماهه (6%)'
+                    elif payment_type == 'bank_transfer':
+                        payment_term_display = 'حواله بانکی - 2 ماهه (4%)'
+                    
+                    print(f"✅ تخفیف {auto_discount:,.0f} ریال برای {cheque_portion:,.0f} ریال ({payment_term_display})")
+                
                 # محاسبه و به‌روزرسانی مانده
-                # مانده = کل فاکتور - (نقدی + کارت + بانک + چک + تخفیف)
+                # مانده = کل فاکتور - (مبلغ پرداختی + تخفیف)
+                # تخفیف قبلاً در settle_extra_discount اضافه شده است
                 total_settled = (
                     invoice.settle_cash + 
                     invoice.settle_card + 
                     invoice.settle_bank + 
                     invoice.settle_cheque + 
-                    invoice.settle_extra_discount
+                    invoice.settle_extra_discount  # شامل تخفیف خودکار
                 )
                 invoice.settle_balance = invoice.total_amount - total_settled
+                
+                print(f"📊 مانده فاکتور: {invoice.settle_balance:,.0f} (کل: {invoice.total_amount:,.0f} - تسویه: {total_settled:,.0f})")
                 
                 # اطمینان از اینکه مانده منفی نشود
                 if invoice.settle_balance < 0:
