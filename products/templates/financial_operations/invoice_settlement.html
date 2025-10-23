@@ -3960,22 +3960,6 @@ function initializePersianDatePicker() {
     
     console.log('🔧 راه‌اندازی Persian Date Picker...');
     
-    // تابع دریافت CSRF token
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-    
     // راه‌اندازی date picker
     $(dateInput).simplePersianDatepicker({
         format: 'YYYY/MM/DD',
@@ -4887,21 +4871,89 @@ function addInvoiceSettlement(invoiceId, amount, customerInfo) {
     // تبدیل amount به عدد (مهم!)
     const settlementAmount = typeof amount === 'string' ? parseFloat(parseAmountFromFormattedString(amount)) : parseFloat(amount);
     
-    // محاسبه تخفیف برای این فاکتور بر اساس مدت زمان و گروه کالایی
+    // پیدا کردن فاکتور
     const invoice = availableInvoices.find(inv => inv.invoiceNumber === invoiceId);
-    let discount = 0;
     
-    // اضافه کردن به آرایه
+    // اضافه کردن به آرایه (ابتدا با تخفیف 0)
     const settlementId = 'settlement_' + Date.now();
     invoiceSettlements.push({
         id: settlementId,
         invoiceId: invoiceId,
         customerId: customerInfo.id,
         amount: settlementAmount,
-        discount: discount
+        discount: 0
     });
     
     console.log('فاکتور به آرایه اضافه شد. مجموع فاکتورها:', invoiceSettlements.length);
+    
+    // به‌روزرسانی جدول فاکتورها
+    updateInvoiceSettlementTable();
+    
+    // محاسبه تخفیف به صورت async
+    const activeRow = paymentRows.find(r => r.id === activePaymentRowId);
+    if (activeRow && invoice) {
+        // تعیین تاریخ محاسبه
+        let calculationDate;
+        if (activeRow.type === 'cheque' && activeRow.dueDate) {
+            calculationDate = activeRow.dueDate;
+        } else if (activeRow.date) {
+            calculationDate = activeRow.date;
+        } else {
+            calculationDate = getJalaliDateISO();
+        }
+        
+        console.log('🔢 محاسبه تخفیف:', {
+            invoice: invoiceId,
+            paymentType: activeRow.type,
+            calculationDate: calculationDate,
+            amount: settlementAmount
+        });
+        
+        // فراخوانی API
+        const requestBody = {
+            invoice_number: invoiceId,
+            payment_type: activeRow.type,
+            payment_amount: settlementAmount
+        };
+        
+        if (activeRow.type === 'cheque') {
+            requestBody.due_date = calculationDate;
+        } else {
+            requestBody.payment_date = calculationDate;
+        }
+        
+        fetch('/api/invoice/calculate-discount/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(requestBody)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('✅ تخفیف محاسبه شد:', data.discount);
+                
+                // به‌روزرسانی تخفیف
+                const settlement = invoiceSettlements.find(s => s.id === settlementId);
+                if (settlement) {
+                    settlement.discount = data.discount;
+                    settlement.cash_portion = data.cash_portion;
+                    settlement.cheque_portion = data.cheque_portion;
+                    
+                    // به‌روزرسانی جدول
+                    updateInvoiceSettlementTable();
+                    saveActivePaymentRowData();
+                }
+            } else {
+                console.error('❌ خطا در محاسبه تخفیف:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('❌ خطای شبکه:', error);
+        });
+    }
     
     saveActivePaymentRowData();
     
@@ -4913,12 +4965,9 @@ function addInvoiceSettlement(invoiceId, amount, customerInfo) {
     
     updateValidation();
     
-    // به‌روزرسانی جدول فاکتورها
-    updateInvoiceSettlementTable();
-    
     // ذخیره فوری بعد از تسویه فاکتور
     console.log('💾 ذخیره فوری بعد از تسویه فاکتور...');
-    setTimeout(() => saveToServer(), 200);
+    setTimeout(() => saveToServer(), 500);
 }
 
 // تابع به‌روزرسانی مبلغ تسویه فاکتور
@@ -5481,33 +5530,6 @@ function formatAmountInput(input) {
     } else {
         input.value = '';
     }
-}
-
-
-// دریافت تاریخ جلالی امروز به فرمت ISO (YYYY-MM-DD)
-function getJalaliDateISO() {
-    // استفاده از متغیر global که از سرور آمده
-    if (typeof serverDateJalali !== 'undefined' && serverDateJalali) {
-        console.log('📅 استفاده از تاریخ سرور:', serverDateJalali);
-        return serverDateJalali;
-    }
-    
-    console.warn('⚠️ serverDateJalali تعریف نشده - استفاده از فالبک');
-    
-    // فالبک: تبدیل ساده (نسبتاً دقیق برای محاسبه تفاوت روز)
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth() + 1;
-    const day = today.getDate();
-    
-    // تبدیل ساده میلادی به جلالی (تقریبی)
-    const jYear = year > 1621 ? year - 621 : year - 622;
-    const jMonth = String(month).padStart(2, '0');
-    const jDay = String(day).padStart(2, '0');
-    
-    const fallbackDate = `${jYear}-${jMonth}-${jDay}`;
-    console.log('📅 تاریخ فالبک:', fallbackDate);
-    return fallbackDate;
 }
 
 // محاسبه تفاوت روز بین دو تاریخ جلالی
