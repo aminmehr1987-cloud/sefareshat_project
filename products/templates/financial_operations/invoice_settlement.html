@@ -4620,7 +4620,7 @@ function loadCustomerInvoicesForSettlement(customerId) {
         
         // محاسبه مبالغ باقی‌مانده بر اساس تسویه‌های موقت تمام ردیف‌ها
         customerInvoices.forEach(invoice => {
-            // تسویه‌های موقت این فاکتور در تمام ردیف‌ها
+            // تسویه‌های موقت این فاکتور در تمام ردیف‌ها (شامل نقدی و چکی)
             const totalSettledInAllRows = allCustomerSettlements[invoice.invoiceNumber] || 0;
             
             // تسویه‌های این فاکتور فقط در ردیف فعلی
@@ -4634,16 +4634,42 @@ function loadCustomerInvoicesForSettlement(customerId) {
             invoice.settledInCurrentRow = settledInCurrentRow;
             invoice.alreadySelected = selectedInCurrentRow.includes(invoice.invoiceNumber);
             
-            console.log(`فاکتور ${invoice.invoiceNumber}: کل=${invoice.totalAmount}, تسویه DB=${invoice.settledAmount}, مانده DB=${invoice.remainingBalance}, تسویه موقت کل=${totalSettledInAllRows}, تسویه در ردیف فعلی=${settledInCurrentRow}, مانده نهایی=${invoice.currentRemaining}, انتخاب شده در ردیف فعلی=${invoice.alreadySelected}`);
+            // محاسبه مانده قابل تسویه با چک (فقط بخش چکی)
+            // اگر فاکتور دارای نقدی پای‌بار است، باید از currentRemaining کسر شود
+            invoice.chequeOnlyRemaining = invoice.currentRemaining;
+            if (invoice.remainingCashAmount > 0) {
+                // اگر نقدی پای‌بار باقی مانده دارد، از مانده کل کسر می‌کنیم
+                // چون چک نمی‌تواند نقدی پای‌بار را تسویه کند
+                invoice.chequeOnlyRemaining = Math.max(0, invoice.currentRemaining - invoice.remainingCashAmount);
+            }
+            
+            console.log(`فاکتور ${invoice.invoiceNumber}: کل=${invoice.totalAmount}, مانده DB=${invoice.remainingBalance}, نقدی پای‌بار باقی=${invoice.remainingCashAmount}, تسویه موقت کل=${totalSettledInAllRows}, مانده نهایی=${invoice.currentRemaining}, مانده قابل تسویه با چک=${invoice.chequeOnlyRemaining}, انتخاب شده=${invoice.alreadySelected}`);
         });
         
         // فیلتر کردن فاکتورهایی که هنوز باقی‌مانده دارند (شامل انتخاب شده‌ها)
         // به‌روزرسانی متغیر global برای استفاده در محاسبه تخفیف
-        availableInvoices = customerInvoices.filter(invoice => 
-            invoice.currentRemaining > 0
-        );
         
-        console.log('🟢 فاکتورهای قابل نمایش (با مانده):', availableInvoices.length);
+        // تعیین نوع پرداخت فعلی
+        const activeRow = paymentRows.find(r => r.id === activePaymentRowId);
+        const paymentType = activeRow ? activeRow.type : 'cash';
+        
+        console.log('💳 نوع پرداخت فعلی:', paymentType);
+        
+        // فیلتر بر اساس نوع پرداخت:
+        // - چک: فقط فاکتورهایی که مبلغ چکی دارند (بدون نقدی پای‌بار)
+        // - نقدی/کارتخوان/حواله: فاکتورهایی که مانده دارند (شامل نقدی پای‌بار)
+        availableInvoices = customerInvoices.filter(invoice => {
+            if (paymentType === 'cheque') {
+                // برای چک: فقط فاکتورهایی که بخش چکی دارند
+                // (نقدی پای‌بار با چک تسویه نمی‌شود)
+                return invoice.chequeOnlyRemaining > 0;
+            } else {
+                // برای نقدی/کارتخوان/حواله: فاکتورهایی که مانده دارند
+                return invoice.currentRemaining > 0;
+            }
+        });
+        
+        console.log('🟢 فاکتورهای قابل نمایش (با مانده):', availableInvoices.length, 'برای نوع پرداخت:', paymentType);
         
         if (availableInvoices.length === 0) {
             invoicesList.innerHTML = `
@@ -4688,8 +4714,10 @@ function loadCustomerInvoicesForSettlement(customerId) {
                 <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem); color: #0891b2; font-weight: 600;">
                     ${invoice.cashEquivalentOfCheques > 0 ? invoice.cashEquivalentOfCheques.toLocaleString('fa-IR') : '-'}
                 </td>
-                <td style="font-weight: bold; font-size: clamp(0.68rem, 0.95vw, 0.76rem); color: ${invoice.currentRemaining > 0 ? '#059669' : '#dc2626'};">
-                    ${invoice.currentRemaining.toLocaleString('fa-IR')}
+                <td style="font-weight: bold; font-size: clamp(0.68rem, 0.95vw, 0.76rem); color: ${invoice.currentRemaining > 0 ? '#059669' : '#dc2626'};" 
+                    title="${paymentType === 'cheque' && invoice.remainingCashAmount > 0 ? 'نقدی پای‌بار (' + invoice.remainingCashAmount.toLocaleString('fa-IR') + ') با چک قابل تسویه نیست' : ''}">
+                    ${(paymentType === 'cheque' ? invoice.chequeOnlyRemaining : invoice.currentRemaining).toLocaleString('fa-IR')}
+                    ${paymentType === 'cheque' && invoice.remainingCashAmount > 0 ? '<br><span style="font-size: 0.55rem; color: #dc2626;">(بدون نقدی)</span>' : ''}
                 </td>
                 <td style="font-size: clamp(0.62rem, 0.85vw, 0.7rem); color: #b45309;">
                     ${invoice.settledInSession > 0 ? invoice.settledInSession.toLocaleString('fa-IR') : '-'}
@@ -4699,7 +4727,8 @@ function loadCustomerInvoicesForSettlement(customerId) {
                            id="settlement_amount_${invoice.invoiceNumber}" 
                            class="form-control settlement-amount-input" 
                            placeholder="مبلغ"
-                           data-max="${invoice.currentRemaining}"
+                           data-max="${paymentType === 'cheque' ? invoice.chequeOnlyRemaining : invoice.currentRemaining}"
+                           value="${(paymentType === 'cheque' ? invoice.chequeOnlyRemaining : invoice.currentRemaining).toLocaleString('fa-IR')}"
                            ${invoice.alreadySelected ? 'disabled' : ''}
                            oninput="formatAmountInput(this)">
                 </td>

@@ -4963,12 +4963,14 @@ def calculate_auto_discount(invoice, payment_date, payment_type, payment_amount)
     3. نوع پرداخت
     
     اولویت تسویه:
-    - فقط دریافت نقدی: ابتدا به "نقدی پای‌بار" اختصاص داده می‌شود (بدون تخفیف)
-    - بقیه روش‌ها: مستقیم به بخش چکی (با تخفیف)
+    - نقدی، کارتخوان، حواله بانکی: ابتدا به "نقدی پای‌بار" اختصاص داده می‌شود (بدون تخفیف)
+    - چک: فقط به بخش چکی اختصاص می‌یابد (با تخفیف)
+    
+    نکته مهم: چک نمی‌تواند "نقدی پای‌بار" را تسویه کند، حتی اگر فاکتور شامل کالای گروه 2 باشد
     
     Args:
         invoice: فاکتور
-        payment_date: تاریخ پرداخت
+        payment_date: تاریخ پرداخت (برای چک = تاریخ سررسید)
         payment_type: نوع پرداخت (cash, pos, bank_transfer, cheque)
         payment_amount: مبلغ پرداختی
     
@@ -5002,9 +5004,11 @@ def calculate_auto_discount(invoice, payment_date, payment_type, payment_amount)
     else:
         payment_term = '4m'    # 0% برای همه
     
-    # اولویت تسویه: فقط دریافت نقدی به "نقدی پای‌بار" اختصاص می‌یابد
+    # اولویت تسویه:
+    # - فقط نقدی، کارتخوان، و حواله بانکی به "نقدی پای‌بار" اختصاص می‌یابند
+    # - چک نمی‌تواند به "نقدی پای‌بار" اختصاص پیدا کند (حتی اگر در فاکتور کالای گروه 2 باشد)
     cash_portion = Decimal(0)
-    if payment_type == 'cash':
+    if payment_type in ['cash', 'pos', 'bank_transfer']:
         remaining_cash_amount = invoice.cash_amount - invoice.settled_cash_amount
         cash_portion = min(payment_amount, remaining_cash_amount)
     
@@ -5249,186 +5253,161 @@ def finalize_payment_settlement(request):
         
         operations_created = []
         
-        # ایجاد عملیات مالی برای هر تسویه فاکتور
+        # ایجاد یک عملیات مالی برای کل ردیف پرداخت (نه برای هر فاکتور)
         with transaction.atomic():
+            # تعیین حساب بانکی/صندوق (خارج از حلقه)
+            bank_account = None
+            card_reader = None
+            cash_register = None
+            cash_fund = None
+            bank_fund = None
+            
+            if payment_type == 'bank_transfer' and bank_account_id:
+                bank_account = BankAccount.objects.get(id=bank_account_id)
+                from products.models import Fund
+                bank_fund = Fund.objects.filter(
+                    fund_type='BANK',
+                    bank_name=bank_account.bank.name,
+                    account_number=bank_account.account_number,
+                    is_active=True
+                ).first()
+            elif payment_type == 'pos' and card_reader_id:
+                card_reader = CardReaderDevice.objects.get(id=card_reader_id)
+                bank_account = card_reader.bank_account
+                
+                if not bank_account:
+                    raise ValueError(f'دستگاه کارتخوان {card_reader.name} به حساب بانکی متصل نیست.')
+                
+                from products.models import Fund
+                bank_fund = Fund.objects.filter(
+                    fund_type='BANK',
+                    bank_name=bank_account.bank.name,
+                    account_number=bank_account.account_number,
+                    is_active=True
+                ).first()
+            elif payment_type == 'cash':
+                cash_register = CashRegister.objects.filter(is_active=True).first()
+                from products.models import Fund
+                try:
+                    cash_fund = Fund.objects.get(id=1, fund_type='CASH')
+                except Fund.DoesNotExist:
+                    cash_fund = Fund.objects.filter(fund_type='CASH', is_active=True).first()
+            
+            # بررسی وجود اطلاعات بانک برای POS و bank_transfer
+            if payment_type in ['pos', 'bank_transfer'] and not bank_account:
+                raise ValueError('حساب بانکی برای این نوع پرداخت یافت نشد.')
+            
+            # تولید شماره عملیات (فقط یک عملیات)
+            operation_number = f'{operation_base_num:010d}'
+            
+            # تعیین مشتری (از اولین فاکتور)
+            customer = None
+            if invoice_settlements:
+                first_settlement = invoice_settlements[0]
+                customer_id = first_settlement.get('customerId')
+                invoice_id = first_settlement.get('invoiceId')
+                try:
+                    first_invoice = SalesInvoice.objects.get(invoice_number=invoice_id)
+                    customer = first_invoice.customer
+                except SalesInvoice.DoesNotExist:
+                    pass
+            
+            # ساخت توضیحات شامل لیست فاکتورها
+            serial_info = ''
+            if payment_type == 'bank_transfer' and fish_number:
+                serial_info = f' - شماره فیش: {fish_number}'
+            elif payment_type == 'pos' and tracking_number:
+                serial_info = f' - شماره پیگیری: {tracking_number}'
+            
+            # لیست فاکتورها برای توضیحات
+            invoice_list = ', '.join([s.get('invoiceId') for s in invoice_settlements])
+            description = f'دریافت {payment_type_persian} بابت فاکتورهای {invoice_list}{serial_info}'
+            if payment_description:
+                description += f' - {payment_description}'
+            
+            # ایجاد یک عملیات مالی برای کل مبلغ
+            operation = FinancialOperation.objects.create(
+                operation_type='RECEIVE_FROM_CUSTOMER',
+                operation_number=operation_number,
+                date=payment_date,
+                amount=payment_amount,  # کل مبلغ پرداخت
+                description=description,
+                status='CONFIRMED',
+                customer=customer,
+                bank_account=bank_account,
+                payment_method=payment_type,
+                card_reader_device=card_reader,
+                reference_number=fish_number or tracking_number,
+                fund=cash_fund or bank_fund,
+                bank_name=bank_account.bank.name if bank_account else '',
+                account_number=bank_account.account_number if bank_account else '',
+                created_by=request.user,
+                confirmed_by=request.user,
+                confirmed_at=timezone.now()
+            )
+            
+            operations_created.append(operation)
+            
+            # ایجاد چک‌های دریافتی (در صورت وجود)
+            if payment_type == 'cheque' and cheque_data:
+                from datetime import datetime
+                
+                cheques_to_create = []
+                if isinstance(cheque_data, list):
+                    cheques_to_create = cheque_data
+                elif isinstance(cheque_data, dict):
+                    cheques_to_create = [cheque_data]
+                
+                for cheque_info in cheques_to_create:
+                    if not isinstance(cheque_info, dict):
+                        continue
+                    
+                    # تبدیل تاریخ سررسید
+                    due_date_str = cheque_info.get('due_date')
+                    if due_date_str:
+                        try:
+                            parts = due_date_str.replace('/', '-').split('-')
+                            j_date = jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
+                            due_date = j_date.togregorian()
+                        except Exception:
+                            due_date = datetime.now().date()
+                    else:
+                        due_date = datetime.now().date()
+                    
+                    # بررسی فیلدهای ضروری
+                    if not cheque_info.get('sayadi_id') or not cheque_info.get('bank_name') or not cheque_info.get('owner_name'):
+                        continue
+                    
+                    cheque_amount = Decimal(str(cheque_info.get('amount', 0)))
+                    
+                    ReceivedCheque.objects.create(
+                        customer=customer,
+                        financial_operation=operation,
+                        endorsement=cheque_info.get('endorsement', ''),
+                        due_date=due_date,
+                        bank_name=cheque_info.get('bank_name', ''),
+                        branch_name=cheque_info.get('branch_name', ''),
+                        series=cheque_info.get('series', ''),
+                        serial=cheque_info.get('serial', ''),
+                        sayadi_id=cheque_info.get('sayadi_id', ''),
+                        amount=cheque_amount,
+                        owner_name=cheque_info.get('owner_name', ''),
+                        national_id=cheque_info.get('national_id', ''),
+                        account_number=cheque_info.get('account_number', ''),
+                        status='RECEIVED',
+                        created_by=request.user
+                    )
+            
+            # حالا تسویه فاکتورها را پردازش کنیم (فقط به‌روزرسانی، بدون ایجاد operation جدید)
             for settlement_data in invoice_settlements:
                 invoice_id = settlement_data.get('invoiceId')
                 settlement_amount = Decimal(str(settlement_data.get('amount', 0)))
-                customer_id = settlement_data.get('customerId')
                 
                 # پیدا کردن فاکتور
                 try:
                     invoice = SalesInvoice.objects.get(invoice_number=invoice_id)
                 except SalesInvoice.DoesNotExist:
                     continue
-                
-                # تولید شماره عملیات (فقط عدد 10 رقمی)
-                operation_number = f'{operation_base_num:010d}'
-                operation_base_num += 1
-                
-                # تعیین حساب بانکی/صندوق
-                bank_account = None
-                card_reader = None
-                cash_register = None
-                cash_fund = None
-                bank_fund = None
-                
-                if payment_type == 'bank_transfer' and bank_account_id:
-                    bank_account = BankAccount.objects.get(id=bank_account_id)
-                    # دریافت صندوق بانکی (Fund) برای ثبت در صورتحساب
-                    from products.models import Fund
-                    bank_fund = Fund.objects.filter(
-                        fund_type='BANK',
-                        bank_name=bank_account.bank.name,
-                        account_number=bank_account.account_number,
-                        is_active=True
-                    ).first()
-                elif payment_type == 'pos' and card_reader_id:
-                    card_reader = CardReaderDevice.objects.get(id=card_reader_id)
-                    bank_account = card_reader.bank_account
-                    
-                    # اطمینان از اینکه دستگاه کارتخوان به حساب بانکی متصل است
-                    if not bank_account:
-                        raise ValueError(f'دستگاه کارتخوان {card_reader.name} به حساب بانکی متصل نیست. لطفا در تنظیمات دستگاه، حساب بانکی را مشخص کنید.')
-                    
-                    # دریافت صندوق بانکی (Fund) برای ثبت در صورتحساب
-                    from products.models import Fund
-                    bank_fund = Fund.objects.filter(
-                        fund_type='BANK',
-                        bank_name=bank_account.bank.name,
-                        account_number=bank_account.account_number,
-                        is_active=True
-                    ).first()
-                elif payment_type == 'cash':
-                    # صندوق نقدی پیش‌فرض
-                    cash_register = CashRegister.objects.filter(is_active=True).first()
-                    # دریافت صندوق نقدی (Fund) برای ثبت در صورتحساب
-                    from products.models import Fund
-                    try:
-                        cash_fund = Fund.objects.get(id=1, fund_type='CASH')
-                    except Fund.DoesNotExist:
-                        # اگر صندوق نقدی با ID=1 وجود نداشت، اولین صندوق نقدی را انتخاب کن
-                        cash_fund = Fund.objects.filter(fund_type='CASH', is_active=True).first()
-                
-                # توضیحات
-                serial_info = ''
-                if payment_type == 'bank_transfer' and fish_number:
-                    serial_info = f' - شماره فیش: {fish_number}'
-                elif payment_type == 'pos' and tracking_number:
-                    serial_info = f' - شماره پیگیری: {tracking_number}'
-                
-                description = f'دریافت {payment_type_persian} بابت فاکتور فروش شماره {invoice.invoice_number}{serial_info}'
-                if payment_description:
-                    description += f' - {payment_description}'
-                
-                # اضافه کردن جزئیات تخفیف و تفکیک به توضیحات (قبل از ایجاد operation)
-                # این توضیحات بعداً به‌روز می‌شود
-                
-                # ایجاد عملیات مالی
-                # برای POS و bank_transfer، اطمینان از وجود اطلاعات بانک
-                if payment_type in ['pos', 'bank_transfer'] and not bank_account:
-                    raise ValueError('حساب بانکی برای این نوع پرداخت یافت نشد.')
-                
-                operation = FinancialOperation.objects.create(
-                    operation_type='RECEIVE_FROM_CUSTOMER',
-                    operation_number=operation_number,
-                    date=payment_date,
-                    amount=settlement_amount,
-                    description=description,
-                    status='CONFIRMED',
-                    customer=invoice.customer,
-                    bank_account=bank_account,
-                    payment_method=payment_type,
-                    card_reader_device=card_reader,
-                    reference_number=fish_number or tracking_number,
-                    fund=cash_fund or bank_fund,  # لینک به صندوق نقدی یا بانکی
-                    # برای نمایش در صورتحساب بانک، فیلدهای بانک را ست می‌کنیم
-                    bank_name=bank_account.bank.name if bank_account else '',
-                    account_number=bank_account.account_number if bank_account else '',
-                    created_by=request.user,
-                    confirmed_by=request.user,
-                    confirmed_at=timezone.now()
-                )
-                
-                # لاگ برای دیباگ (می‌توان بعداً حذف کرد)
-                if payment_type == 'pos':
-                    print(f"✅ POS Operation Created: {operation.operation_number}")
-                    print(f"   Bank: {operation.bank_name}")
-                    print(f"   Account: {operation.account_number}")
-                    print(f"   Fund: {operation.fund}")
-                    print(f"   Card Reader: {operation.card_reader_device}")
-                
-                # ایجاد چک‌های دریافتی (در صورت وجود)
-                if payment_type == 'cheque' and cheque_data:
-                    from datetime import datetime
-                    
-                    # cheque_data می‌تواند یک آرایه از چک‌ها یا یک چک واحد باشد
-                    cheques_to_create = []
-                    
-                    if isinstance(cheque_data, list):
-                        # آرایه‌ای از چک‌ها
-                        cheques_to_create = cheque_data
-                    elif isinstance(cheque_data, dict):
-                        # یک چک واحد
-                        cheques_to_create = [cheque_data]
-                    else:
-                        print(f"⚠️ cheque_data نوع صحیح ندارد: {type(cheque_data)}")
-                    
-                    # ایجاد هر چک
-                    for cheque_info in cheques_to_create:
-                        if not isinstance(cheque_info, dict):
-                            print(f"⚠️ اطلاعات چک نامعتبر است: {type(cheque_info)}")
-                            continue
-                        
-                        # تبدیل تاریخ سررسید
-                        due_date_str = cheque_info.get('due_date')
-                        if due_date_str:
-                            # تاریخ به فرمت 1403/07/19 است
-                            try:
-                                import jdatetime
-                                parts = due_date_str.replace('/', '-').split('-')
-                                j_date = jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
-                                due_date = j_date.togregorian()
-                            except Exception as e:
-                                print(f"⚠️ خطا در تبدیل تاریخ: {e}")
-                                # اگر تبدیل ناموفق بود، از تاریخ امروز استفاده کن
-                                due_date = datetime.now().date()
-                        else:
-                            due_date = datetime.now().date()
-                        
-                        # بررسی وجود فیلدهای ضروری
-                        if not cheque_info.get('sayadi_id'):
-                            print(f"⚠️ شناسه صیادی چک وارد نشده - چک ایجاد نمی‌شود")
-                            continue
-                        if not cheque_info.get('bank_name'):
-                            print(f"⚠️ نام بانک وارد نشده - چک ایجاد نمی‌شود")
-                            continue
-                        if not cheque_info.get('owner_name'):
-                            print(f"⚠️ نام صاحب حساب وارد نشده - چک ایجاد نمی‌شود")
-                            continue
-                        
-                        # مبلغ چک (از فیلد amount در cheque_info یا از settlement_amount)
-                        cheque_amount = Decimal(str(cheque_info.get('amount', settlement_amount)))
-                        
-                        # ایجاد رکورد چک دریافتی
-                        received_cheque = ReceivedCheque.objects.create(
-                            customer=invoice.customer,
-                            financial_operation=operation,
-                            endorsement=cheque_info.get('endorsement', ''),
-                            due_date=due_date,
-                            bank_name=cheque_info.get('bank_name', ''),
-                            branch_name=cheque_info.get('branch_name', ''),
-                            series=cheque_info.get('series', ''),
-                            serial=cheque_info.get('serial', ''),
-                            sayadi_id=cheque_info.get('sayadi_id', ''),
-                            amount=cheque_amount,
-                            owner_name=cheque_info.get('owner_name', ''),
-                            national_id=cheque_info.get('national_id', ''),
-                            account_number=cheque_info.get('account_number', ''),
-                            status='RECEIVED',  # وضعیت: نزد صندوق
-                            created_by=request.user
-                        )
-                        print(f"✅ چک دریافتی ایجاد شد: {received_cheque.sayadi_id} - مبلغ: {cheque_amount}")
                 
                 # به‌روزرسانی فاکتور
                 if payment_type == 'cash':
