@@ -5191,71 +5191,66 @@ def finalize_payment_settlement(request):
     """
     from products.models import (
         SalesInvoice, FinancialOperation, BankAccount, 
-        CashRegister, CardReaderDevice, ReceivedCheque
+        CashRegister, CardReaderDevice, ReceivedCheque, InvoiceSettlementDraft
     )
     from decimal import Decimal
     import jdatetime
+    from django.utils import timezone
     
-    try:
-        data = json.loads(request.body)
-        
-        row_id = data.get('row_id')
-        payment_type = data.get('payment_type')
-        payment_amount = Decimal(str(data.get('payment_amount', 0)))
-        payment_date_str = data.get('payment_date')
-        payment_description = data.get('payment_description', '')
-        
-        # تبدیل تاریخ فارسی به فرمت استاندارد
-        if payment_date_str:
-            # اگر تاریخ به فرمت 1404/07/19 باشد، تبدیل به 1404-07-19
-            payment_date = payment_date_str.replace('/', '-')
-        else:
-            # اگر تاریخ وارد نشده، از امروز استفاده کن
-            import jdatetime
-            payment_date = jdatetime.date.today().strftime('%Y-%m-%d')
-        customer_payments = data.get('customer_payments', [])
-        invoice_settlements_data = data.get('invoice_settlements', [])
-        # اگر به صورت dict ارسال شده، تبدیل به list کن
-        if isinstance(invoice_settlements_data, dict):
-            invoice_settlements = list(invoice_settlements_data.values())
-        else:
-            invoice_settlements = invoice_settlements_data
-        
-        bank_account_id = data.get('bank_account_id')
-        card_reader_id = data.get('card_reader_id')
-        fish_number = data.get('fish_number', '')
-        tracking_number = data.get('tracking_number', '')
-        cheque_data = data.get('cheque_data')  # اطلاعات چک (در صورت وجود)
-        
-        # نقشه نوع دریافتی
-        payment_type_names = {
-            'cash': 'نقدی',
-            'bank_transfer': 'حواله بانکی',
-            'pos': 'دستگاه کارتخوان',
-            'cheque': 'چک دریافتی'
-        }
-        payment_type_persian = payment_type_names.get(payment_type, payment_type)
-        
-        # تولید شماره عملیات یکتا (فقط عدد 10 رقمی)
-        # پیدا کردن آخرین شماره عددی
-        last_op = FinancialOperation.objects.filter(
-            operation_number__regex=r'^\d+$'  # فقط اعداد
-        ).order_by('-operation_number').first()
-        
-        if last_op:
-            try:
-                last_num = int(last_op.operation_number)
-                operation_base_num = last_num + 1
-            except (ValueError, AttributeError):
-                operation_base_num = 1
-        else:
-            operation_base_num = 1
-        
-        operations_created = []
-        
-        # ایجاد یک عملیات مالی برای کل ردیف پرداخت (نه برای هر فاکتور)
-        with transaction.atomic():
-            # تعیین حساب بانکی/صندوق (خارج از حلقه)
+    data = json.loads(request.body)
+    row_id = data.get('rowId')
+    work_date_str = data.get('work_date')
+
+    # Start a database transaction to ensure atomicity and allow locking.
+    with transaction.atomic():
+        try:
+            # Lock the draft for this work_date to prevent race conditions from autosave.
+            # This is the core of the fix for the race condition.
+            draft_date = convert_shamsi_to_gregorian(work_date_str.split('T')[0])
+            draft = InvoiceSettlementDraft.objects.select_for_update().get(
+                work_date=draft_date,
+                status='draft'
+            )
+
+            payment_type = data.get('payment_type')
+            payment_amount = Decimal(str(data.get('payment_amount', 0)))
+            payment_date_str = data.get('payment_date') # Jalali date string '1404/08/03'
+            payment_description = data.get('payment_description', '')
+            
+            gregorian_payment_date = None
+            jalali_payment_date_input = None 
+
+            if payment_date_str:
+                jalali_payment_date_input = payment_date_str.replace('/', '-')
+                gregorian_payment_date = convert_shamsi_to_gregorian(payment_date_str.replace('-', '/'))
+            else:
+                today_jalali = jdatetime.date.today()
+                jalali_payment_date_input = today_jalali.strftime('%Y-%m-%d')
+                gregorian_payment_date = today_jalali.togregorian()
+
+            invoice_settlements_data = data.get('invoice_settlements', [])
+            if isinstance(invoice_settlements_data, dict):
+                invoice_settlements = list(invoice_settlements_data.values())
+            else:
+                invoice_settlements = invoice_settlements_data
+            
+            bank_account_id = data.get('bank_account_id')
+            card_reader_id = data.get('card_reader_id')
+            fish_number = data.get('fish_number', '')
+            tracking_number = data.get('tracking_number', '')
+            cheque_data = data.get('cheque_data')
+            
+            payment_type_names = {
+                'cash': 'نقدی', 'bank_transfer': 'حواله بانکی',
+                'pos': 'دستگاه کارتخوان', 'cheque': 'چک دریافتی'
+            }
+            payment_type_persian = payment_type_names.get(payment_type, payment_type)
+            
+            last_op = FinancialOperation.objects.filter(operation_number__regex=r'^\d+').order_by('-operation_number').first()
+            operation_base_num = (int(last_op.operation_number) + 1) if last_op and last_op.operation_number.isdigit() else 1
+            
+            operations_created = []
+
             bank_account = None
             card_reader = None
             cash_register = None
@@ -5265,46 +5260,26 @@ def finalize_payment_settlement(request):
             if payment_type == 'bank_transfer' and bank_account_id:
                 bank_account = BankAccount.objects.get(id=bank_account_id)
                 from products.models import Fund
-                bank_fund = Fund.objects.filter(
-                    fund_type='BANK',
-                    bank_name=bank_account.bank.name,
-                    account_number=bank_account.account_number,
-                    is_active=True
-                ).first()
+                bank_fund = Fund.objects.filter(fund_type='BANK', bank_name=bank_account.bank.name, account_number=bank_account.account_number, is_active=True).first()
             elif payment_type == 'pos' and card_reader_id:
                 card_reader = CardReaderDevice.objects.get(id=card_reader_id)
                 bank_account = card_reader.bank_account
-                
                 if not bank_account:
                     raise ValueError(f'دستگاه کارتخوان {card_reader.name} به حساب بانکی متصل نیست.')
-                
                 from products.models import Fund
-                bank_fund = Fund.objects.filter(
-                    fund_type='BANK',
-                    bank_name=bank_account.bank.name,
-                    account_number=bank_account.account_number,
-                    is_active=True
-                ).first()
+                bank_fund = Fund.objects.filter(fund_type='BANK', bank_name=bank_account.bank.name, account_number=bank_account.account_number, is_active=True).first()
             elif payment_type == 'cash':
-                cash_register = CashRegister.objects.filter(is_active=True).first()
                 from products.models import Fund
-                try:
-                    cash_fund = Fund.objects.get(id=1, fund_type='CASH')
-                except Fund.DoesNotExist:
-                    cash_fund = Fund.objects.filter(fund_type='CASH', is_active=True).first()
-            
-            # بررسی وجود اطلاعات بانک برای POS و bank_transfer
+                cash_fund = Fund.objects.filter(fund_type='CASH', is_active=True).first()
+
             if payment_type in ['pos', 'bank_transfer'] and not bank_account:
                 raise ValueError('حساب بانکی برای این نوع پرداخت یافت نشد.')
             
-            # تولید شماره عملیات (فقط یک عملیات)
             operation_number = f'{operation_base_num:010d}'
             
-            # تعیین مشتری (از اولین فاکتور)
             customer = None
             if invoice_settlements:
                 first_settlement = invoice_settlements[0]
-                customer_id = first_settlement.get('customerId')
                 invoice_id = first_settlement.get('invoiceId')
                 try:
                     first_invoice = SalesInvoice.objects.get(invoice_number=invoice_id)
@@ -5312,25 +5287,22 @@ def finalize_payment_settlement(request):
                 except SalesInvoice.DoesNotExist:
                     pass
             
-            # ساخت توضیحات شامل لیست فاکتورها
             serial_info = ''
             if payment_type == 'bank_transfer' and fish_number:
                 serial_info = f' - شماره فیش: {fish_number}'
             elif payment_type == 'pos' and tracking_number:
                 serial_info = f' - شماره پیگیری: {tracking_number}'
             
-            # لیست فاکتورها برای توضیحات
             invoice_list = ', '.join([s.get('invoiceId') for s in invoice_settlements])
             description = f'دریافت {payment_type_persian} بابت فاکتورهای {invoice_list}{serial_info}'
             if payment_description:
                 description += f' - {payment_description}'
             
-            # ایجاد یک عملیات مالی برای کل مبلغ
             operation = FinancialOperation.objects.create(
                 operation_type='RECEIVE_FROM_CUSTOMER',
                 operation_number=operation_number,
-                date=payment_date,
-                amount=payment_amount,  # کل مبلغ پرداخت
+                date=gregorian_payment_date,
+                amount=payment_amount,
                 description=description,
                 status='CONFIRMED',
                 customer=customer,
@@ -5348,225 +5320,101 @@ def finalize_payment_settlement(request):
             
             operations_created.append(operation)
             
-            # ایجاد چک‌های دریافتی (در صورت وجود)
             if payment_type == 'cheque' and cheque_data:
                 from datetime import datetime
-                
-                cheques_to_create = []
-                if isinstance(cheque_data, list):
-                    cheques_to_create = cheque_data
-                elif isinstance(cheque_data, dict):
-                    cheques_to_create = [cheque_data]
-                
+                cheques_to_create = cheque_data if isinstance(cheque_data, list) else [cheque_data]
                 for cheque_info in cheques_to_create:
-                    if not isinstance(cheque_info, dict):
-                        continue
-                    
-                    # تبدیل تاریخ سررسید
+                    if not isinstance(cheque_info, dict): continue
                     due_date_str = cheque_info.get('due_date')
-                    if due_date_str:
-                        try:
-                            parts = due_date_str.replace('/', '-').split('-')
-                            j_date = jdatetime.date(int(parts[0]), int(parts[1]), int(parts[2]))
-                            due_date = j_date.togregorian()
-                        except Exception:
-                            due_date = datetime.now().date()
-                    else:
-                        due_date = datetime.now().date()
-                    
-                    # بررسی فیلدهای ضروری
-                    if not cheque_info.get('sayadi_id') or not cheque_info.get('bank_name') or not cheque_info.get('owner_name'):
-                        continue
-                    
+                    due_date = convert_shamsi_to_gregorian(due_date_str.replace('/', '-')) if due_date_str else datetime.now().date()
+                    if not all(cheque_info.get(k) for k in ['sayadi_id', 'bank_name', 'owner_name']): continue
                     cheque_amount = Decimal(str(cheque_info.get('amount', 0)))
-                    
                     ReceivedCheque.objects.create(
-                        customer=customer,
-                        financial_operation=operation,
-                        endorsement=cheque_info.get('endorsement', ''),
-                        due_date=due_date,
-                        bank_name=cheque_info.get('bank_name', ''),
-                        branch_name=cheque_info.get('branch_name', ''),
-                        series=cheque_info.get('series', ''),
-                        serial=cheque_info.get('serial', ''),
-                        sayadi_id=cheque_info.get('sayadi_id', ''),
-                        amount=cheque_amount,
-                        owner_name=cheque_info.get('owner_name', ''),
-                        national_id=cheque_info.get('national_id', ''),
-                        account_number=cheque_info.get('account_number', ''),
-                        status='RECEIVED',
-                        created_by=request.user
+                        customer=customer, financial_operation=operation,
+                        endorsement=cheque_info.get('endorsement', ''), due_date=due_date,
+                        bank_name=cheque_info.get('bank_name', ''), branch_name=cheque_info.get('branch_name', ''),
+                        series=cheque_info.get('series', ''), serial=cheque_info.get('serial', ''),
+                        sayadi_id=cheque_info.get('sayadi_id', ''), amount=cheque_amount,
+                        owner_name=cheque_info.get('owner_name', ''), national_id=cheque_info.get('national_id', ''),
+                        account_number=cheque_info.get('account_number', ''), status='RECEIVED', created_by=request.user
                     )
             
-            # حالا تسویه فاکتورها را پردازش کنیم (فقط به‌روزرسانی، بدون ایجاد operation جدید)
             for settlement_data in invoice_settlements:
                 invoice_id = settlement_data.get('invoiceId')
                 settlement_amount = Decimal(str(settlement_data.get('amount', 0)))
-                
-                # پیدا کردن فاکتور
                 try:
                     invoice = SalesInvoice.objects.get(invoice_number=invoice_id)
                 except SalesInvoice.DoesNotExist:
                     continue
                 
-                # به‌روزرسانی فاکتور
-                if payment_type == 'cash':
-                    invoice.settle_cash += settlement_amount
-                elif payment_type == 'pos':
-                    invoice.settle_card += settlement_amount
-                elif payment_type == 'bank_transfer':
-                    invoice.settle_bank += settlement_amount
-                elif payment_type == 'cheque':
-                    invoice.settle_cheque += settlement_amount
+                if payment_type == 'cash': invoice.settle_cash += settlement_amount
+                elif payment_type == 'pos': invoice.settle_card += settlement_amount
+                elif payment_type == 'bank_transfer': invoice.settle_bank += settlement_amount
+                elif payment_type == 'cheque': invoice.settle_cheque += settlement_amount
                 
-                # محاسبه تخفیف خودکار با اولویت تسویه
-                # برای چک: از تاریخ سررسید استفاده می‌شود
-                # بقیه: از تاریخ پرداخت استفاده می‌شود
-                calculation_date = payment_date
-                
-                # اگر چک است، از اولین سررسید چک استفاده کن
+                calculation_date = jalali_payment_date_input
                 if payment_type == 'cheque' and cheque_data:
                     cheques = cheque_data if isinstance(cheque_data, list) else [cheque_data]
                     if cheques and isinstance(cheques[0], dict) and 'due_date' in cheques[0]:
-                        # تبدیل تاریخ سررسید به jdatetime
                         due_date_str = cheques[0]['due_date']
                         try:
                             if isinstance(due_date_str, str):
                                 calculation_date = jdatetime.date(*map(int, due_date_str.replace('/', '-').split('-')))
-                            print(f"📅 استفاده از تاریخ سررسید چک برای محاسبه: {calculation_date}")
-                        except:
-                            pass
+                        except Exception: pass
                 
-                auto_discount, cash_portion = calculate_auto_discount(
-                    invoice, calculation_date, payment_type, settlement_amount
-                )
+                auto_discount, cash_portion = calculate_auto_discount(invoice, calculation_date, payment_type, settlement_amount)
                 
-                # به‌روزرسانی مبلغ تسویه شده از نقدی پای‌بار
-                cheque_portion = settlement_amount - cash_portion
-                
-                if cash_portion > 0:
-                    invoice.settled_cash_amount += cash_portion
-                    print(f"💵 {cash_portion:,.0f} ریال از نقدی پای‌بار تسویه شد")
-                
+                if cash_portion > 0: invoice.settled_cash_amount += cash_portion
                 if auto_discount > 0:
                     invoice.auto_discount_applied += auto_discount
-                    # اضافه کردن تخفیف خودکار به settle_extra_discount
                     invoice.settle_extra_discount += auto_discount
-                    
-                    # تعیین نوع پرداخت برای لاگ
-                    payment_term_display = ''
-                    if payment_type == 'cash':
-                        days_diff = (payment_date.togregorian() - invoice.invoice_date.togregorian()).days if hasattr(payment_date, 'togregorian') else 0
-                        if days_diff <= 7:
-                            payment_term_display = 'نقدی (8%)'
-                        elif days_diff <= 37:
-                            payment_term_display = '1 ماهه (6%)'
-                        elif days_diff <= 67:
-                            payment_term_display = '2 ماهه (4%)'
-                        elif days_diff <= 97:
-                            payment_term_display = '3 ماهه (2%)'
-                        else:
-                            payment_term_display = '4 ماهه (0%)'
-                    elif payment_type == 'pos':
-                        payment_term_display = 'کارتخوان - 1 ماهه (6%)'
-                    elif payment_type == 'bank_transfer':
-                        payment_term_display = 'حواله بانکی - 2 ماهه (4%)'
-                    
-                    print(f"✅ تخفیف {auto_discount:,.0f} ریال برای {cheque_portion:,.0f} ریال ({payment_term_display})")
                 
-                # محاسبه و به‌روزرسانی مانده
-                # مانده = کل فاکتور - (مبلغ پرداختی + تخفیف)
-                # تخفیف قبلاً در settle_extra_discount اضافه شده است
-                total_settled = (
-                    invoice.settle_cash + 
-                    invoice.settle_card + 
-                    invoice.settle_bank + 
-                    invoice.settle_cheque + 
-                    invoice.settle_extra_discount  # شامل تخفیف خودکار
-                )
+                total_settled = invoice.settle_cash + invoice.settle_card + invoice.settle_bank + invoice.settle_cheque + invoice.settle_extra_discount
                 invoice.settle_balance = invoice.total_amount - total_settled
-                
-                print(f"📊 مانده فاکتور: {invoice.settle_balance:,.0f} (کل: {invoice.total_amount:,.0f} - تسویه: {total_settled:,.0f})")
-                
-                # اطمینان از اینکه مانده منفی نشود
-                if invoice.settle_balance < 0:
-                    invoice.settle_balance = 0
-                
+                if invoice.settle_balance < 0: invoice.settle_balance = 0
                 invoice.save()
                 
-                # به‌روزرسانی موجودی حساب
-                if bank_account:
-                    bank_account.current_balance += settlement_amount
-                    bank_account.save()
-                elif cash_register:
-                    cash_register.current_balance += settlement_amount
-                    cash_register.save()
+                if bank_account: bank_account.current_balance += settlement_amount; bank_account.save()
                 
-                # به‌روزرسانی صندوق (Fund) و ایجاد رکورد در صورتحساب
-                # این کار برای صندوق نقدی و صندوق بانکی (کارتخوان) انجام می‌شود
                 target_fund = cash_fund or bank_fund
                 if target_fund:
-                    from products.models import FundStatement, FundTransaction
-                    
-                    # محاسبه مانده جدید
-                    previous_balance = target_fund.current_balance
-                    new_balance = previous_balance + settlement_amount
-                    
-                    # تعیین نوع عملیات برای نمایش
-                    operation_type_display = 'دریافت از مشتری'
-                    if payment_type == 'pos':
-                        operation_type_display = 'دریافت کارتخوان'
-                    elif payment_type == 'bank_transfer':
-                        operation_type_display = 'دریافت حواله بانکی'
-                    
-                    # ایجاد رکورد در صورتحساب صندوق
-                    FundStatement.objects.create(
-                        fund=target_fund,
-                        date=payment_date,
-                        operation_type=operation_type_display,
-                        amount=settlement_amount,
-                        running_balance=new_balance,
-                        description=description,
-                        reference_id=str(operation.id),
-                        reference_type='FinancialOperation',
-                        created_by=request.user
-                    )
-                    
-                    # ایجاد گردش صندوق
-                    FundTransaction.objects.create(
-                        fund=target_fund,
-                        transaction_type='IN',
-                        amount=settlement_amount,
-                        description=description,
-                        reference_id=str(operation.id),
-                        reference_type='FinancialOperation',
-                        created_by=request.user
-                    )
-                    
-                    # به‌روزرسانی موجودی صندوق
-                    target_fund.current_balance = new_balance
-                    target_fund.save()
-                
-                operations_created.append({
-                    'operation_number': operation_number,
-                    'invoice_number': invoice.invoice_number,
-                    'amount': float(settlement_amount),
-                    'customer': invoice.customer.get_full_name()
-                })
-        
-        return JsonResponse({
-            'success': True,
-            'message': f'{len(operations_created)} عملیات مالی با موفقیت ثبت شد',
-            'operations': operations_created
-        })
-        
-    except Exception as e:
-        import traceback
-        return JsonResponse({
-            'success': False,
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }, status=500)
+                    target_fund.recalculate_balance()
+
+            # The draft is already locked, now we can safely modify and save it.
+            draft.payments_data = [p for p in draft.payments_data if p.get('rowId') != row_id]
+            if row_id in draft.customer_payments_data: del draft.customer_payments_data[row_id]
+            if row_id in draft.invoice_settlements_data: del draft.invoice_settlements_data[row_id]
+            draft.last_modified_by = request.user
+            draft.save()
+
+            serialized_operations = [{
+                'id': op.id, 'operation_number': op.operation_number,
+                'date': str(op.date), 'amount': float(op.amount),
+                'description': op.description,
+                'customer_name': op.customer.get_full_name() if op.customer else '',
+                'payment_method': op.get_payment_method_display(),
+            } for op in operations_created]
+
+            return JsonResponse({
+                'success': True,
+                'message': 'عملیات مالی با موفقیت ثبت شد.',
+                'operations': serialized_operations
+            })
+
+        except InvoiceSettlementDraft.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': f"پیش نویس تسویه برای تاریخ {work_date_str} یافت نشد. ممکن است همزمان حذف شده باشد.",
+                'traceback': "Draft not found during transaction."
+            }, status=409) # 409 Conflict is appropriate here
+            
+        except Exception as e:
+            import traceback
+            return JsonResponse({
+                'success': False,
+                'error': str(e),
+                'traceback': traceback.format_exc()
+            }, status=500)
 
 
 # Financial Operations Views

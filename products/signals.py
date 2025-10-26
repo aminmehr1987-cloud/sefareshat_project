@@ -1,24 +1,30 @@
 from django.db.models.signals import post_save, post_delete, pre_save
 from django.dispatch import receiver
 from django.db import transaction
-from .models import FinancialOperation, PettyCashOperation, Fund
+from .models import FinancialOperation, PettyCashOperation, Fund, Voucher
 from .accounting_utils import accounting_manager
 
 @receiver(post_save, sender=FinancialOperation)
 def financial_operation_post_save(sender, instance, created, **kwargs):
     """
     Signal to create an accounting voucher after a FinancialOperation is saved.
+    The OneToOneField on the Voucher model ensures idempotency at the database level.
     """
-    # Only create a voucher if the operation is confirmed and it's a new operation
-    # or if an existing operation is moved to confirmed state.
-    if created and instance.status == 'CONFIRMED':
-        print(f"Signal received for confirmed FinancialOperation: {instance.operation_number}")
-        # Use a separate transaction to avoid database locks
+    # Only create a voucher if the operation is confirmed and does not already have one.
+    if instance.status == 'CONFIRMED':
+        # Check if a voucher is already associated with this financial operation.
+        # The OneToOne relationship means we can simply check for the existence of `instance.voucher`.
         try:
-            with transaction.atomic():
-                accounting_manager.create_voucher_from_financial_operation(instance)
-        except Exception as e:
-            print(f"Error in financial_operation_post_save signal: {e}")
+            _ = instance.voucher
+        except Voucher.DoesNotExist:
+            print(f"Signal received: No voucher for confirmed FinancialOperation {instance.operation_number}. Creating one.")
+            try:
+                # Use a transaction to ensure atomicity.
+                with transaction.atomic():
+                    accounting_manager.create_voucher_from_financial_operation(instance)
+            except Exception as e:
+                # Log any errors during voucher creation.
+                print(f"Error creating voucher from signal for operation {instance.operation_number}: {e}")
 
 @receiver(post_save, sender=PettyCashOperation)
 def petty_cash_operation_post_save(sender, instance, created, **kwargs):

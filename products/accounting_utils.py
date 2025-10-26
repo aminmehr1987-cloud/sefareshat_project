@@ -133,23 +133,25 @@ class AccountingVoucherManager:
         Create voucher from financial operation
         ایجاد سند حسابداری از عملیات مالی
         """
-        existing_voucher = Voucher.objects.filter(items__reference_id=str(operation.id)).first()
-        if existing_voucher:
-            return existing_voucher
+        # Check if a voucher already exists using the OneToOne relationship.
+        try:
+            if operation.voucher:
+                return operation.voucher
+        except Voucher.DoesNotExist:
+            pass  # No voucher exists, so we proceed to create one.
         
         try:
-            # اطمینان از وجود financial_year
+            # Ensure financial_year is set
             if not self.current_financial_year:
                 self._initialize_defaults()
             
-            # اطمینان از وجود created_by
-            created_by = operation.created_by
-            if not created_by:
-                created_by = User.objects.first()
+            # Ensure created_by is set
+            created_by = operation.created_by or User.objects.first()
             
-            # Create voucher
+            # Create voucher and link it to the financial operation
             detailed_description = self._generate_detailed_operation_description(operation)
             voucher = Voucher.objects.create(
+                financial_operation=operation,
                 financial_year=self.current_financial_year,
                 number=self.get_next_voucher_number(),
                 date=operation.date,

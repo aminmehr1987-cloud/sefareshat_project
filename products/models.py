@@ -2262,6 +2262,14 @@ class Voucher(models.Model):
         ('PERMANENT', 'دائم'),
     ]
     
+    financial_operation = models.OneToOneField(
+        'FinancialOperation',
+        on_delete=models.CASCADE,
+        related_name='voucher',
+        verbose_name="عملیات مالی",
+        null=True,  # Allow null for now to handle existing data
+        blank=True
+    )
     financial_year = models.ForeignKey(FinancialYear, on_delete=models.PROTECT, verbose_name="سال مالی")
     number = models.CharField(max_length=20, verbose_name="شماره سند")
     date = jmodels.jDateField(verbose_name="تاریخ سند")
