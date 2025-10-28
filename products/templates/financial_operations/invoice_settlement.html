@@ -2544,42 +2544,16 @@ async function loadFromServer() {
                 'کلیدهای داده': Object.keys(paymentRowsData)
             });
             
-            // اضافه کردن عملیات نهایی شده به paymentRows
+            // نمایش عملیات نهایی شده در کنسول (فقط برای لاگ)
             if (finalizedOps.length > 0) {
-                console.log(`✅ اضافه کردن ${finalizedOps.length} عملیات نهایی شده`);
+                console.log(`ℹ️ ${finalizedOps.length} عملیات نهایی شده برای تاریخ ${draft.work_date || 'امروز'} یافت شد (این عملیات‌ها در جدول نمایش داده نمی‌شوند)`);
+                finalizedOps.forEach(op => {
+                    console.log(`  - عملیات ${op.operation_number}: ${op.amount.toLocaleString('fa-IR')} ریال (${op.payment_method}) - مشتری: ${op.customer_name}`);
+                });
             }
             
-            finalizedOps.forEach(op => {
-                const rowId = 'finalized_' + op.id;
-                
-                console.log(`  + عملیات ${op.operation_number}: ${op.amount.toLocaleString('fa-IR')} (${op.payment_method})`);
-                
-                // اضافه به paymentRows
-                if (!paymentRows.find(r => r.id === rowId)) {
-                    paymentRows.push({
-                        id: rowId,
-                        type: op.payment_method,
-                        amount: op.amount,
-                        date: op.date,
-                        finalized: true
-                    });
-                }
-                
-                // اضافه به paymentRowsData
-                if (!paymentRowsData[rowId]) {
-                    paymentRowsData[rowId] = {
-                        customerPayments: [],
-                        invoiceSettlements: [],
-                        type: op.payment_method,
-                        amount: op.amount,
-                        date: op.date,
-                        description: op.description,
-                        finalized: true,
-                        operation_number: op.operation_number,
-                        created_by: op.created_by
-                    };
-                }
-            });
+            // دیگر عملیات نهایی شده را به paymentRows اضافه نمی‌کنیم
+            // چون این سطرها قبلاً نهایی شده‌اند و نباید دوباره نمایش داده شوند
             
             // بازسازی UI
             restorePaymentRows();
@@ -3647,11 +3621,17 @@ async function finalizePaymentRow(rowId) {
             
             // نمایش پیام موفقیت با جزئیات
             let successMessage = `✅ ${result.message}\n\n`;
-            successMessage += 'عملیات‌های ثبت شده:\n';
-            result.operations.forEach(op => {
-                successMessage += `\n• ${op.operation_number}: ${op.customer}\n`;
-                successMessage += `  فاکتور ${op.invoice_number} - ${op.amount.toLocaleString('fa-IR')} ریال`;
-            });
+            if (result.operations && result.operations.length > 0) {
+                successMessage += 'عملیات‌های ثبت شده:\n';
+                result.operations.forEach(op => {
+                    successMessage += `\n• شماره عملیات: ${op.operation_number}\n`;
+                    successMessage += `  مبلغ: ${op.amount.toLocaleString('fa-IR')} ریال\n`;
+                    successMessage += `  مشتری: ${op.customer}\n`;
+                    if (op.description) {
+                        successMessage += `  توضیحات: ${op.description}`;
+                    }
+                });
+            }
             
             alert(successMessage);
             
